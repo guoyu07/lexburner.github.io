@@ -3,17 +3,23 @@
 <head>
     <meta charset="utf-8">
     
-    <title>Hello World | 徐靖峰|个人博客</title>
+    <title>Re：从零开始的Spring Session(三) | 徐靖峰|个人博客</title>
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-    <meta name="keywords" content="Spring,Validation">
+    <meta name="description" content="上一篇文章中，我们使用Redis集成了Spring Session。大多数的配置都是Spring Boot帮我们自动配置的，这一节我们介绍一点Spring Session较为高级的特性。 集成Spring Security之所以把Spring Session和Spring Security放在一起讨论，是因为我们的应用在集成Spring Security之后，用户相关的认证与Session密不可分">
+<meta name="keywords" content="Spring Session,Spring">
 <meta property="og:type" content="article">
-<meta property="og:title" content="Hello World">
-<meta property="og:url" content="http://lexburner.github.io/2016/08/16/hello-world/index.html">
+<meta property="og:title" content="Re：从零开始的Spring Session(三)">
+<meta property="og:url" content="http://lexburner.github.io/2017/09/04/Re：从零开始的Spring Session(三)/index.html">
 <meta property="og:site_name" content="徐靖峰|个人博客">
+<meta property="og:description" content="上一篇文章中，我们使用Redis集成了Spring Session。大多数的配置都是Spring Boot帮我们自动配置的，这一节我们介绍一点Spring Session较为高级的特性。 集成Spring Security之所以把Spring Session和Spring Security放在一起讨论，是因为我们的应用在集成Spring Security之后，用户相关的认证与Session密不可分">
 <meta property="og:locale" content="zh-CN">
-<meta property="og:updated_time" content="2017-08-22T04:31:48.389Z">
+<meta property="og:image" content="http://ov0zuistv.bkt.clouddn.com/QQ%E5%9B%BE%E7%89%8720170904212709.png">
+<meta property="og:image" content="http://ov0zuistv.bkt.clouddn.com/2.png">
+<meta property="og:updated_time" content="2017-09-05T01:53:23.568Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="Hello World">
+<meta name="twitter:title" content="Re：从零开始的Spring Session(三)">
+<meta name="twitter:description" content="上一篇文章中，我们使用Redis集成了Spring Session。大多数的配置都是Spring Boot帮我们自动配置的，这一节我们介绍一点Spring Session较为高级的特性。 集成Spring Security之所以把Spring Session和Spring Security放在一起讨论，是因为我们的应用在集成Spring Security之后，用户相关的认证与Session密不可分">
+<meta name="twitter:image" content="http://ov0zuistv.bkt.clouddn.com/QQ%E5%9B%BE%E7%89%8720170904212709.png">
     
 
     
@@ -182,7 +188,7 @@
 </aside>
 
             
-            <section id="main"><article id="post-hello-world" class="article article-type-post" itemscope itemprop="blogPost">
+            <section id="main"><article id="post-Re：从零开始的Spring Session(三)" class="article article-type-post" itemscope itemprop="blogPost">
     <div class="article-inner">
         
         
@@ -190,7 +196,7 @@
                 
     
         <h1 class="article-title" itemprop="name">
-            Hello World
+            Re：从零开始的Spring Session(三)
         </h1>
     
 
@@ -199,8 +205,8 @@
                         
     <div class="article-date">
         <i class="fa fa-calendar"></i>
-        <a href="/2016/08/16/hello-world/">
-            <time datetime="2016-08-16T07:52:52.000Z" itemprop="datePublished">2016-08-16</time>
+        <a href="/2017/09/04/Re：从零开始的Spring Session(三)/">
+            <time datetime="2017-09-04T12:57:43.000Z" itemprop="datePublished">2017-09-04</time>
         </a>
     </div>
 
@@ -208,13 +214,13 @@
                         
     <div class="article-category">
     	<i class="fa fa-folder"></i>
-        <a class="article-category-link" href="/categories/Spring/">Spring</a>
+        <a class="article-category-link" href="/categories/Spring-Session/">Spring Session</a>
     </div>
 
                         
     <div class="article-tag">
         <i class="fa fa-tag"></i>
-        <a class="tag-link" href="/tags/Spring/">Spring</a>, <a class="tag-link" href="/tags/Validation/">Validation</a>
+        <a class="tag-link" href="/tags/Spring/">Spring</a>, <a class="tag-link" href="/tags/Spring-Session/">Spring Session</a>
     </div>
 
                     </div>
@@ -225,7 +231,30 @@
         <div class="article-entry" itemprop="articleBody">
         
             
-             
+             <p>上一篇文章中，我们使用Redis集成了Spring Session。大多数的配置都是Spring Boot帮我们自动配置的，这一节我们介绍一点Spring Session较为高级的特性。</p>
+<h2 id="集成Spring-Security"><a href="#集成Spring-Security" class="headerlink" title="集成Spring Security"></a>集成Spring Security</h2><p>之所以把Spring Session和Spring Security放在一起讨论，是因为我们的应用在集成Spring Security之后，用户相关的认证与Session密不可分，如果不注意一些细节，会引发意想不到的问题。</p>
+<p>与Spring Session相关的依赖可以参考上一篇文章，这里给出增量的依赖：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="name">dependency</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>org.springframework.boot<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>spring-boot-starter-security<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></div><div class="line"><span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></div></pre></td></tr></table></figure>
+<p>我们引入依赖后，就已经自动配置了Spring Security，我们在application.yml添加一个内存中的用户：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line"><span class="attr">security:</span></div><div class="line"><span class="attr">  user:</span></div><div class="line"><span class="attr">    name:</span> <span class="string">admin</span></div><div class="line"><span class="attr">    password:</span> <span class="string">admin</span></div></pre></td></tr></table></figure>
+<p>测试登录点沿用上一篇文章的端点，访问<code>http://localhost:8080/test/cookie?browser=chrome</code>端点后会出现http basic的认证框，我们输入admin/admin，即可获得结果，也遇到了第一个坑点，我们会发现每次请求，sessionId都会被刷新，这显然不是我们想要的结果。</p>
+<p><img src="http://ov0zuistv.bkt.clouddn.com/QQ%E5%9B%BE%E7%89%8720170904212709.png" alt="诡异的运行结果"></p>
+<p>这个现象笔者研究了不少源码，但并没有得到非常满意的解释，只能理解为SecurityAutoConfiguration提供的默认配置，没有触发到响应的配置，导致了session的不断刷新（如果读者有合理的解释可以和我沟通）。Spring Session之所以能够替换默认的tomcat httpSession是因为配置了<code>springSessionRepositoryFilter</code>这个过滤器，且提供了非常高的优先级，这归功于<code>AbstractSecurityWebApplicationInitializer</code> ，<code>AbstractHttpSessionApplicationInitializer</code> 这两个初始化器，当然，也保证了Spring Session会在Spring Security之前起作用。</p>
+<p>而解决上述的诡异现象也比较容易（但原理不清），我们使用@EnableWebSecurity对Spring Security进行一些配置，即可解决这个问题。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@EnableWebSecurity</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">SecurityConfig</span> <span class="keyword">extends</span> <span class="title">WebSecurityConfigurerAdapter</span> </span>&#123;</div><div class="line"></div><div class="line">    <span class="comment">// @formatter:off</span></div><div class="line">    <span class="meta">@Override</span></div><div class="line">    <span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">configure</span><span class="params">(HttpSecurity http)</span> <span class="keyword">throws</span> Exception </span>&#123;</div><div class="line">        http</div><div class="line">            .authorizeRequests()</div><div class="line">            .antMatchers(<span class="string">"/resources/**"</span>).permitAll()</div><div class="line">            .anyRequest().authenticated()</div><div class="line">            .and()</div><div class="line">                .httpBasic()<span class="comment">//&lt;1&gt;</span></div><div class="line">            .and()</div><div class="line">            .logout().permitAll();</div><div class="line">    &#125;</div><div class="line">    <span class="comment">// @formatter:on</span></div><div class="line"></div><div class="line">    <span class="comment">// @formatter:off</span></div><div class="line">    <span class="meta">@Autowired</span></div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">configureGlobal</span><span class="params">(AuthenticationManagerBuilder auth)</span> <span class="keyword">throws</span> Exception </span>&#123;</div><div class="line">        auth</div><div class="line">                .inMemoryAuthentication()</div><div class="line">                .withUser(<span class="string">"admin"</span>).password(<span class="string">"admin"</span>).roles(<span class="string">"USER"</span>);<span class="comment">//&lt;2&gt;</span></div><div class="line">    &#125;</div><div class="line">    <span class="comment">// @formatter:on</span></div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p><1> 不想大费周章写一个登录页面，于是开启了http basic认证</1></p>
+<p><2> 配置了security config之后，springboot的autoConfig就会失效，于是需要手动配置用户。</2></p>
+<p>再次请求，可以发现SessionId返回正常，@EnableWebSecurity似乎触发了相关的配置，当然了，我们在使用Spring Security时不可能使用autoconfig，但是这个现象的确是一个疑点。</p>
+<h2 id="使用自定义CookieSerializer"><a href="#使用自定义CookieSerializer" class="headerlink" title="使用自定义CookieSerializer"></a>使用自定义CookieSerializer</h2><figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Bean</span></div><div class="line"><span class="function"><span class="keyword">public</span> CookieSerializer <span class="title">cookieSerializer</span><span class="params">()</span> </span>&#123;</div><div class="line">    DefaultCookieSerializer serializer = <span class="keyword">new</span> DefaultCookieSerializer();</div><div class="line">    serializer.setCookieName(<span class="string">"JSESSIONID"</span>);</div><div class="line">    serializer.setCookiePath(<span class="string">"/"</span>);</div><div class="line">    serializer.setDomainNamePattern(<span class="string">"^.+?\\.(\\w+\\.[a-z]+)$"</span>);</div><div class="line">    <span class="keyword">return</span> serializer;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>使用上述配置后，我们可以将Spring Session默认的Cookie Key从SESSION替换为原生的JSESSIONID。而CookiePath设置为根路径且配置了相关的正则表达式，可以达到同父域下的单点登录的效果，在未涉及跨域的单点登录系统中，这是一个非常优雅的解决方案。如果我们的当前域名是<code>moe.cnkirito.moe</code>，该正则会将Cookie设置在父域<code>cnkirito.moe</code>中，如果有另一个相同父域的子域名<code>blog.cnkirito.moe</code>也会识别这个Cookie，便可以很方便的实现同父域下的单点登录。</p>
+<h2 id="根据用户名查找用户归属的SESSION"><a href="#根据用户名查找用户归属的SESSION" class="headerlink" title="根据用户名查找用户归属的SESSION"></a>根据用户名查找用户归属的SESSION</h2><p>这个特性听起来非常有意思，你可以在一些有趣的场景下使用它，如知道用户名后即可删除其SESSION。一直以来我们都是通过线程绑定的方式，让用户操作自己的SESSION，包括获取用户名等操作。但如今它提供了一个反向的操作，根据用户名获取SESSION，恰巧，在一些项目中真的可以使用到这个特性，最起码，当别人问起你，或者讨论到和SESSION相关的知识时，你可以明晰一点，这是可以做到的。</p>
+<p>我们使用Redis作为Session Store还有一个好处，就是其实现了<code>FindByIndexNameSessionRepository</code>接口，下面让我们来见证这一点。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Controller</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">CookieController</span> </span>&#123;</div><div class="line">    <span class="meta">@Autowired</span></div><div class="line">    FindByIndexNameSessionRepository&lt;? extends ExpiringSession&gt; sessionRepository;</div><div class="line"></div><div class="line">    <span class="meta">@RequestMapping</span>(<span class="string">"/test/findByUsername"</span>)</div><div class="line">    <span class="meta">@ResponseBody</span></div><div class="line">    <span class="function"><span class="keyword">public</span> Map <span class="title">findByUsername</span><span class="params">(@RequestParam String username)</span> </span>&#123;</div><div class="line">        Map&lt;String, ? extends ExpiringSession&gt; usersSessions = sessionRepository.findByIndexNameAndIndexValue(FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME, username);</div><div class="line">        <span class="keyword">return</span> usersSessions;</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>由于一个用户可能拥有多个Session，所以返回的是一个Map信息，而这里的username，则就是与Spring Security集成之后的用户名，最令人感动Spring厉害的地方，是这一切都是自动配置好的。我们在内存中配置的用户的username是admin，于是我们访问这个端点,可以看到如下的结果</p>
+<p><img src="http://ov0zuistv.bkt.clouddn.com/2.png" alt="用户名访问session"></p>
+<p>连同我们存入session中的browser=chrome，browser=360都可以看见（只有键名）。</p>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>Spring Session对各种场景下的Session管理提供一套非常完善的实现。笔者所介绍的，仅仅是Spring Session常用的一些特性，更多的知识点可以在spring.io的文档中一览无余，以及本文中作者存在的一个疑惑，如有兴趣可与我沟通。</p>
+
            
         
         </div>
@@ -236,7 +265,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2016/08/16/hello-world/" data-id="cj76xzjmd0014t0udhtrhqmdo" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/09/04/Re：从零开始的Spring Session(三)/" data-id="cj76xzjkw0006t0udk9upr9tl" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -304,7 +333,7 @@
 
             
     
-        <a href="http://lexburner.github.io/2016/08/16/hello-world/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2016/08/16/hello-world/">评论</a>
+        <a href="http://lexburner.github.io/2017/09/04/Re：从零开始的Spring Session(三)/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/09/04/Re：从零开始的Spring Session(三)/">评论</a>
     
 
         </footer>
@@ -345,15 +374,11 @@
         
 <nav id="article-nav">
     
-        <a href="/2016/08/16/使用JPA实现乐观锁/" id="article-nav-newer" class="article-nav-link-wrap">
-            <strong class="article-nav-caption">上一篇</strong>
-            <div class="article-nav-title">
-                
-                    使用JPA实现乐观锁
-                
-            </div>
-        </a>
     
+        <a href="/2017/09/03/Re：从零开始的Spring Session(二)/" id="article-nav-older" class="article-nav-link-wrap">
+            <strong class="article-nav-caption">下一篇</strong>
+            <div class="article-nav-title">Re：从零开始的Spring Session(二)</div>
+        </a>
     
 </nav>
 
@@ -551,9 +576,9 @@
     <script>
     var disqus_config = function () {
         
-            this.page.url = 'http://lexburner.github.io/2016/08/16/hello-world/';
+            this.page.url = 'http://lexburner.github.io/2017/09/04/Re：从零开始的Spring Session(三)/';
         
-        this.page.identifier = 'hello-world';
+        this.page.identifier = 'Re：从零开始的Spring Session(三)';
     };
     (function() { 
         var d = document, s = d.createElement('script');  
