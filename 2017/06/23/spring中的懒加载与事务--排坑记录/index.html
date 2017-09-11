@@ -5,18 +5,18 @@
     
     <title>spring中的懒加载与事务--排坑记录 | 徐靖峰|个人博客</title>
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-    <meta name="description" content="案例描述本文主要描述了开发中常见的几个与spring懒加载和事务相关的案例，主要描述常见的使用场景，以及如何规避他们，给出具体的代码。  在新的线程中，访问某个持久化对象的懒加载属性。 在quartz定时任务中，访问某个持久化对象的懒加载属性。 在dubbo，motan一类rpc框架中，远程调用时服务端session关闭的问题。  上面三个案例，其实核心都是一个问题，就是牵扯到spring对事务的">
+    <meta name="description" content="案例描述本文主要描述了开发中常见的几个与spring懒加载和事务相关的案例，描述常见的使用场景，以及如何规避他们，给出具体的代码。  在新的线程中，访问某个持久化对象的懒加载属性。 在quartz定时任务中，访问某个持久化对象的懒加载属性。 在dubbo，motan一类rpc框架中，远程调用时服务端session关闭的问题。  上面三个案例，其实核心都是一个问题，就是牵扯到spring对事务的管理">
 <meta name="keywords" content="Spring,事务">
 <meta property="og:type" content="article">
 <meta property="og:title" content="spring中的懒加载与事务--排坑记录">
 <meta property="og:url" content="http://lexburner.github.io/2017/06/23/spring中的懒加载与事务--排坑记录/index.html">
 <meta property="og:site_name" content="徐靖峰|个人博客">
-<meta property="og:description" content="案例描述本文主要描述了开发中常见的几个与spring懒加载和事务相关的案例，主要描述常见的使用场景，以及如何规避他们，给出具体的代码。  在新的线程中，访问某个持久化对象的懒加载属性。 在quartz定时任务中，访问某个持久化对象的懒加载属性。 在dubbo，motan一类rpc框架中，远程调用时服务端session关闭的问题。  上面三个案例，其实核心都是一个问题，就是牵扯到spring对事务的">
+<meta property="og:description" content="案例描述本文主要描述了开发中常见的几个与spring懒加载和事务相关的案例，描述常见的使用场景，以及如何规避他们，给出具体的代码。  在新的线程中，访问某个持久化对象的懒加载属性。 在quartz定时任务中，访问某个持久化对象的懒加载属性。 在dubbo，motan一类rpc框架中，远程调用时服务端session关闭的问题。  上面三个案例，其实核心都是一个问题，就是牵扯到spring对事务的管理">
 <meta property="og:locale" content="zh-CN">
-<meta property="og:updated_time" content="2017-08-22T07:06:30.185Z">
+<meta property="og:updated_time" content="2017-09-05T09:35:32.017Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="spring中的懒加载与事务--排坑记录">
-<meta name="twitter:description" content="案例描述本文主要描述了开发中常见的几个与spring懒加载和事务相关的案例，主要描述常见的使用场景，以及如何规避他们，给出具体的代码。  在新的线程中，访问某个持久化对象的懒加载属性。 在quartz定时任务中，访问某个持久化对象的懒加载属性。 在dubbo，motan一类rpc框架中，远程调用时服务端session关闭的问题。  上面三个案例，其实核心都是一个问题，就是牵扯到spring对事务的">
+<meta name="twitter:description" content="案例描述本文主要描述了开发中常见的几个与spring懒加载和事务相关的案例，描述常见的使用场景，以及如何规避他们，给出具体的代码。  在新的线程中，访问某个持久化对象的懒加载属性。 在quartz定时任务中，访问某个持久化对象的懒加载属性。 在dubbo，motan一类rpc框架中，远程调用时服务端session关闭的问题。  上面三个案例，其实核心都是一个问题，就是牵扯到spring对事务的管理">
     
 
     
@@ -151,11 +151,11 @@
         </div>
         <div class="article-info profile-block">
             <div class="article-info-block">
-                39
+                41
                 <span>文章</span>
             </div>
             <div class="article-info-block">
-                26
+                27
                 <span>标签</span>
             </div>
         </div>
@@ -228,7 +228,7 @@
         <div class="article-entry" itemprop="articleBody">
         
             
-             <h2 id="案例描述"><a href="#案例描述" class="headerlink" title="案例描述"></a>案例描述</h2><p>本文主要描述了开发中常见的几个与spring懒加载和事务相关的案例，主要描述常见的使用场景，以及如何规避他们，给出具体的代码。</p>
+             <h2 id="案例描述"><a href="#案例描述" class="headerlink" title="案例描述"></a>案例描述</h2><p>本文主要描述了开发中常见的几个与spring懒加载和事务相关的案例，描述常见的使用场景，以及如何规避他们，给出具体的代码。</p>
 <ol>
 <li>在新的线程中，访问某个持久化对象的懒加载属性。</li>
 <li>在quartz定时任务中，访问某个持久化对象的懒加载属性。</li>
@@ -242,7 +242,7 @@
 <p>service层，先给出普通的调用方法。用于错误演示。<br><figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Service</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">StudentService</span> </span>&#123;</div><div class="line"></div><div class="line">    <span class="meta">@Autowired</span></div><div class="line">    StudentDao studentDao;</div><div class="line"></div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">testNormalGetOne</span><span class="params">()</span></span>&#123;</div><div class="line">        Student student = studentDao.getOne(<span class="number">1</span>);</div><div class="line">        System.out.println(student.getName());</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure></p>
 <p>注意：getOne和findOne都是springdata提供的根据id查找单个实体的方法，区别是前者是懒加载，后者是立即加载。我们使用getOne来进行懒加载的实验，就不用大费周章去写懒加载属性，设置多个实体类了。</p>
 <p>controller层，不是简简单单的调用，而是在新的线程中调用。使用controller层来代替单元测试（实际项目中，通常使用controller调用service，然后在浏览器或者http工具中调用触发，较为方便）<br><figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@RequestMapping</span>(<span class="string">"/testNormalGetOne"</span>)</div><div class="line"><span class="meta">@ResponseBody</span></div><div class="line"><span class="function"><span class="keyword">public</span> String <span class="title">testNormalGetOne</span><span class="params">()</span> </span>&#123;</div><div class="line">	<span class="keyword">new</span> Thread(<span class="keyword">new</span> Runnable() &#123;</div><div class="line">		<span class="meta">@Override</span></div><div class="line">		<span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">run</span><span class="params">()</span> </span>&#123;</div><div class="line">			studentService.testNormalGetOne();</div><div class="line">		&#125;</div><div class="line">	&#125;).start();</div><div class="line">	<span class="keyword">return</span> <span class="string">"testNormalGetOne"</span>;</div><div class="line">&#125;</div></pre></td></tr></table></figure></p>
-<p>启动项目后，访问<code>localhost:8080/testNormalGetOne</code>报错如下：<br><figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div></pre></td><td class="code"><pre><div class="line">Exception in thread <span class="string">"Thread-6"</span> org.hibernate.LazyInitializationException: could not initialize proxy - no Session</div><div class="line">	at org.hibernate.proxy.AbstractLazyInitializer.initialize(AbstractLazyInitializer.java:<span class="number">148</span>)</div><div class="line">	at org.hibernate.proxy.AbstractLazyInitializer.getImplementation(AbstractLazyInitializer.java:<span class="number">266</span>)</div><div class="line">	at org.hibernate.proxy.pojo.javassist.JavassistLazyInitializer.invoke(JavassistLazyInitializer.java:<span class="number">68</span>)</div><div class="line">	at com.example.transaction.entity.Student_$$_jvste17_0.getName(Student_$$_jvste17_0.java)</div><div class="line">	at com.example.transaction.service.StudentService.testNormalGetOne(StudentService.java:<span class="number">71</span>)</div><div class="line">	at com.example.transaction.service.StudentService$$FastClassBySpringCGLIB$$f8048714.invoke(&lt;generated&gt;)</div><div class="line">	at org.springframework.cglib.proxy.MethodProxy.invoke(MethodProxy.java:<span class="number">204</span>)</div><div class="line">	at org.springframework.aop.framework.CglibAopProxy$DynamicAdvisedInterceptor.intercept(CglibAopProxy.java:<span class="number">651</span>)</div><div class="line">	at com.example.transaction.service.StudentService$$EnhancerBySpringCGLIB$$a6640151.testNormalGetOne(&lt;generated&gt;)</div><div class="line">	at com.example.transaction.controller.StudentController$<span class="number">1</span>.run(StudentController.java:<span class="number">71</span>)</div><div class="line">	at java.lang.Thread.run(Thread.java:<span class="number">745</span>)</div></pre></td></tr></table></figure></p>
+<p>启动项目后，访问<code>localhost:8080/testNormalGetOne</code>报错如下：<br><figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">Exception in thread <span class="string">"Thread-6"</span> org.hibernate.LazyInitializationException: could not initialize proxy - no Session</div></pre></td></tr></table></figure></p>
 <h2 id="问题分析"><a href="#问题分析" class="headerlink" title="问题分析"></a>问题分析</h2><p>no session说明了什么？<br>道理很简单，因为spring的session是和线程绑定的，在整个model-&gt;dao-&gt;service-&gt;controller的调用链中，这种事务和线程绑定的机制非常契合。而我们出现的问题正式由于新开启了一个线程，这个线程与调用链的线程不是同一个。</p>
 <h2 id="问题解决"><a href="#问题解决" class="headerlink" title="问题解决"></a>问题解决</h2><p>我们先使用一种不太优雅的方式解决这个问题。在新的线程中，手动打开session。</p>
 <figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div></pre></td><td class="code"><pre><div class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">testNormalGetOne</span><span class="params">()</span> </span>&#123;</div><div class="line">        EntityManagerFactory entityManagerFactory = ApplicationContextProvider.getApplicationContext().getBean(EntityManagerFactory.class);</div><div class="line">        EntityManager entityManager = entityManagerFactory.createEntityManager();</div><div class="line">        EntityManagerHolder entityManagerHolder = <span class="keyword">new</span> EntityManagerHolder(entityManager);</div><div class="line">        TransactionSynchronizationManager.bindResource(entityManagerFactory, entityManagerHolder);</div><div class="line">        Student student = studentDao.getOne(<span class="number">1</span>);</div><div class="line">        System.out.println(student.getName());</div><div class="line">        TransactionSynchronizationManager.unbindResource(entityManagerFactory);</div><div class="line">        EntityManagerFactoryUtils.closeEntityManager(entityManager);</div><div class="line">&#125;</div></pre></td></tr></table></figure>
@@ -278,7 +278,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/06/23/spring中的懒加载与事务--排坑记录/" data-id="cj76xzjn4001pt0ud43dxhwn6" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/06/23/spring中的懒加载与事务--排坑记录/" data-id="cj7fhmrqd001s24ud30pobtkc" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -433,6 +433,44 @@
                     <li>
                         
                         <div class="item-thumbnail">
+                            <a href="/2017/09/10/event-1/" class="thumbnail">
+    
+    
+        <span class="thumbnail-image thumbnail-none"></span>
+    
+</a>
+
+                        </div>
+                        
+                        <div class="item-inner">
+                            <p class="item-category"><a class="article-category-link" href="/categories/架构设计/">架构设计</a></p>
+                            <p class="item-title"><a href="/2017/09/10/event-1/" class="title">浅析Spring中的事件驱动机制</a></p>
+                            <p class="item-date"><time datetime="2017-09-10T12:03:58.000Z" itemprop="datePublished">2017-09-10</time></p>
+                        </div>
+                    </li>
+                
+                    <li>
+                        
+                        <div class="item-thumbnail">
+                            <a href="/2017/09/09/feign-1/" class="thumbnail">
+    
+    
+        <span class="thumbnail-image thumbnail-none"></span>
+    
+</a>
+
+                        </div>
+                        
+                        <div class="item-inner">
+                            <p class="item-category"><a class="article-category-link" href="/categories/Spring-Cloud/">Spring Cloud</a></p>
+                            <p class="item-title"><a href="/2017/09/09/feign-1/" class="title">从Feign使用注意点到RESUFUL接口设计规范</a></p>
+                            <p class="item-date"><time datetime="2017-09-09T06:43:28.000Z" itemprop="datePublished">2017-09-09</time></p>
+                        </div>
+                    </li>
+                
+                    <li>
+                        
+                        <div class="item-thumbnail">
                             <a href="/2017/09/04/Re：从零开始的Spring Session(三)/" class="thumbnail">
     
     
@@ -487,44 +525,6 @@
                         </div>
                     </li>
                 
-                    <li>
-                        
-                        <div class="item-thumbnail">
-                            <a href="/2017/08/30/解析Spring中的ResponseBody和RequestBody/" class="thumbnail">
-    
-    
-        <span class="thumbnail-image thumbnail-none"></span>
-    
-</a>
-
-                        </div>
-                        
-                        <div class="item-inner">
-                            <p class="item-category"><a class="article-category-link" href="/categories/Spring/">Spring</a></p>
-                            <p class="item-title"><a href="/2017/08/30/解析Spring中的ResponseBody和RequestBody/" class="title">解析Spring中的ResponseBody和RequestBody</a></p>
-                            <p class="item-date"><time datetime="2017-08-30T04:44:21.000Z" itemprop="datePublished">2017-08-30</time></p>
-                        </div>
-                    </li>
-                
-                    <li>
-                        
-                        <div class="item-thumbnail">
-                            <a href="/2017/08/26/xml与javabean的转换/" class="thumbnail">
-    
-    
-        <span class="thumbnail-image thumbnail-none"></span>
-    
-</a>
-
-                        </div>
-                        
-                        <div class="item-inner">
-                            <p class="item-category"><a class="article-category-link" href="/categories/JAVA/">JAVA</a></p>
-                            <p class="item-title"><a href="/2017/08/26/xml与javabean的转换/" class="title">XML与javabean的转换</a></p>
-                            <p class="item-date"><time datetime="2017-08-25T19:41:27.000Z" itemprop="datePublished">2017-08-26</time></p>
-                        </div>
-                    </li>
-                
             </ul>
         </div>
     </div>
@@ -534,7 +534,7 @@
     <div class="widget-wrap">
         <h3 class="widget-title">分类</h3>
         <div class="widget">
-            <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/DevOps/">DevOps</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/JAVA/">JAVA</a><span class="category-list-count">10</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring/">Spring</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Cloud/">Spring Cloud</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security-OAuth2/">Spring Security OAuth2</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Session/">Spring Session</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/技术杂谈/">技术杂谈</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/架构设计/">架构设计</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/规则引擎/">规则引擎</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/领域驱动设计/">领域驱动设计</a><span class="category-list-count">2</span></li></ul>
+            <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/DevOps/">DevOps</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/JAVA/">JAVA</a><span class="category-list-count">10</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring/">Spring</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Cloud/">Spring Cloud</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security-OAuth2/">Spring Security OAuth2</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Session/">Spring Session</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/技术杂谈/">技术杂谈</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/架构设计/">架构设计</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/规则引擎/">规则引擎</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/领域驱动设计/">领域驱动设计</a><span class="category-list-count">2</span></li></ul>
         </div>
     </div>
 
@@ -543,7 +543,7 @@
     <div class="widget-wrap">
         <h3 class="widget-title">归档</h3>
         <div class="widget">
-            <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a><span class="archive-list-count">10</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/02/">二月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/11/">十一月 2016</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/08/">八月 2016</a><span class="archive-list-count">3</span></li></ul>
+            <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a><span class="archive-list-count">5</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a><span class="archive-list-count">10</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/02/">二月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/11/">十一月 2016</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/08/">八月 2016</a><span class="archive-list-count">3</span></li></ul>
         </div>
     </div>
 
@@ -552,7 +552,7 @@
     <div class="widget-wrap">
         <h3 class="widget-title">标签云</h3>
         <div class="widget tagcloud">
-            <a href="/tags/DevOps/" style="font-size: 11.67px;">DevOps</a> <a href="/tags/JAVA/" style="font-size: 20px;">JAVA</a> <a href="/tags/JMM/" style="font-size: 10px;">JMM</a> <a href="/tags/RPC/" style="font-size: 10px;">RPC</a> <a href="/tags/Spring/" style="font-size: 18.33px;">Spring</a> <a href="/tags/Spring-Cloud/" style="font-size: 10px;">Spring Cloud</a> <a href="/tags/Spring-Cloud-Zuul/" style="font-size: 11.67px;">Spring Cloud Zuul</a> <a href="/tags/Spring-Security-OAuth2/" style="font-size: 13.33px;">Spring Security OAuth2</a> <a href="/tags/Spring-Session/" style="font-size: 13.33px;">Spring Session</a> <a href="/tags/Validation/" style="font-size: 11.67px;">Validation</a> <a href="/tags/XML/" style="font-size: 10px;">XML</a> <a href="/tags/Zipkin/" style="font-size: 10px;">Zipkin</a> <a href="/tags/drools/" style="font-size: 15px;">drools</a> <a href="/tags/lua/" style="font-size: 10px;">lua</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/zookeeper/" style="font-size: 10px;">zookeeper</a> <a href="/tags/事务/" style="font-size: 10px;">事务</a> <a href="/tags/代码规范/" style="font-size: 10px;">代码规范</a> <a href="/tags/多线程/" style="font-size: 16.67px;">多线程</a> <a href="/tags/微服务/" style="font-size: 10px;">微服务</a> <a href="/tags/技术杂谈/" style="font-size: 11.67px;">技术杂谈</a> <a href="/tags/数据库/" style="font-size: 10px;">数据库</a> <a href="/tags/杂谈/" style="font-size: 10px;">杂谈</a> <a href="/tags/求职/" style="font-size: 10px;">求职</a> <a href="/tags/规则引擎/" style="font-size: 15px;">规则引擎</a> <a href="/tags/领域驱动设计/" style="font-size: 11.67px;">领域驱动设计</a>
+            <a href="/tags/DevOps/" style="font-size: 11.67px;">DevOps</a> <a href="/tags/JAVA/" style="font-size: 20px;">JAVA</a> <a href="/tags/JMM/" style="font-size: 10px;">JMM</a> <a href="/tags/RPC/" style="font-size: 10px;">RPC</a> <a href="/tags/Spring/" style="font-size: 18.33px;">Spring</a> <a href="/tags/Spring-Cloud/" style="font-size: 11.67px;">Spring Cloud</a> <a href="/tags/Spring-Cloud-Zuul/" style="font-size: 11.67px;">Spring Cloud Zuul</a> <a href="/tags/Spring-Security-OAuth2/" style="font-size: 13.33px;">Spring Security OAuth2</a> <a href="/tags/Spring-Session/" style="font-size: 13.33px;">Spring Session</a> <a href="/tags/Validation/" style="font-size: 11.67px;">Validation</a> <a href="/tags/XML/" style="font-size: 10px;">XML</a> <a href="/tags/Zipkin/" style="font-size: 10px;">Zipkin</a> <a href="/tags/drools/" style="font-size: 15px;">drools</a> <a href="/tags/lua/" style="font-size: 10px;">lua</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/zookeeper/" style="font-size: 10px;">zookeeper</a> <a href="/tags/事务/" style="font-size: 10px;">事务</a> <a href="/tags/代码规范/" style="font-size: 10px;">代码规范</a> <a href="/tags/多线程/" style="font-size: 16.67px;">多线程</a> <a href="/tags/微服务/" style="font-size: 10px;">微服务</a> <a href="/tags/技术杂谈/" style="font-size: 11.67px;">技术杂谈</a> <a href="/tags/数据库/" style="font-size: 10px;">数据库</a> <a href="/tags/杂谈/" style="font-size: 10px;">杂谈</a> <a href="/tags/架构设计/" style="font-size: 10px;">架构设计</a> <a href="/tags/求职/" style="font-size: 10px;">求职</a> <a href="/tags/规则引擎/" style="font-size: 15px;">规则引擎</a> <a href="/tags/领域驱动设计/" style="font-size: 11.67px;">领域驱动设计</a>
         </div>
     </div>
 
