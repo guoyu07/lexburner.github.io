@@ -146,7 +146,7 @@
         </div>
         <div class="article-info profile-block">
             <div class="article-info-block">
-                42
+                43
                 <span>文章</span>
             </div>
             <div class="article-info-block">
@@ -167,7 +167,7 @@
                     </td>
                     
                     <td>
-                        <a href="/css/images/wechat.png" target="_blank" title="wechat" class=tooltip>
+                        <a href="/css/images/kirito_wechat.jpg" target="_blank" title="wechat" class=tooltip>
                             <i class="fa fa-wechat"></i>
                         </a>
                     </td>
@@ -181,6 +181,186 @@
 
             
             <section id="main">
+    <article id="post-event-2" class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        
+            <header class="article-header">
+                
+    
+        <h1 itemprop="name">
+            <a class="article-title" href="/2017/09/13/event-2/">浅析分布式下的事件驱动机制（PubSub模式）</a>
+        </h1>
+    
+
+                
+                    <div class="article-meta">
+                        
+    <div class="article-date">
+        <i class="fa fa-calendar"></i>
+        <a href="/2017/09/13/event-2/">
+            <time datetime="2017-09-13T14:49:23.000Z" itemprop="datePublished">2017-09-13</time>
+        </a>
+    </div>
+
+
+                        
+    <div class="article-category">
+    	<i class="fa fa-folder"></i>
+        <a class="article-category-link" href="/categories/Spring/">Spring</a>
+    </div>
+
+                        
+    <div class="article-tag">
+        <i class="fa fa-tag"></i>
+        <a class="tag-link" href="/tags/Spring/">Spring</a>, <a class="tag-link" href="/tags/架构设计/">架构设计</a>
+    </div>
+
+                    </div>
+                
+            </header>
+        
+        
+        <div class="article-entry" itemprop="articleBody">
+        
+            
+             <p>上一篇文章《浅析Spring中的事件驱动机制》简单介绍了Spring对事件的支持。Event的整个生命周期，从publisher发出，经过applicationContext容器通知到EventListener，都是发生在单个Spring容器中，而在分布式场景下，有些时候一个事件的产生，可能需要被多个实例响应，本文主要介绍分布式场景下的事件驱动机制，由于使用了Redis，ActiveMQ，也可以换一个名词来理解：分布式下的发布订阅模式。</p>
+<h2 id="JMS规范"><a href="#JMS规范" class="headerlink" title="JMS规范"></a>JMS规范</h2><p>在日常项目开发中，我们或多或少的发现一些包一些类位于java或javax中，他们主要提供抽象类，接口，提供了一种规范，如JPA，JSR，JNDI，JTA，JMS，他们是由java指定的标准规范，一流企业做标准、二流企业做品牌、三流企业做产品，虽然有点调侃的意味，但也可以见得它的重要意义。而JMS就是java在消息服务上指定的标准</p>
+<blockquote>
+<p>The Java Message Service (JMS) API is a messaging standard that allows application components based on the Java Platform Enterprise Edition (Java EE) to create, send, receive, and read messages. It enables distributed communication that is loosely coupled, reliable, and asynchronous.</p>
+<p>JMS（JAVA Message Service,java消息服务）API是一个消息服务的标准或者说是规范，允许应用程序组件基于JavaEE平台创建、发送、接收和读取消息。它使分布式通信耦合度更低，消息服务更加可靠以及异步性。</p>
+</blockquote>
+<p>消息中间件有非常多的实现，如ActiveMQ，RabbitMQ，RocketMQ，而他们同一遵循的接口规范，便是JMS。在下文中即将出现的ConnectionFactory，Destination，Connection，Session，MessageListener，Topic，Queue等等名词，都是JMS核心的接口，由于本文的初衷并不是讲解MQ&amp;JMS，所以这些机制暂且跳过。</p>
+<h2 id="定义分布式事件需求"><a href="#定义分布式事件需求" class="headerlink" title="定义分布式事件需求"></a>定义分布式事件需求</h2><p>在上一个项目中，我们对接了外网的http接口，而安全性的保障则是交给OAuth2来完成，作为OAuth2的客户端，我们需要获取服务端返回的token，而token接口的获取次数每个月是有限制的，于是我们选择使用Redis来保存，定时刷新。由于每次发起请求时都要携带token，为了更高的性能减少一次redis io，我们在TokenService中使用了本地变量缓存token。于是形成如下的token获取机制：</p>
+<p><img src="http://ov0zuistv.bkt.clouddn.com/QQ%E5%9B%BE%E7%89%8720170913232959.png" alt="token获取流程"></p>
+<p>这个图并不复杂，只是为了方便描述需求：首先去本地变量中加载token，若token==null，则去Redis加载，若Redis未命中（token过期了），则最终调用外部的http接口获取实时的token，同时存入redis中和本地变量中。</p>
+<p>这个需求设计到这样一个问题：大多数情况下是单个实例中发现redis中的token为空，而它需要同时获取最新token，并通知其他的实例也去加载最新的token，这个时候事件广播就可以派上用场了。</p>
+<p>由于token缓存在了Redis中，我们首先介绍Redis的发布订阅机制。</p>
+<h2 id="Redis中的Pub与Sub"><a href="#Redis中的Pub与Sub" class="headerlink" title="Redis中的Pub与Sub"></a>Redis中的Pub与Sub</h2><p>redis不仅仅具备缓存的功能，它还拥有一个channel机制，我们可以使用Redis来进行发布订阅。上述的token流程我们简化一下，省略保存到redis的那一环，直接介绍如何通知其他应用刷新token。</p>
+<h2 id="引入依赖和配置"><a href="#引入依赖和配置" class="headerlink" title="引入依赖和配置"></a>引入依赖和配置</h2><figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="name">dependency</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>org.springframework.boot<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>spring-boot-starter-data-redis<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></div><div class="line"><span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></div></pre></td></tr></table></figure>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line"><span class="attr">spring:</span></div><div class="line"><span class="attr">  redis:</span></div><div class="line"><span class="attr">    database:</span> <span class="number">0</span></div><div class="line"><span class="attr">    host:</span> <span class="string">localhost</span></div><div class="line"><span class="attr">    port:</span> <span class="number">6379</span></div></pre></td></tr></table></figure>
+<h3 id="定义TokenService"><a href="#定义TokenService" class="headerlink" title="定义TokenService"></a>定义TokenService</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Service</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">TokenService</span> </span>&#123;</div><div class="line"></div><div class="line">    <span class="meta">@Autowired</span></div><div class="line">    StringRedisTemplate redisTemplate;</div><div class="line"></div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">getToken</span><span class="params">(String username)</span> </span>&#123; <span class="comment">// &lt;1&gt;</span></div><div class="line">        String token = UUID.randomUUID().toString();</div><div class="line">        <span class="comment">//模拟http接口使用用户名和密码获取token</span></div><div class="line">        System.out.println(username + <span class="string">" 成功获取token ..."</span> + token);</div><div class="line">        <span class="comment">//发送token刷新广播</span></div><div class="line">        System.out.println(<span class="string">"广播token刷新事件 ..."</span>);</div><div class="line">        redisTemplate.convertAndSend(RedisPubSubConfig.tokenChannel, token);</div><div class="line">    &#125;</div><div class="line"></div><div class="line"></div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">refreshTokenListener</span><span class="params">(String token)</span> </span>&#123; <span class="comment">// &lt;2&gt;</span></div><div class="line">        System.out.println(<span class="string">"接到token刷新事件，刷新 token : "</span> + token);</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p><1> 模拟获取token的方法，获取token的同时发送广播。</1></p>
+<p><2> 用于接收其他应用发送过来的广播消息。</2></p>
+<h3 id="配置RedisMessageListenerContainer"><a href="#配置RedisMessageListenerContainer" class="headerlink" title="配置RedisMessageListenerContainer"></a>配置RedisMessageListenerContainer</h3><p>在Spring应用中Event是由Spring容器管理的，而在Redis的消息机制中，Event是由RedisMessageListenerContainer管理的。我们为token配置一个channel，用于刷新token：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Configuration</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">RedisPubSubConfig</span> </span>&#123;</div><div class="line"></div><div class="line">    <span class="keyword">public</span> <span class="keyword">final</span> <span class="keyword">static</span> String tokenChannel = <span class="string">"tokenChannel"</span>;</div><div class="line"></div><div class="line">    <span class="meta">@Bean</span></div><div class="line">    <span class="function">RedisMessageListenerContainer <span class="title">redisMessageListenerContainer</span><span class="params">(RedisConnectionFactory redisConnectionFactory)</span> </span>&#123;</div><div class="line">        RedisMessageListenerContainer redisMessageListenerContainer = <span class="keyword">new</span> RedisMessageListenerContainer();<span class="comment">// &lt;1&gt;</span></div><div class="line">        redisMessageListenerContainer.setConnectionFactory(redisConnectionFactory);</div><div class="line">        redisMessageListenerContainer.addMessageListener(tokenRefreshListener(), <span class="keyword">new</span> ChannelTopic(tokenChannel)); <span class="comment">// &lt;2&gt;</span></div><div class="line">        <span class="keyword">return</span> redisMessageListenerContainer;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    <span class="meta">@Autowired</span></div><div class="line">    TokenService tokenService;</div><div class="line"></div><div class="line">    <span class="function">MessageListener <span class="title">tokenRefreshListener</span><span class="params">()</span> </span>&#123;</div><div class="line">        <span class="keyword">return</span> <span class="keyword">new</span> MessageListener() &#123;</div><div class="line">            <span class="meta">@Override</span></div><div class="line">            <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">onMessage</span><span class="params">(Message message, <span class="keyword">byte</span>[] pattern)</span> </span>&#123;</div><div class="line">                <span class="keyword">byte</span>[] bytes = message.getBody(); <span class="comment">// &lt;3&gt;</span></div><div class="line">                tokenService.refreshTokenListener(<span class="keyword">new</span> String(bytes));</div><div class="line">            &#125;</div><div class="line">        &#125;;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p><1> RedisMessageListenerContainer用于管理所有的redis相关的发布与订阅</1></p>
+<p><2> 为Redis容器注册特定的订阅者，在本例中使用tokenRefreshListener监听tokenChannel频道，当收到消息通知时，会自动调用onMessage方法。</2></p>
+<p><3> 使用message.getBody()可以获取消息的具体内容，在本例中即token</3></p>
+<h2 id="测试结果"><a href="#测试结果" class="headerlink" title="测试结果"></a>测试结果</h2><p>同样的这个应用，我们在8080,8081,8082启动三个，在8080中，我们调用tokenService.getToken(“kirito”);(注意必须要连接到redis的同一个database)</p>
+<p>在三个控制台中我们得到了如下的结果：</p>
+<p>8080：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line">kirito 成功获取token ...5d4d2a48-934f-450d-8806-e6095b172286</div><div class="line">广播token刷新事件 ...</div><div class="line">接到token刷新事件，刷新 token : 5d4d2a48-934f-450d-8806-e6095b172286</div></pre></td></tr></table></figure>
+<p>8081：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">接到token刷新事件，刷新 token : 5d4d2a48-934f-450d-8806-e6095b172286</div></pre></td></tr></table></figure>
+<p>8082：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">接到token刷新事件，刷新 token : 5d4d2a48-934f-450d-8806-e6095b172286</div></pre></td></tr></table></figure>
+<p>可以发现其他系统的确收到了通知。</p>
+<h2 id="ActiveMQ中的Pub与Sub"><a href="#ActiveMQ中的Pub与Sub" class="headerlink" title="ActiveMQ中的Pub与Sub"></a>ActiveMQ中的Pub与Sub</h2><p>Redis中的发布订阅其实在真正的企业开发中并不是很常用，如果涉及到一致性要求较高的需求，专业的消息中间件可以更好地为我们提供服务。下面介绍一下ActiveMQ如何实现发布订阅。</p>
+<p>ActiveMQ为我们提供很好的监控页面，延时队列，消息ACK，事务，持久化等等机制，且拥有较高的吞吐量，是企业架构中不可或缺的一个重要中间件。</p>
+<h3 id="引入依赖"><a href="#引入依赖" class="headerlink" title="引入依赖"></a>引入依赖</h3><figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="name">dependency</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>org.springframework.boot<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>spring-boot-starter-activemq<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></div><div class="line"><span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></div></pre></td></tr></table></figure>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line"><span class="attr">spring:</span></div><div class="line"><span class="attr">  activemq:</span></div><div class="line"><span class="attr">    in-memory:</span> <span class="literal">false</span> <span class="comment"># &lt;1&gt;</span></div><div class="line"><span class="attr">    broker-url:</span> <span class="attr">tcp://127.0.0.1:61616</span></div><div class="line"><span class="attr">    user:</span> <span class="string">admin</span></div><div class="line"><span class="attr">    password:</span> <span class="string">admin</span></div><div class="line"><span class="attr">  jms:</span></div><div class="line"><span class="attr">    pub-sub-domain:</span> <span class="literal">true</span> <span class="comment"># &lt;2&gt;</span></div></pre></td></tr></table></figure>
+<p><1> springboot的自动配置会帮我们启动一个内存中的消息队列，引入spring-boot-starter-activemq倚赖时需要特别注意这一点，本例连接本机的ActiveMQ。</1></p>
+<p><2> springboot默认不支持PubSub模式，需要手动开启。</2></p>
+<h2 id="定义TokenService-1"><a href="#定义TokenService-1" class="headerlink" title="定义TokenService"></a>定义TokenService</h2><figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Service</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">TokenService</span> </span>&#123;</div><div class="line"></div><div class="line">    <span class="meta">@Autowired</span></div><div class="line">    JmsTemplate jmsTemplate; <span class="comment">// &lt;1&gt;</span></div><div class="line"></div><div class="line">    <span class="meta">@Autowired</span></div><div class="line">    Topic tokenTopic; <span class="comment">// &lt;3&gt;</span></div><div class="line"></div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">getToken</span><span class="params">(String username)</span> </span>&#123;</div><div class="line">        String token = UUID.randomUUID().toString();</div><div class="line">        <span class="comment">//模拟http接口使用用户名和密码获取token</span></div><div class="line">        System.out.println(username + <span class="string">" 成功获取token ..."</span> + token);</div><div class="line">        <span class="comment">//发送token刷新广播</span></div><div class="line">        System.out.println(<span class="string">"广播token刷新事件 ..."</span>);</div><div class="line">        <span class="keyword">try</span> &#123;</div><div class="line">            Message message = <span class="keyword">new</span> ActiveMQMessage();</div><div class="line">            message.setStringProperty(<span class="string">"token"</span>, token);</div><div class="line">            jmsTemplate.convertAndSend(tokenTopic, message);<span class="comment">// &lt;1&gt;</span></div><div class="line">        &#125; <span class="keyword">catch</span> (Exception e) &#123;</div><div class="line">            <span class="keyword">throw</span> <span class="keyword">new</span> RuntimeException(e);</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    <span class="meta">@JmsListener</span>(destination = ActivemqPubSubConfig.tokenTopic) <span class="comment">// &lt;2&gt;</span></div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">refreshTokenListener</span><span class="params">(Message message)</span> <span class="keyword">throws</span> Exception </span>&#123;</div><div class="line">        System.out.println(<span class="string">"接到token刷新事件，刷新 token : "</span> + message.getStringProperty(<span class="string">"token"</span>));</div><div class="line">    &#125;</div><div class="line"></div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p><1> 使用模板设计模式的好处体现了出来，再前面的RedisTemplate中我们也是使用同样的template.convertAndSend()发送消息</1></p>
+<p><2> JmsListener对应于EventListener，接收来自ActiveMQ中tokenTopic的消息通知</2></p>
+<p><3> tokenTopic定义在下面的config中</3></p>
+<h3 id="配置ActiveMQ的topic"><a href="#配置ActiveMQ的topic" class="headerlink" title="配置ActiveMQ的topic"></a>配置ActiveMQ的topic</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Configuration</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ActivemqPubSubConfig</span> </span>&#123;</div><div class="line"></div><div class="line">    <span class="keyword">public</span> <span class="keyword">final</span> <span class="keyword">static</span> String tokenTopic = <span class="string">"tokenTopic"</span>;</div><div class="line"></div><div class="line">    <span class="meta">@Bean</span></div><div class="line">    <span class="function">Topic <span class="title">tokenTopic</span><span class="params">()</span></span>&#123;</div><div class="line">        <span class="keyword">return</span> <span class="keyword">new</span> ActiveMQTopic(ActivemqPubSubConfig.tokenTopic);</div><div class="line">    &#125;</div><div class="line"></div><div class="line"></div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>非常简单的配置，因为ActiveMQAutoConfiguration已经帮我们做了相当多的配置，我们只需要顶一个topic即可使用ActiveMQ的功能。</p>
+<h3 id="查看ActiveMQ的监控端"><a href="#查看ActiveMQ的监控端" class="headerlink" title="查看ActiveMQ的监控端"></a>查看ActiveMQ的监控端</h3><p>省略了发送消息的过程，实际上可以得到和Redis PubSub一样的效果。来看一下ActiveMQ自带的监控端，在发送消息后，发生了什么变化，访问本地端口<code>http://localhost:8161/admin</code> ，可以看到消息被消费了。</p>
+<p><img src="http://ov0zuistv.bkt.clouddn.com/QQ%E5%9B%BE%E7%89%8720170914001552.png" alt="ActiveMQ监控端"></p>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>本文浅显的减少了Redis，ActiveMQ的PubSub特性，这是我理解的分布式场景下的事件驱动的使用。事件驱动是一种思想，PubSub是一种模式，Redis，ActiveMQ是一种应用，落到实处，便可以是本文介绍的token这个小小的业务实现。但是注意，使用Redis，ActiveMQ理解事件驱动可以，但是不能等同事件驱动，事件驱动还有很多其他场景下体现，笔者功力不够，无法一一介绍，怕人误解，特此强调一下。</p>
+
+           
+        
+        </div>
+        <footer class="article-footer">
+            <div class="share-container">
+
+
+
+</div>
+
+    <a data-url="http://lexburner.github.io/2017/09/13/event-2/" data-id="cj7jrambo00149oud722krsv6" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+<script>
+    (function ($) {
+        // Prevent duplicate binding
+        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
+            __SHARE_BUTTON_BINDED__ = true;
+        } else {
+            return;
+        }
+        $('body').on('click', function() {
+            $('.article-share-box.on').removeClass('on');
+        }).on('click', '.article-share-link', function(e) {
+            e.stopPropagation();
+
+            var $this = $(this),
+                url = $this.attr('data-url'),
+                encodedUrl = encodeURIComponent(url),
+                id = 'article-share-box-' + $this.attr('data-id'),
+                offset = $this.offset(),
+                box;
+
+            if ($('#' + id).length) {
+                box = $('#' + id);
+
+                if (box.hasClass('on')){
+                    box.removeClass('on');
+                    return;
+                }
+            } else {
+                var html = [
+                    '<div id="' + id + '" class="article-share-box">',
+                        '<input class="article-share-input" value="' + url + '">',
+                        '<div class="article-share-links">',
+                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
+                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
+                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
+                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
+                        '</div>',
+                    '</div>'
+                ].join('');
+
+              box = $(html);
+
+              $('body').append(box);
+            }
+
+            $('.article-share-box.on').hide();
+
+            box.css({
+                top: offset.top + 25,
+                left: offset.left
+            }).addClass('on');
+
+        }).on('click', '.article-share-box', function (e) {
+            e.stopPropagation();
+        }).on('click', '.article-share-box-input', function () {
+            $(this).select();
+        }).on('click', '.article-share-box-link', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
+        });
+    })(jQuery);
+</script>
+
+            
+    
+        <a href="http://lexburner.github.io/2017/09/13/event-2/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/09/13/event-2/">评论</a>
+    
+
+        </footer>
+    </div>
+	
+    
+</article>
+
+
+
     <article id="post-rethink-1" class="article article-type-post" itemscope itemprop="blogPost">
     <div class="article-inner">
         
@@ -224,23 +404,37 @@
         <div class="article-entry" itemprop="articleBody">
         
             
-             <p>加入中科软已经有了一个年头，从去年实习到今年转正，陆陆续续接触了大概四个项目。有电商类，互联网保险类，也经历过管理系统。幸运的是，这些项目都是从零开始，避免了让我去维护不堪入目的老旧系统。而这么多项目中令我印象最深刻的，就要属上一个电商项目了。这也是我接触到的真正意义的第一个微服务项目，到今天回首去看曾经的这个项目，有很多突破性地尝试，也同时不可避免地踩入了一些坑点，毕竟摸着石头过河。今天想聊聊我对上一个电商项目的反思。</p>
-<h2 id="项目简介"><a href="#项目简介" class="headerlink" title="项目简介"></a>项目简介</h2><p>准确的说是一个第三方的电商项目，商品来源是由主流电商的http接口提供（目前接入了京东，苏宁），打造我们自己的商城体系。使用的技术包括springboot，jpa，RPC框架使用的是motan，数据库使用的是oracle，基本都还算是主流的技术。</p>
-<h2 id="盲目地拆分微服务"><a href="#盲目地拆分微服务" class="headerlink" title="盲目地拆分微服务"></a>盲目地拆分微服务</h2><p>使用了springboot就是微服务了吗？使用rpc通信就是微服务了吗？刚接触到所谓的微服务架构时，无疑是让人兴奋的，以至于每提出一个新的需求，几乎就会新建一个服务。没有从宏观去思考如何拆分服务，那时还没有项目组成员尝试去使用领域驱动设计的思想去划分服务的边界，会议室中讨论最多的话题也是：我们的数据库该如何设计，而不是我们的领域该如何划分。项目初期，使用单体式的思想开发着分布式项目，可能只是新技术的引入使人感到有点稍微的不适，但是项目越做越大后，越来越大的不适感逐渐侵蚀着我们的开发速度。</p>
+             <p>加入中科软已经有了一个年头，从去年实习到今年转正，陆陆续续接触了大概四个项目。有电商类，互联网保险类，也经历过管理系统。幸运的是，这些项目都是从零开始，避免了让我去维护不堪入目的老旧系统。而这么多项目中令我印象最深刻的，就要属上一个电商项目了。这也是我接触到的真正意义的第一个微服务项目，到今天回首去看曾经的这个项目，有很多突破性地尝试，同时不可避免地也踩入了一些坑点，毕竟摸着石头过河。今天想聊聊我对上一个电商项目的反思。</p>
+<h2 id="项目简介"><a href="#项目简介" class="headerlink" title="项目简介"></a>项目简介</h2><p>准确的说是一个第三方的电商项目，商品来源是由主流电商的http接口提供（目前接入了京东，苏宁），打造我们自己的商城体系。使用的技术包括springboot，jpa，rpc框架使用的是motan，数据库使用的是oracle，基本都还算是主流的技术。</p>
+<h2 id="盲目地拆分微服务"><a href="#盲目地拆分微服务" class="headerlink" title="盲目地拆分微服务"></a>盲目地拆分微服务</h2><p>使用了springboot就是微服务了吗？使用rpc通信就是微服务了吗？刚接触到所谓的微服务架构时，无疑是让人兴奋的，但也没有太多的经验，以至于每提出一个新的需求，几乎就会新建一个服务。没有从宏观去思考如何拆分服务，那时还没有项目组成员尝试去使用领域驱动设计的思想去划分服务的边界，会议室中讨论最多的话题也是：我们的数据库该如何设计，而不是我们的领域该如何划分。项目初期，使用单体式的思想开发着分布式项目，新技术的引入还只是使人有点稍微的不顺手，但是项目越做越大后，越来越大的不适感逐渐侵蚀着我们的开发速度。</p>
+<p>说道微服务的拆分，有很多个维度，这里主要谈两个维度：</p>
 <ul>
 <li>系统维度：业务功能不同的需求，交给不同的系统完成，如订单，商品，地址，用户等系统需要拆分。</li>
 <li>模块维度：基础架构层（如公用util），领域层，接口层，服务层，表现层的拆分。</li>
 </ul>
-<p>在项目的初期，我们错误地认为微服务的拆分仅仅是系统维度的拆分，如商品系统和订单系统，而在模块维度上，缺少拆分的意识，如订单模块的表现层和服务层，我们虽然做了隔离（两个独立的tomcat），但在后续，我们添加了一个新的需求：增加积分支持，使用户可以使用积分购买商品。我们突然发现，我们所谓的服务层其实和表现层严重的耦合，没有严格的隔离，导致新的积分模块从原先的订单服务层拷贝了大量的代码。吸取了这个教训后，我们新的项目中采取了如下的分层方式：</p>
+<p>在项目的初期，我们错误地认为微服务的拆分仅仅是系统维度的拆分，如商品系统和订单系统，而在模块维度上，缺少拆分的意识，如订单模块的表现层和服务层，我们虽然做了隔离（两个独立的tomcat）。但在后来，业务添加了一个新的需求：商城增加积分支持，让用户可以使用积分购买商品。我们突然发现，所谓的服务层和表现层严重的耦合，仅仅是在物理上进行了隔离，逻辑层面并没有拆分，这导致新的积分服务模块从原先的订单服务层拷贝了大量的代码。吸取了这个教训后，我们新的项目中采取了如下的分层方式：</p>
 <p><img src="http://ov0zuistv.bkt.clouddn.com/52029421305_2.gif" alt="新的架构分层"></p>
 <p>其中比较关键的一点便是表现层与应用层的完全分离，交互完全使用DTO对象。不少同事产生了困惑，抱怨在表现层不能访问数据库，这让他们获取数据变得十分“麻烦”，应用层和表现层还多了一次数据拷贝的工作，用于将DO持久化对象转换成DTO对象。但这样的好处从长远来看，是不言而喻的。总结为以下几点：</p>
 <p>1 应用层高度重用，没有表现形式的阻碍，PC端，移动端，外部服务都可以同时接入，需要组装什么样的数据，请自行组装。</p>
 <p>2 应用层和领域层可以交由经验较为丰富的程序员负责，避免了一些低性能的数据操作，错误的并发控制等等。</p>
-<p>3 解决远程调用数据懒加载的问题。从前的设计中，表现层拿到了领域层的对象，而领域层会使用懒加载技术，当表现层想要获取懒加载属性时，或得到一个no session的异常。在没有这个分层之前，这一度困扰了我们很长的一段时间。</p>
-<h2 id="数据库的滥用"><a href="#数据库的滥用" class="headerlink" title="数据库的滥用"></a>数据库的滥用</h2><p>项目使用了oracle，我们所有的数据都存在于同一个oracle实例中，并没有做到物理层面的模块数据库隔离。这并不符合设计，一方面这给那些想要跨模块执行join操作的人留了后门，如执行订单模块和用户模块的级联查询；另一方面，还困扰了一部分对微服务架构不甚了解的程序员，在他们的想法中，同一个数据库实例反而方便了他们的数据操作。</p>
-<p>严格意义上，不仅仅是不同系统之间的数据库不能互相访问。同一个系统维度的不同模块也应当限制，正如前面一节的分层架构中，表现层（web层）是不应该出现DAO数据访问层的，pom文件中也不应该出现任何JPA，Hibernate，Mybatis一类的依赖，它所有的数据来源，必须是服务层。</p>
+<p>3 解决远程调用数据懒加载的问题。从前的设计中，表现层拿到了领域层的对象，而领域层会使用懒加载技术，当表现层想要获取懒加载属性时，或得到一个no session的异常。在没有这个分层之前，如何方便地解决这个问题一度困扰了我们很长的一段时间。</p>
+<h2 id="数据库的滥用"><a href="#数据库的滥用" class="headerlink" title="数据库的滥用"></a>数据库的滥用</h2><p>项目使用了oracle，我们所有的数据都存在于同一个oracle实例中，各个系统模块并没有做到物理层面的数据库隔离。这并不符合设计，一方面这给那些想要跨模块执行join操作的人留了后门，如执行订单模块和用户模块的级联查询；另一方面，还困扰了一部分对微服务架构不甚了解的程序员，在他们的想法中，同一个数据库实例反而方便了他们的数据操作。</p>
+<p>严格意义上，不仅仅是不同系统之间的数据库不能互相访问。同一个系统维度的不同模块也应当限制，正如前面一节的分层架构中，表现层（web层）是不应该出现DAO的，pom文件中也不应该出现任何JPA，Hibernate，Mybatis一类的依赖，它所有的数据来源，必须是应用层。</p>
 <p>另外一方面，由于历史遗留问题，需要对接一个老系统，他们的表和这个电商的oracle实例是同一个，而我竟然在他们的表上发现了触发器这种操作…在新的项目中，我们已经禁止使用数据库层面的触发器和物理约束。</p>
-<h2 id="并发的控制"><a href="#并发的控制" class="headerlink" title="并发的控制"></a>并发的控制</h2><h2 id="代码规范"><a href="#代码规范" class="headerlink" title="代码规范"></a>代码规范</h2>
+<p>在新的项目中，我们采用了阿里云的RDS(mysql)作为oracle的替代品，核心业务数据则放到了分布式数据库DRDS中，严格做到了数据库层面的拆分。</p>
+<h2 id="并发的控制"><a href="#并发的控制" class="headerlink" title="并发的控制"></a>并发的控制</h2><p>电商系统不同于OA系统，CMS系统，余额，订单等等操作都是敏感操作，实实在在跟钱打交道的东西容不得半点马虎，然而即使是一些有经验的程序员，也写出了这样的扣减余额操作：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">reduce</span><span class="params">(String accountId,BigDecimal cost)</span></span>&#123;</div><div class="line">    Account account = accountService.findOne(accountId);</div><div class="line">    BigDecimal balance = account.getBalance();</div><div class="line">    <span class="keyword">if</span>(balance &gt; cost)</div><div class="line">      balance = balance - cost;<span class="comment">//用四则运算代替BigDecimal的api，方便表达</span></div><div class="line">    account.setBalance(balance);</div><div class="line">    accountService.save(account);</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>很多人没有控制并发的意识，即使意识到了，也不知道如何根据业务场景采取合适的手段控制并发，是使用JPA中的乐观锁，还是使用数据库的行级自旋锁完成简单并发控制，还是for update悲观锁（这不建议被使用），还是基于redis或zookeeper一类的分布式锁？</p>
+<p>这种错误甚至都不容许等到code revivew时才被发现，而应该是尽力地杜绝。</p>
+<h2 id="代码规范"><a href="#代码规范" class="headerlink" title="代码规范"></a>代码规范</h2><p>小到java的变量的驼峰命名法，数据库中用‘_’分割单词，到业务代码该如何规范的书写，再到并发规范，性能调优。准确的说，没有人管理这些事，这样的工作落到了每个有悟性的开发者身上。模块公用的常量，系统公用的常量应当区分放置，禁止使用魔鬼数字，bool变量名不能以is开头等等细小的但是重要的规范，大量的条件查询findByxxx污染了DAO层，完全可以被predicates，criteria替代，RESTFUL规范指导设计web接口等等…</p>
+<p>在新的项目中，一条条规范被逐渐添加到了项目单独的模块READ.me中。作为公司的一个junior developer，在建议其他成员使用规范开发项目时，得到的回应通常是：我的功能都已经实现了，干嘛要改；不符合规范又怎么样，要改你改时。有时候也是挺无力的，算是个人的一点牢骚吧。</p>
+<h2 id="软件设计的一点不足"><a href="#软件设计的一点不足" class="headerlink" title="软件设计的一点不足"></a>软件设计的一点不足</h2><p>还是拿订单系统和商品系统来说事，虽然两个系统在物理上被拆分开了，但如果需要展示订单列表，订单详情，如今系统的设计会发起多次的远程调用，用于查询订单的归属商品，这是违背领域驱动设计的。订单中的商品就应当是归属于订单模块，正确的设计应该是使用冗余，代替频繁的跨网络节点远程调用。</p>
+<p>另外一点便是高可用，由于机器内存的限制，所有的系统都只部署了单个实例，这其实并不是微服务的最佳实践。从系统应用，到zookeeper，redis，mq等中间件，都应当保证高可用，避免单点问题。没有真正实现做到横向扩展（知识理论上实现了），实在是有点遗憾。</p>
+<p>系统没有熔断，降级处理，在新的项目中，由于我们引入了Spring Cloud，很多地方都可以out of box式使用框架提供的fallback处理，而这上一个电商项目由于框架的限制以及接口设计之初就没有预想到要做这样的操作，使得可靠性再减了几分。</p>
+<h2 id="自动化运维的缺失"><a href="#自动化运维的缺失" class="headerlink" title="自动化运维的缺失"></a>自动化运维的缺失</h2><p>单体式应用的美好时代，只需要发布同一份war包。而微服务项目中，一切都变得不同，在我们这个不算特别庞大的电商系统中，需要被运行的服务模块也到达了30-40个。由于这个电商系统是部署在甲方自己的服务器中，一方面是业务部门的业务审批流程，一方面是如此众多的jar包运行，没有自动发布，没有持续集成。令我比较难忘的是初期发布版本，始终有一两个服务莫名奇妙的挂掉，对着终端中的服务列表，一个个排查，这种痛苦的经历。至今，这个系统仍然依靠运维人员，手动管理版本。</p>
+<p>上一个项目有一些不可控的项目因素，而新的项目中，系统服务全部在阿里云上部署，也引入了Jenkins，一切都在逐渐变好，其他的devops工具仍然需要完善，以及docker一类的容器技术还未在计划日程之内，这些都是我们今年努力的目标。</p>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>原本积累了很多自己的想法，可惜落笔之后能够捕捉到一些点，便只汇聚成了上述这些，而这上一个电商项目在逐渐的迭代开发之后也变得越来越好了（我去了新的项目组后，其他同事负责了后续的开发）。这个经历，于我是非常珍贵的，它比那些大牛直接告诉我微服务设计的要素要更加有意义。知道了不足之处，经历了自己解决问题的过程，才会了解到好的方案的优势，了解到开源方案到底是为了解决什么样的问题而设计的。</p>
+
            
         
         </div>
@@ -251,7 +445,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/09/11/rethink-1/" data-id="cj7ikzdm2001mkwud6is1c4dh" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/09/11/rethink-1/" data-id="cj7jramby001b9oud7wxbsh94" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -356,7 +550,7 @@
                         
     <div class="article-category">
     	<i class="fa fa-folder"></i>
-        <a class="article-category-link" href="/categories/架构设计/">架构设计</a>
+        <a class="article-category-link" href="/categories/Spring/">Spring</a>
     </div>
 
                         
@@ -441,7 +635,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/09/10/event-1/" data-id="cj7ikzdl80018kwudjh0soxq4" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/09/10/event-1/" data-id="cj7jrambd000v9oudsicgdjnk" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -633,7 +827,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/09/09/feign-1/" data-id="cj7ikzdl30016kwudc9d051sz" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/09/09/feign-1/" data-id="cj7jramc2001f9oudt7927wo6" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -789,7 +983,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/09/04/Re：从零开始的Spring Session(三)/" data-id="cj7ikzdjq000fkwud8m07am2i" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/09/04/Re：从零开始的Spring Session(三)/" data-id="cj7jrambu00199oudgrf9bpd9" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -941,7 +1135,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/09/03/Re：从零开始的Spring Session(二)/" data-id="cj7ikzdk8000ikwudfq9slhei" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/09/03/Re：从零开始的Spring Session(二)/" data-id="cj7jramaa00099oud18ys1p0n" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1076,7 +1270,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/09/03/Re：从零开始的Spring Session(一)/" data-id="cj7ikzdjm000dkwudd9useipc" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/09/03/Re：从零开始的Spring Session(一)/" data-id="cj7jramb6000q9oudffcl000s" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1311,7 +1505,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/08/30/解析Spring中的ResponseBody和RequestBody/" data-id="cj7ikzdom003ikwudwzveo8ta" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/08/30/解析Spring中的ResponseBody和RequestBody/" data-id="cj7jramf9003s9oudrfcmh3yo" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1456,7 +1650,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/08/26/xml与javabean的转换/" data-id="cj7ikzdmr0026kwud7gk3c1hu" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/08/26/xml与javabean的转换/" data-id="cj7jramd600269oudobd98u2y" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1591,7 +1785,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/08/25/一些需要普及的项目规范/" data-id="cj7ikzdn4002fkwuduzct1azz" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/08/25/一些需要普及的项目规范/" data-id="cj7jramdh002h9oudg4o4b9ae" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1670,147 +1864,6 @@
 
 
 
-    <article id="post-博客搬家" class="article article-type-post" itemscope itemprop="blogPost">
-    <div class="article-inner">
-        
-            
-	
-		<a href="/2017/08/22/博客搬家/" itemprop="url">
-            <img src="/css/images/banner/1.jpg" class="article-banner" />
-        </a>
-	
-
-
-
-        
-        
-            <header class="article-header">
-                
-    
-        <h1 itemprop="name">
-            <a class="article-title" href="/2017/08/22/博客搬家/">博客搬家</a>
-        </h1>
-    
-
-                
-                    <div class="article-meta">
-                        
-    <div class="article-date">
-        <i class="fa fa-calendar"></i>
-        <a href="/2017/08/22/博客搬家/">
-            <time datetime="2017-08-22T08:38:44.000Z" itemprop="datePublished">2017-08-22</time>
-        </a>
-    </div>
-
-
-                        
-    <div class="article-category">
-    	<i class="fa fa-folder"></i>
-        <a class="article-category-link" href="/categories/技术杂谈/">技术杂谈</a>
-    </div>
-
-                        
-                    </div>
-                
-            </header>
-        
-        
-        <div class="article-entry" itemprop="articleBody">
-        
-            
-             <p>陆陆续续，写博客已经写了有4年多了，之前一直在CSDN维护博客（<a href="http://blog.csdn.net/u013815546" target="_blank" rel="external">博客旧址</a>），最近有了点空余时间，使用hexo搭了这个博客，的确比CSDN清爽多了，首先感谢@程序猿DD推荐的icarus模板，国人开发的一个hexo模板，插件支持可能不是很完善，但是样式非常让人喜欢。</p>
-<p>作为一个前端弱渣，搭建博客的过程还是遇到了不少的困难。原先是打算直接使用github个人主页作为博客地址，hexo对git有很好的支持，源代码和博客静态页面都托管在了github，master分支放静态页面，hexo分支放源文件。可惜的是国内坑爹的网速,github.io的访问速度不尽如人意（github.com倒还好），于是在宇泽学妹@ntzyz的帮助下，搞了github的hook，本地提交到github时，代理服务器自动向master分支拉取页面，同时设置反向代理和https。由于hexo是静态文件搭建的博客，这种方式可以说是非常合适的。所以，国内的朋友浏览本博客可以直接访问<a href="https://www.cnkirito.moe" target="_blank" rel="external">https://www.cnkirito.moe</a>，如果有国外代理的朋友可以直接访问我的github个人主页<a href="https://lexburner.github.io">https://lexburner.github.io</a>。</p>
-<p>目前博客功能还不算完善，缺少评论，分享，和一些小插件，以后逐渐完善，不过不影响主要功能。以后这儿就作为我主要更新博客的地方了！</p>
-
-           
-        
-        </div>
-        <footer class="article-footer">
-            <div class="share-container">
-
-
-
-</div>
-
-    <a data-url="http://lexburner.github.io/2017/08/22/博客搬家/" data-id="cj7ikzdns002zkwudx86vnz3y" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
-<script>
-    (function ($) {
-        // Prevent duplicate binding
-        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
-            __SHARE_BUTTON_BINDED__ = true;
-        } else {
-            return;
-        }
-        $('body').on('click', function() {
-            $('.article-share-box.on').removeClass('on');
-        }).on('click', '.article-share-link', function(e) {
-            e.stopPropagation();
-
-            var $this = $(this),
-                url = $this.attr('data-url'),
-                encodedUrl = encodeURIComponent(url),
-                id = 'article-share-box-' + $this.attr('data-id'),
-                offset = $this.offset(),
-                box;
-
-            if ($('#' + id).length) {
-                box = $('#' + id);
-
-                if (box.hasClass('on')){
-                    box.removeClass('on');
-                    return;
-                }
-            } else {
-                var html = [
-                    '<div id="' + id + '" class="article-share-box">',
-                        '<input class="article-share-input" value="' + url + '">',
-                        '<div class="article-share-links">',
-                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
-                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
-                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
-                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
-                        '</div>',
-                    '</div>'
-                ].join('');
-
-              box = $(html);
-
-              $('body').append(box);
-            }
-
-            $('.article-share-box.on').hide();
-
-            box.css({
-                top: offset.top + 25,
-                left: offset.left
-            }).addClass('on');
-
-        }).on('click', '.article-share-box', function (e) {
-            e.stopPropagation();
-        }).on('click', '.article-share-box-input', function () {
-            $(this).select();
-        }).on('click', '.article-share-box-link', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-
-            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
-        });
-    })(jQuery);
-</script>
-
-            
-    
-        <a href="http://lexburner.github.io/2017/08/22/博客搬家/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/08/22/博客搬家/">评论</a>
-    
-
-        </footer>
-    </div>
-	
-    
-</article>
-
-
-
     <nav id="page-nav">
         <span class="page-number current">1</span><a class="page-number" href="/page/2/">2</a><a class="page-number" href="/page/3/">3</a><span class="space">&hellip;</span><a class="page-number" href="/page/5/">5</a><a class="extend next" rel="next" href="/page/2/">下一页 &raquo;</a>
     </nav>
@@ -1823,6 +1876,25 @@
         <h3 class="widget-title">最新文章</h3>
         <div class="widget">
             <ul id="recent-post" class="">
+                
+                    <li>
+                        
+                        <div class="item-thumbnail">
+                            <a href="/2017/09/13/event-2/" class="thumbnail">
+    
+    
+        <span class="thumbnail-image thumbnail-none"></span>
+    
+</a>
+
+                        </div>
+                        
+                        <div class="item-inner">
+                            <p class="item-category"><a class="article-category-link" href="/categories/Spring/">Spring</a></p>
+                            <p class="item-title"><a href="/2017/09/13/event-2/" class="title">浅析分布式下的事件驱动机制（PubSub模式）</a></p>
+                            <p class="item-date"><time datetime="2017-09-13T14:49:23.000Z" itemprop="datePublished">2017-09-13</time></p>
+                        </div>
+                    </li>
                 
                     <li>
                         
@@ -1856,7 +1928,7 @@
                         </div>
                         
                         <div class="item-inner">
-                            <p class="item-category"><a class="article-category-link" href="/categories/架构设计/">架构设计</a></p>
+                            <p class="item-category"><a class="article-category-link" href="/categories/Spring/">Spring</a></p>
                             <p class="item-title"><a href="/2017/09/10/event-1/" class="title">浅析Spring中的事件驱动机制</a></p>
                             <p class="item-date"><time datetime="2017-09-10T12:03:58.000Z" itemprop="datePublished">2017-09-10</time></p>
                         </div>
@@ -1900,25 +1972,6 @@
                         </div>
                     </li>
                 
-                    <li>
-                        
-                        <div class="item-thumbnail">
-                            <a href="/2017/09/03/Re：从零开始的Spring Session(二)/" class="thumbnail">
-    
-    
-        <span class="thumbnail-image thumbnail-none"></span>
-    
-</a>
-
-                        </div>
-                        
-                        <div class="item-inner">
-                            <p class="item-category"><a class="article-category-link" href="/categories/Spring-Session/">Spring Session</a></p>
-                            <p class="item-title"><a href="/2017/09/03/Re：从零开始的Spring Session(二)/" class="title">Re：从零开始的Spring Session(二)</a></p>
-                            <p class="item-date"><time datetime="2017-09-03T12:06:12.000Z" itemprop="datePublished">2017-09-03</time></p>
-                        </div>
-                    </li>
-                
             </ul>
         </div>
     </div>
@@ -1928,7 +1981,7 @@
     <div class="widget-wrap">
         <h3 class="widget-title">分类</h3>
         <div class="widget">
-            <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/DevOps/">DevOps</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/JAVA/">JAVA</a><span class="category-list-count">10</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring/">Spring</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Cloud/">Spring Cloud</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security-OAuth2/">Spring Security OAuth2</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Session/">Spring Session</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/技术杂谈/">技术杂谈</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/架构设计/">架构设计</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/规则引擎/">规则引擎</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/领域驱动设计/">领域驱动设计</a><span class="category-list-count">2</span></li></ul>
+            <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/DevOps/">DevOps</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/JAVA/">JAVA</a><span class="category-list-count">10</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring/">Spring</a><span class="category-list-count">6</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Cloud/">Spring Cloud</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security-OAuth2/">Spring Security OAuth2</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Session/">Spring Session</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/技术杂谈/">技术杂谈</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/架构设计/">架构设计</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/规则引擎/">规则引擎</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/领域驱动设计/">领域驱动设计</a><span class="category-list-count">2</span></li></ul>
         </div>
     </div>
 
@@ -1937,7 +1990,7 @@
     <div class="widget-wrap">
         <h3 class="widget-title">归档</h3>
         <div class="widget">
-            <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a><span class="archive-list-count">10</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/02/">二月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/11/">十一月 2016</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/08/">八月 2016</a><span class="archive-list-count">3</span></li></ul>
+            <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a><span class="archive-list-count">7</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a><span class="archive-list-count">10</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/02/">二月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/11/">十一月 2016</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/08/">八月 2016</a><span class="archive-list-count">3</span></li></ul>
         </div>
     </div>
 
@@ -1946,7 +1999,7 @@
     <div class="widget-wrap">
         <h3 class="widget-title">标签云</h3>
         <div class="widget tagcloud">
-            <a href="/tags/DevOps/" style="font-size: 11.67px;">DevOps</a> <a href="/tags/JAVA/" style="font-size: 20px;">JAVA</a> <a href="/tags/JMM/" style="font-size: 10px;">JMM</a> <a href="/tags/RPC/" style="font-size: 10px;">RPC</a> <a href="/tags/Spring/" style="font-size: 18.33px;">Spring</a> <a href="/tags/Spring-Cloud/" style="font-size: 11.67px;">Spring Cloud</a> <a href="/tags/Spring-Cloud-Zuul/" style="font-size: 11.67px;">Spring Cloud Zuul</a> <a href="/tags/Spring-Security-OAuth2/" style="font-size: 13.33px;">Spring Security OAuth2</a> <a href="/tags/Spring-Session/" style="font-size: 13.33px;">Spring Session</a> <a href="/tags/Validation/" style="font-size: 11.67px;">Validation</a> <a href="/tags/XML/" style="font-size: 10px;">XML</a> <a href="/tags/Zipkin/" style="font-size: 10px;">Zipkin</a> <a href="/tags/drools/" style="font-size: 15px;">drools</a> <a href="/tags/lua/" style="font-size: 10px;">lua</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/zookeeper/" style="font-size: 10px;">zookeeper</a> <a href="/tags/事务/" style="font-size: 10px;">事务</a> <a href="/tags/代码规范/" style="font-size: 10px;">代码规范</a> <a href="/tags/多线程/" style="font-size: 16.67px;">多线程</a> <a href="/tags/微服务/" style="font-size: 10px;">微服务</a> <a href="/tags/技术杂谈/" style="font-size: 13.33px;">技术杂谈</a> <a href="/tags/数据库/" style="font-size: 10px;">数据库</a> <a href="/tags/杂谈/" style="font-size: 10px;">杂谈</a> <a href="/tags/架构设计/" style="font-size: 10px;">架构设计</a> <a href="/tags/求职/" style="font-size: 10px;">求职</a> <a href="/tags/规则引擎/" style="font-size: 15px;">规则引擎</a> <a href="/tags/领域驱动设计/" style="font-size: 11.67px;">领域驱动设计</a>
+            <a href="/tags/DevOps/" style="font-size: 12px;">DevOps</a> <a href="/tags/JAVA/" style="font-size: 20px;">JAVA</a> <a href="/tags/JMM/" style="font-size: 10px;">JMM</a> <a href="/tags/RPC/" style="font-size: 10px;">RPC</a> <a href="/tags/Spring/" style="font-size: 20px;">Spring</a> <a href="/tags/Spring-Cloud/" style="font-size: 12px;">Spring Cloud</a> <a href="/tags/Spring-Cloud-Zuul/" style="font-size: 12px;">Spring Cloud Zuul</a> <a href="/tags/Spring-Security-OAuth2/" style="font-size: 14px;">Spring Security OAuth2</a> <a href="/tags/Spring-Session/" style="font-size: 14px;">Spring Session</a> <a href="/tags/Validation/" style="font-size: 12px;">Validation</a> <a href="/tags/XML/" style="font-size: 10px;">XML</a> <a href="/tags/Zipkin/" style="font-size: 10px;">Zipkin</a> <a href="/tags/drools/" style="font-size: 16px;">drools</a> <a href="/tags/lua/" style="font-size: 10px;">lua</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/zookeeper/" style="font-size: 10px;">zookeeper</a> <a href="/tags/事务/" style="font-size: 10px;">事务</a> <a href="/tags/代码规范/" style="font-size: 10px;">代码规范</a> <a href="/tags/多线程/" style="font-size: 18px;">多线程</a> <a href="/tags/微服务/" style="font-size: 10px;">微服务</a> <a href="/tags/技术杂谈/" style="font-size: 14px;">技术杂谈</a> <a href="/tags/数据库/" style="font-size: 10px;">数据库</a> <a href="/tags/杂谈/" style="font-size: 10px;">杂谈</a> <a href="/tags/架构设计/" style="font-size: 12px;">架构设计</a> <a href="/tags/求职/" style="font-size: 10px;">求职</a> <a href="/tags/规则引擎/" style="font-size: 16px;">规则引擎</a> <a href="/tags/领域驱动设计/" style="font-size: 12px;">领域驱动设计</a>
         </div>
     </div>
 
