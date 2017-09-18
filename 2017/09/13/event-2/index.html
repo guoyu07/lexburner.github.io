@@ -15,7 +15,7 @@
 <meta property="og:locale" content="zh-CN">
 <meta property="og:image" content="http://ov0zuistv.bkt.clouddn.com/QQ%E5%9B%BE%E7%89%8720170913232959.png">
 <meta property="og:image" content="http://ov0zuistv.bkt.clouddn.com/QQ%E5%9B%BE%E7%89%8720170914001552.png">
-<meta property="og:updated_time" content="2017-09-14T01:07:57.612Z">
+<meta property="og:updated_time" content="2017-09-14T01:13:30.473Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="浅析分布式下的事件驱动机制（PubSub模式）">
 <meta name="twitter:description" content="上一篇文章《浅析Spring中的事件驱动机制》简单介绍了Spring对事件的支持。Event的整个生命周期，从publisher发出，经过applicationContext容器通知到EventListener，都是发生在单个Spring容器中，而在分布式场景下，有些时候一个事件的产生，可能需要被多个实例响应，本文主要介绍分布式场景下的事件驱动机制，由于使用了Redis，ActiveMQ，也可以换">
@@ -243,6 +243,7 @@
 <p>这个图并不复杂，只是为了方便描述需求：首先去本地变量中加载token，若token==null，则去Redis加载，若Redis未命中（token过期了），则最终调用外部的http接口获取实时的token，同时存入redis中和本地变量中。</p>
 <p>这个需求设计到这样一个问题：大多数情况下是单个实例中发现redis中的token为空，而它需要同时获取最新token，并通知其他的实例也去加载最新的token，这个时候事件广播就可以派上用场了。</p>
 <p>由于token缓存在了Redis中，我们首先介绍Redis的发布订阅机制。</p>
+<a id="more"></a>
 <h2 id="Redis中的Pub与Sub"><a href="#Redis中的Pub与Sub" class="headerlink" title="Redis中的Pub与Sub"></a>Redis中的Pub与Sub</h2><p>redis不仅仅具备缓存的功能，它还拥有一个channel机制，我们可以使用Redis来进行发布订阅。上述的token流程我们简化一下，省略保存到redis的那一环，直接介绍如何通知其他应用刷新token。</p>
 <h2 id="引入依赖和配置"><a href="#引入依赖和配置" class="headerlink" title="引入依赖和配置"></a>引入依赖和配置</h2><figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="name">dependency</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>org.springframework.boot<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>spring-boot-starter-data-redis<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></div><div class="line"><span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></div></pre></td></tr></table></figure>
 <figure class="highlight yaml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line"><span class="attr">spring:</span></div><div class="line"><span class="attr">  redis:</span></div><div class="line"><span class="attr">    database:</span> <span class="number">0</span></div><div class="line"><span class="attr">    host:</span> <span class="string">localhost</span></div><div class="line"><span class="attr">    port:</span> <span class="number">6379</span></div></pre></td></tr></table></figure>
@@ -277,7 +278,7 @@
 <p>非常简单的配置，因为ActiveMQAutoConfiguration已经帮我们做了相当多的配置，我们只需要顶一个topic即可使用ActiveMQ的功能。</p>
 <h3 id="查看ActiveMQ的监控端"><a href="#查看ActiveMQ的监控端" class="headerlink" title="查看ActiveMQ的监控端"></a>查看ActiveMQ的监控端</h3><p>省略了发送消息的过程，实际上可以得到和Redis PubSub一样的效果。来看一下ActiveMQ自带的监控端，在发送消息后，发生了什么变化，访问本地端口<code>http://localhost:8161/admin</code> ，可以看到消息被消费了。</p>
 <p><img src="http://ov0zuistv.bkt.clouddn.com/QQ%E5%9B%BE%E7%89%8720170914001552.png" alt="ActiveMQ监控端"></p>
-<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>本文浅显的减少了Redis，ActiveMQ的PubSub特性，这是我理解的分布式场景下的事件驱动的使用。事件驱动是一种思想，PubSub是一种模式，Redis，ActiveMQ是一种应用，落到实处，便可以是本文介绍的token这个小小的业务实现。但是注意，使用Redis，ActiveMQ理解事件驱动可以，但是不能等同事件驱动，事件驱动还有很多其他场景下体现，笔者功力不够，无法一一介绍，怕人误解，特此强调一下。</p>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>本文介绍了Redis，ActiveMQ的PubSub特性，这是我理解的分布式场景下的事件驱动的使用。事件驱动是一种思想，PubSub是一种模式，Redis，ActiveMQ是一种应用，落到实处，便可以是本文介绍的token这个小小的业务实现。但是注意，使用Redis，ActiveMQ理解事件驱动可以，但是不能等同事件驱动，事件驱动还有很多其他场景下体现，笔者功力不够，无法一一介绍，怕人误解，特此强调一下。</p>
 
            
         
@@ -289,7 +290,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/09/13/event-2/" data-id="cj7jrambo00149oud722krsv6" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/09/13/event-2/" data-id="cj7pxphem00122kud7m9dwhqt" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding

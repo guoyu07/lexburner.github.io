@@ -223,8 +223,7 @@
         
         <div class="article-entry" itemprop="articleBody">
         
-            
-             <p>上一篇文章《浅析Spring中的事件驱动机制》简单介绍了Spring对事件的支持。Event的整个生命周期，从publisher发出，经过applicationContext容器通知到EventListener，都是发生在单个Spring容器中，而在分布式场景下，有些时候一个事件的产生，可能需要被多个实例响应，本文主要介绍分布式场景下的事件驱动机制，由于使用了Redis，ActiveMQ，也可以换一个名词来理解：分布式下的发布订阅模式。</p>
+            <p><p>上一篇文章《浅析Spring中的事件驱动机制》简单介绍了Spring对事件的支持。Event的整个生命周期，从publisher发出，经过applicationContext容器通知到EventListener，都是发生在单个Spring容器中，而在分布式场景下，有些时候一个事件的产生，可能需要被多个实例响应，本文主要介绍分布式场景下的事件驱动机制，由于使用了Redis，ActiveMQ，也可以换一个名词来理解：分布式下的发布订阅模式。</p>
 <h2 id="JMS规范"><a href="#JMS规范" class="headerlink" title="JMS规范"></a>JMS规范</h2><p>在日常项目开发中，我们或多或少的发现一些包一些类位于java或javax中，他们主要提供抽象类，接口，提供了一种规范，如JPA，JSR，JNDI，JTA，JMS，他们是由java指定的标准规范，一流企业做标准、二流企业做品牌、三流企业做产品，虽然有点调侃的意味，但也可以见得它的重要意义。而JMS就是java在消息服务上指定的标准</p>
 <blockquote>
 <p>The Java Message Service (JMS) API is a messaging standard that allows application components based on the Java Platform Enterprise Edition (Java EE) to create, send, receive, and read messages. It enables distributed communication that is loosely coupled, reliable, and asynchronous.</p>
@@ -235,44 +234,10 @@
 <p><img src="http://ov0zuistv.bkt.clouddn.com/QQ%E5%9B%BE%E7%89%8720170913232959.png" alt="token获取流程"></p>
 <p>这个图并不复杂，只是为了方便描述需求：首先去本地变量中加载token，若token==null，则去Redis加载，若Redis未命中（token过期了），则最终调用外部的http接口获取实时的token，同时存入redis中和本地变量中。</p>
 <p>这个需求设计到这样一个问题：大多数情况下是单个实例中发现redis中的token为空，而它需要同时获取最新token，并通知其他的实例也去加载最新的token，这个时候事件广播就可以派上用场了。</p>
-<p>由于token缓存在了Redis中，我们首先介绍Redis的发布订阅机制。</p>
-<h2 id="Redis中的Pub与Sub"><a href="#Redis中的Pub与Sub" class="headerlink" title="Redis中的Pub与Sub"></a>Redis中的Pub与Sub</h2><p>redis不仅仅具备缓存的功能，它还拥有一个channel机制，我们可以使用Redis来进行发布订阅。上述的token流程我们简化一下，省略保存到redis的那一环，直接介绍如何通知其他应用刷新token。</p>
-<h2 id="引入依赖和配置"><a href="#引入依赖和配置" class="headerlink" title="引入依赖和配置"></a>引入依赖和配置</h2><figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="name">dependency</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>org.springframework.boot<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>spring-boot-starter-data-redis<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></div><div class="line"><span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></div></pre></td></tr></table></figure>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line"><span class="attr">spring:</span></div><div class="line"><span class="attr">  redis:</span></div><div class="line"><span class="attr">    database:</span> <span class="number">0</span></div><div class="line"><span class="attr">    host:</span> <span class="string">localhost</span></div><div class="line"><span class="attr">    port:</span> <span class="number">6379</span></div></pre></td></tr></table></figure>
-<h3 id="定义TokenService"><a href="#定义TokenService" class="headerlink" title="定义TokenService"></a>定义TokenService</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Service</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">TokenService</span> </span>&#123;</div><div class="line"></div><div class="line">    <span class="meta">@Autowired</span></div><div class="line">    StringRedisTemplate redisTemplate;</div><div class="line"></div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">getToken</span><span class="params">(String username)</span> </span>&#123; <span class="comment">// &lt;1&gt;</span></div><div class="line">        String token = UUID.randomUUID().toString();</div><div class="line">        <span class="comment">//模拟http接口使用用户名和密码获取token</span></div><div class="line">        System.out.println(username + <span class="string">" 成功获取token ..."</span> + token);</div><div class="line">        <span class="comment">//发送token刷新广播</span></div><div class="line">        System.out.println(<span class="string">"广播token刷新事件 ..."</span>);</div><div class="line">        redisTemplate.convertAndSend(RedisPubSubConfig.tokenChannel, token);</div><div class="line">    &#125;</div><div class="line"></div><div class="line"></div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">refreshTokenListener</span><span class="params">(String token)</span> </span>&#123; <span class="comment">// &lt;2&gt;</span></div><div class="line">        System.out.println(<span class="string">"接到token刷新事件，刷新 token : "</span> + token);</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p><1> 模拟获取token的方法，获取token的同时发送广播。</1></p>
-<p><2> 用于接收其他应用发送过来的广播消息。</2></p>
-<h3 id="配置RedisMessageListenerContainer"><a href="#配置RedisMessageListenerContainer" class="headerlink" title="配置RedisMessageListenerContainer"></a>配置RedisMessageListenerContainer</h3><p>在Spring应用中Event是由Spring容器管理的，而在Redis的消息机制中，Event是由RedisMessageListenerContainer管理的。我们为token配置一个channel，用于刷新token：</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Configuration</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">RedisPubSubConfig</span> </span>&#123;</div><div class="line"></div><div class="line">    <span class="keyword">public</span> <span class="keyword">final</span> <span class="keyword">static</span> String tokenChannel = <span class="string">"tokenChannel"</span>;</div><div class="line"></div><div class="line">    <span class="meta">@Bean</span></div><div class="line">    <span class="function">RedisMessageListenerContainer <span class="title">redisMessageListenerContainer</span><span class="params">(RedisConnectionFactory redisConnectionFactory)</span> </span>&#123;</div><div class="line">        RedisMessageListenerContainer redisMessageListenerContainer = <span class="keyword">new</span> RedisMessageListenerContainer();<span class="comment">// &lt;1&gt;</span></div><div class="line">        redisMessageListenerContainer.setConnectionFactory(redisConnectionFactory);</div><div class="line">        redisMessageListenerContainer.addMessageListener(tokenRefreshListener(), <span class="keyword">new</span> ChannelTopic(tokenChannel)); <span class="comment">// &lt;2&gt;</span></div><div class="line">        <span class="keyword">return</span> redisMessageListenerContainer;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    <span class="meta">@Autowired</span></div><div class="line">    TokenService tokenService;</div><div class="line"></div><div class="line">    <span class="function">MessageListener <span class="title">tokenRefreshListener</span><span class="params">()</span> </span>&#123;</div><div class="line">        <span class="keyword">return</span> <span class="keyword">new</span> MessageListener() &#123;</div><div class="line">            <span class="meta">@Override</span></div><div class="line">            <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">onMessage</span><span class="params">(Message message, <span class="keyword">byte</span>[] pattern)</span> </span>&#123;</div><div class="line">                <span class="keyword">byte</span>[] bytes = message.getBody(); <span class="comment">// &lt;3&gt;</span></div><div class="line">                tokenService.refreshTokenListener(<span class="keyword">new</span> String(bytes));</div><div class="line">            &#125;</div><div class="line">        &#125;;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p><1> RedisMessageListenerContainer用于管理所有的redis相关的发布与订阅</1></p>
-<p><2> 为Redis容器注册特定的订阅者，在本例中使用tokenRefreshListener监听tokenChannel频道，当收到消息通知时，会自动调用onMessage方法。</2></p>
-<p><3> 使用message.getBody()可以获取消息的具体内容，在本例中即token</3></p>
-<h2 id="测试结果"><a href="#测试结果" class="headerlink" title="测试结果"></a>测试结果</h2><p>同样的这个应用，我们在8080,8081,8082启动三个，在8080中，我们调用tokenService.getToken(“kirito”);(注意必须要连接到redis的同一个database)</p>
-<p>在三个控制台中我们得到了如下的结果：</p>
-<p>8080：</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line">kirito 成功获取token ...5d4d2a48-934f-450d-8806-e6095b172286</div><div class="line">广播token刷新事件 ...</div><div class="line">接到token刷新事件，刷新 token : 5d4d2a48-934f-450d-8806-e6095b172286</div></pre></td></tr></table></figure>
-<p>8081：</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">接到token刷新事件，刷新 token : 5d4d2a48-934f-450d-8806-e6095b172286</div></pre></td></tr></table></figure>
-<p>8082：</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">接到token刷新事件，刷新 token : 5d4d2a48-934f-450d-8806-e6095b172286</div></pre></td></tr></table></figure>
-<p>可以发现其他系统的确收到了通知。</p>
-<h2 id="ActiveMQ中的Pub与Sub"><a href="#ActiveMQ中的Pub与Sub" class="headerlink" title="ActiveMQ中的Pub与Sub"></a>ActiveMQ中的Pub与Sub</h2><p>Redis中的发布订阅其实在真正的企业开发中并不是很常用，如果涉及到一致性要求较高的需求，专业的消息中间件可以更好地为我们提供服务。下面介绍一下ActiveMQ如何实现发布订阅。</p>
-<p>ActiveMQ为我们提供很好的监控页面，延时队列，消息ACK，事务，持久化等等机制，且拥有较高的吞吐量，是企业架构中不可或缺的一个重要中间件。</p>
-<h3 id="引入依赖"><a href="#引入依赖" class="headerlink" title="引入依赖"></a>引入依赖</h3><figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="name">dependency</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>org.springframework.boot<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>spring-boot-starter-activemq<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></div><div class="line"><span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></div></pre></td></tr></table></figure>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line"><span class="attr">spring:</span></div><div class="line"><span class="attr">  activemq:</span></div><div class="line"><span class="attr">    in-memory:</span> <span class="literal">false</span> <span class="comment"># &lt;1&gt;</span></div><div class="line"><span class="attr">    broker-url:</span> <span class="attr">tcp://127.0.0.1:61616</span></div><div class="line"><span class="attr">    user:</span> <span class="string">admin</span></div><div class="line"><span class="attr">    password:</span> <span class="string">admin</span></div><div class="line"><span class="attr">  jms:</span></div><div class="line"><span class="attr">    pub-sub-domain:</span> <span class="literal">true</span> <span class="comment"># &lt;2&gt;</span></div></pre></td></tr></table></figure>
-<p><1> springboot的自动配置会帮我们启动一个内存中的消息队列，引入spring-boot-starter-activemq倚赖时需要特别注意这一点，本例连接本机的ActiveMQ。</1></p>
-<p><2> springboot默认不支持PubSub模式，需要手动开启。</2></p>
-<h2 id="定义TokenService-1"><a href="#定义TokenService-1" class="headerlink" title="定义TokenService"></a>定义TokenService</h2><figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Service</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">TokenService</span> </span>&#123;</div><div class="line"></div><div class="line">    <span class="meta">@Autowired</span></div><div class="line">    JmsTemplate jmsTemplate; <span class="comment">// &lt;1&gt;</span></div><div class="line"></div><div class="line">    <span class="meta">@Autowired</span></div><div class="line">    Topic tokenTopic; <span class="comment">// &lt;3&gt;</span></div><div class="line"></div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">getToken</span><span class="params">(String username)</span> </span>&#123;</div><div class="line">        String token = UUID.randomUUID().toString();</div><div class="line">        <span class="comment">//模拟http接口使用用户名和密码获取token</span></div><div class="line">        System.out.println(username + <span class="string">" 成功获取token ..."</span> + token);</div><div class="line">        <span class="comment">//发送token刷新广播</span></div><div class="line">        System.out.println(<span class="string">"广播token刷新事件 ..."</span>);</div><div class="line">        <span class="keyword">try</span> &#123;</div><div class="line">            Message message = <span class="keyword">new</span> ActiveMQMessage();</div><div class="line">            message.setStringProperty(<span class="string">"token"</span>, token);</div><div class="line">            jmsTemplate.convertAndSend(tokenTopic, message);<span class="comment">// &lt;1&gt;</span></div><div class="line">        &#125; <span class="keyword">catch</span> (Exception e) &#123;</div><div class="line">            <span class="keyword">throw</span> <span class="keyword">new</span> RuntimeException(e);</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    <span class="meta">@JmsListener</span>(destination = ActivemqPubSubConfig.tokenTopic) <span class="comment">// &lt;2&gt;</span></div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">refreshTokenListener</span><span class="params">(Message message)</span> <span class="keyword">throws</span> Exception </span>&#123;</div><div class="line">        System.out.println(<span class="string">"接到token刷新事件，刷新 token : "</span> + message.getStringProperty(<span class="string">"token"</span>));</div><div class="line">    &#125;</div><div class="line"></div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p><1> 使用模板设计模式的好处体现了出来，再前面的RedisTemplate中我们也是使用同样的template.convertAndSend()发送消息</1></p>
-<p><2> JmsListener对应于EventListener，接收来自ActiveMQ中tokenTopic的消息通知</2></p>
-<p><3> tokenTopic定义在下面的config中</3></p>
-<h3 id="配置ActiveMQ的topic"><a href="#配置ActiveMQ的topic" class="headerlink" title="配置ActiveMQ的topic"></a>配置ActiveMQ的topic</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Configuration</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ActivemqPubSubConfig</span> </span>&#123;</div><div class="line"></div><div class="line">    <span class="keyword">public</span> <span class="keyword">final</span> <span class="keyword">static</span> String tokenTopic = <span class="string">"tokenTopic"</span>;</div><div class="line"></div><div class="line">    <span class="meta">@Bean</span></div><div class="line">    <span class="function">Topic <span class="title">tokenTopic</span><span class="params">()</span></span>&#123;</div><div class="line">        <span class="keyword">return</span> <span class="keyword">new</span> ActiveMQTopic(ActivemqPubSubConfig.tokenTopic);</div><div class="line">    &#125;</div><div class="line"></div><div class="line"></div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>非常简单的配置，因为ActiveMQAutoConfiguration已经帮我们做了相当多的配置，我们只需要顶一个topic即可使用ActiveMQ的功能。</p>
-<h3 id="查看ActiveMQ的监控端"><a href="#查看ActiveMQ的监控端" class="headerlink" title="查看ActiveMQ的监控端"></a>查看ActiveMQ的监控端</h3><p>省略了发送消息的过程，实际上可以得到和Redis PubSub一样的效果。来看一下ActiveMQ自带的监控端，在发送消息后，发生了什么变化，访问本地端口<code>http://localhost:8161/admin</code> ，可以看到消息被消费了。</p>
-<p><img src="http://ov0zuistv.bkt.clouddn.com/QQ%E5%9B%BE%E7%89%8720170914001552.png" alt="ActiveMQ监控端"></p>
-<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>本文浅显的减少了Redis，ActiveMQ的PubSub特性，这是我理解的分布式场景下的事件驱动的使用。事件驱动是一种思想，PubSub是一种模式，Redis，ActiveMQ是一种应用，落到实处，便可以是本文介绍的token这个小小的业务实现。但是注意，使用Redis，ActiveMQ理解事件驱动可以，但是不能等同事件驱动，事件驱动还有很多其他场景下体现，笔者功力不够，无法一一介绍，怕人误解，特此强调一下。</p>
-
-           
+<p>由于token缓存在了Redis中，我们首先介绍Redis的发布订阅机制。</p></p>
+            <p class="article-more-link">
+                <a href="/2017/09/13/event-2/#more">查看更多</a>
+            </p>
         
         </div>
         <footer class="article-footer">
@@ -282,7 +247,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/09/13/event-2/" data-id="cj7jrambo00149oud722krsv6" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/09/13/event-2/" data-id="cj7pxphem00122kud7m9dwhqt" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -445,7 +410,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/09/11/rethink-1/" data-id="cj7jramby001b9oud7wxbsh94" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/09/11/rethink-1/" data-id="cj7pxphfe001s2kuduzu59c7w" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -635,7 +600,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/09/10/event-1/" data-id="cj7jrambd000v9oudsicgdjnk" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/09/10/event-1/" data-id="cj7pxphf6001k2kudvgko8r6c" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -827,7 +792,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/09/09/feign-1/" data-id="cj7jramc2001f9oudt7927wo6" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/09/09/feign-1/" data-id="cj7pxphew00182kudd4o5m37o" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -983,7 +948,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/09/04/Re：从零开始的Spring Session(三)/" data-id="cj7jrambu00199oudgrf9bpd9" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/09/04/Re：从零开始的Spring Session(三)/" data-id="cj7pxphdl000f2kud5d8cjqog" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1135,7 +1100,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/09/03/Re：从零开始的Spring Session(二)/" data-id="cj7jramaa00099oud18ys1p0n" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/09/03/Re：从零开始的Spring Session(二)/" data-id="cj7pxphdi000d2kud81bjkye8" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1270,7 +1235,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/09/03/Re：从零开始的Spring Session(一)/" data-id="cj7jramb6000q9oudffcl000s" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/09/03/Re：从零开始的Spring Session(一)/" data-id="cj7pxphe2000n2kudxkfdujyg" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1505,7 +1470,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/08/30/解析Spring中的ResponseBody和RequestBody/" data-id="cj7jramf9003s9oudrfcmh3yo" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/08/30/解析Spring中的ResponseBody和RequestBody/" data-id="cj7pxphhg003q2kuds2y90vn4" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1650,7 +1615,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/08/26/xml与javabean的转换/" data-id="cj7jramd600269oudobd98u2y" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/08/26/xml与javabean的转换/" data-id="cj7pxphfw00292kudzennvtch" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1729,7 +1694,7 @@
 
 
 
-    <article id="post-一些需要普及的项目规范" class="article article-type-post" itemscope itemprop="blogPost">
+    <article id="post-project_rules" class="article article-type-post" itemscope itemprop="blogPost">
     <div class="article-inner">
         
         
@@ -1737,7 +1702,7 @@
                 
     
         <h1 itemprop="name">
-            <a class="article-title" href="/2017/08/25/一些需要普及的项目规范/">一些需要普及的项目规范</a>
+            <a class="article-title" href="/2017/08/25/project_rules/">一些需要普及的项目规范</a>
         </h1>
     
 
@@ -1746,7 +1711,7 @@
                         
     <div class="article-date">
         <i class="fa fa-calendar"></i>
-        <a href="/2017/08/25/一些需要普及的项目规范/">
+        <a href="/2017/08/25/project_rules/">
             <time datetime="2017-08-25T04:18:45.000Z" itemprop="datePublished">2017-08-25</time>
         </a>
     </div>
@@ -1774,7 +1739,7 @@
             <p><h2 id="介绍"><a href="#介绍" class="headerlink" title="介绍"></a>介绍</h2><p>好的开发规范不仅能够使得项目变得易维护，易升级。一些通用的规范可以参考《阿里巴巴java开发手册》<br>本文档主要针对我们项目内部正在使用的框架提出一些开发规范，欢迎补充</p>
 <h2 id="包结构规范"><a href="#包结构规范" class="headerlink" title="包结构规范"></a>包结构规范</h2><p>以短信邮件项目（mail-sms）为例，介绍包结构命名规范。</p></p>
             <p class="article-more-link">
-                <a href="/2017/08/25/一些需要普及的项目规范/#more">查看更多</a>
+                <a href="/2017/08/25/project_rules/#more">查看更多</a>
             </p>
         
         </div>
@@ -1785,7 +1750,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/08/25/一些需要普及的项目规范/" data-id="cj7jramdh002h9oudg4o4b9ae" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/08/25/project_rules/" data-id="cj7pxphf3001g2kud1wocvwmt" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1853,7 +1818,7 @@
 
             
     
-        <a href="http://lexburner.github.io/2017/08/25/一些需要普及的项目规范/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/08/25/一些需要普及的项目规范/">评论</a>
+        <a href="http://lexburner.github.io/2017/08/25/project_rules/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/08/25/project_rules/">评论</a>
     
 
         </footer>
