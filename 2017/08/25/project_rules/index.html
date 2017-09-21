@@ -13,7 +13,7 @@
 <meta property="og:site_name" content="徐靖峰|个人博客">
 <meta property="og:description" content="介绍本文档主要针对我们项目内部正在使用的框架，以及代码审查发现的一些共性问题提出一些开发规范。 包结构规范1    包命名【强制】  格式如下：公司名.模块名.层次名包名应当尽量使用能够概括模块总体含义,单词义,单数,不包含特殊字符的单词【正例】: sinosoftgz.message.admin【反例】: sinosoftgz.mailsms.admin sinosoftgz.mail.sms.">
 <meta property="og:locale" content="zh-CN">
-<meta property="og:updated_time" content="2017-09-21T02:33:29.188Z">
+<meta property="og:updated_time" content="2017-09-21T02:44:12.648Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="sinosoft代码规范">
 <meta name="twitter:description" content="介绍本文档主要针对我们项目内部正在使用的框架，以及代码审查发现的一些共性问题提出一些开发规范。 包结构规范1    包命名【强制】  格式如下：公司名.模块名.层次名包名应当尽量使用能够概括模块总体含义,单词义,单数,不包含特殊字符的单词【正例】: sinosoftgz.message.admin【反例】: sinosoftgz.mailsms.admin sinosoftgz.mail.sms.">
@@ -237,31 +237,13 @@
 <p>【正例】: </p>
 <figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div></pre></td><td class="code"><pre><div class="line">sinosoftgz.message.admin</div><div class="line">    config</div><div class="line">        模块公用Config.java</div><div class="line">    service</div><div class="line">        模块公用Service.java</div><div class="line">    web</div><div class="line">        模块公用Controller.java</div><div class="line">        IndexController.java</div><div class="line">    mail</div><div class="line">        config</div><div class="line">            MailConfig.java</div><div class="line">        service</div><div class="line">            Mail私有Service.java</div><div class="line">            MailTemplateService.java</div><div class="line">            MailMessageService.java</div><div class="line">        web</div><div class="line">            Mail私有Controller.java</div><div class="line">            MailTemplateController.java</div><div class="line">            MailMessageController.java</div><div class="line">    sms</div><div class="line">        config</div><div class="line">            Smsconfig.java</div><div class="line">        service</div><div class="line">            Sms私有Service.java</div><div class="line">            SmsTemplateService.java</div><div class="line">            SmsMessageService.java</div><div class="line">        web</div><div class="line">            Sms私有Controller.java</div><div class="line">            SmsTemplateController.java</div><div class="line">            SmsMessageController.java</div><div class="line">    MessageAdminApp.java</div></pre></td></tr></table></figure>
 <p>service和controller以及其他业务模块相关的包相隔太远，或者干脆全部丢到一个包内，单纯用前缀区分，会形成臃肿，充血的包结构。如果是项目结构较为单一，可以仅仅使用前缀区分；如果是项目中业务模块有明显的区分条件，应当单独作为一个包，用包名代表业务模块的含义。</p>
-<h2 id="领域模型规范"><a href="#领域模型规范" class="headerlink" title="领域模型规范"></a>领域模型规范</h2><h3 id="javabean规范"><a href="#javabean规范" class="headerlink" title="javabean规范"></a>javabean规范</h3><p>1    驼峰命名法【强制】</p>
+<h2 id="领域模型规范"><a href="#领域模型规范" class="headerlink" title="领域模型规范"></a>领域模型规范</h2><h3 id="JavaBean规范"><a href="#JavaBean规范" class="headerlink" title="JavaBean规范"></a>JavaBean规范</h3><p>1    驼峰命名法【强制】</p>
 <p>2    布尔类型规范【强制】<br>【说明】所有的布尔类型不允许以is开头，否则会导致部分序列化，hibernate框架出现解析异常。<br>【反例】<br>原来项目的BaseDomain中标记逻辑删除的字段,在部分场景下会出现问题</p>
 <figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Column</span>(name = <span class="string">"is_delete"</span>)</div><div class="line"><span class="keyword">private</span> Boolean isDelete = <span class="keyword">false</span>;</div><div class="line"></div><div class="line"><span class="function"><span class="keyword">public</span> Boolean <span class="title">getIsDelete</span><span class="params">()</span> </span>&#123;</div><div class="line">        <span class="keyword">return</span> isDelete;</div><div class="line">    &#125;</div><div class="line"></div><div class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">setIsDelete</span><span class="params">(Boolean isDelete)</span> </span>&#123;</div><div class="line">    <span class="keyword">if</span>(deleteFlag)</div><div class="line">        <span class="keyword">this</span>.deleteDate = <span class="keyword">new</span> Date();</div><div class="line">    <span class="keyword">this</span>.isDelete = isDelete;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
 <p>tips: 使用intellij idea的快捷键（for eclipse）alt+shift+r，<br>或者菜单栏Refactor-&gt;Rename，可以重构字段名称<br>【正例】</p>
 <figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Column</span>(name = <span class="string">"is_delete"</span>)</div><div class="line"><span class="keyword">private</span> Boolean deleteFlag = <span class="keyword">false</span>;</div></pre></td></tr></table></figure>
 <p>3    装箱类型优于原生类型【推荐】<br>在业务代码中，更加推荐使用装箱类型Integer Double Boolean…<br>【说明】在未设值的情况下，基础类型具有默认值，而装箱类型为null<br>以Boolean类型为例，如果使用boolean，那么在未复制时，无法得知其到底是被赋值成了false，<br>还是未赋值</p>
-<h2 id="容易忽视的细节"><a href="#容易忽视的细节" class="headerlink" title="容易忽视的细节"></a>容易忽视的细节</h2><p>1    运算溢出【强制】</p>
-<p>【反例】Integer a = Integer b * Integer c;</p>
-<p>【正例】Long a =  Integer b * Integer c;(强转)</p>
-<p>整数相乘可能会溢出，需要使用Long接收</p>
-<p>2    Double类型的精度问题【强制】</p>
-<p>Double不能用于商业计算，使用BigDecimal代替</p>
-<p>3    BigDecimal规范【强制】</p>
-<p>【反例】</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line">BigDecimal totalMoney = <span class="keyword">new</span> BigDecimal(<span class="string">"100.42"</span>);</div><div class="line">BigDecimal averageMoney = totalMoney.divide(<span class="keyword">new</span> BigDecimal(<span class="string">"22"</span>));</div></pre></td></tr></table></figure>
-<p>【正例】 </p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line">BigDecimal totalMoney = <span class="keyword">new</span> BigDecimal(<span class="string">"100.42"</span>);</div><div class="line">BigDecimal averageMoney = totalMoney.divide(<span class="keyword">new</span> BigDecimal(<span class="string">"22"</span>),<span class="number">3</span>);</div></pre></td></tr></table></figure>
-<p>业务实体类中的与金额相关的变量统一使用BigDecimal,四则运算采用BigDecimal的相关api进行。<br>做<strong>除法</strong>时需要额外注意保留精度的问题，否则可能会报异常，并且不易被测试出</p>
-<p>4    equals规范【强制】</p>
-<p>【反例】</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div></pre></td><td class="code"><pre><div class="line">Integer a = 2333;</div><div class="line">Integer b = 2333;</div><div class="line">System.out.println(a == b);//fasle</div><div class="line">Integer a = 2;</div><div class="line">Integer b = 2;</div><div class="line">System.out.println(a == b);//true</div></pre></td></tr></table></figure>
-<p>【正例】</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">a.equals(b)</div></pre></td></tr></table></figure>
-<p>要注意正确的不叫，谨慎使用==，它比较的是引用</p>
-<h2 id="常用的领域模型"><a href="#常用的领域模型" class="headerlink" title="常用的领域模型"></a>常用的领域模型</h2><p>首先理解各个常用的领域模型的含义：</p>
+<h3 id="领域模型规范-1"><a href="#领域模型规范-1" class="headerlink" title="领域模型规范"></a>领域模型规范</h3><p>首先理解各个常用的领域模型的含义：</p>
 <table>
 <thead>
 <tr>
@@ -290,6 +272,24 @@
 </table>
 <p>对于View Object，PO等等其他一些的对象不在此做要求，只说明一下常用的几个<br>DO就是我们最常用的数据库持久对象，是OOP对于现实中的抽象，一般使用orm框架映射到数据库<br>DTO这一层，目前我们的项目还没有投入使用，即将考虑投入使用，理论上来说，两个微服务模块是严禁共享数据库的<br>所以A模块要查询B模块的数据，需要使用B模块app层暴露出来的api来查询，其中B模块返回的实体，不能是直接从数据库中<br>查询出来的DO，而应该是DO转换而成的DTO。以及其他服务服务用语传输的变量，都叫做DTO<br>VO就是常存在于视图层模板渲染使用的实体类</p>
 <p>【推荐】领域模型命名规范<br>【说明】由于DO这一层大家已经养成了习惯，不做要求了。DTO有些特殊，他常常与业务的传输对象相关，而不限于以DTO结尾，如xxxQuery也可以是DTO对象。VO对象推荐以VO结尾。注意：不要命名为Vo,Dto。</p>
+<h2 id="容易忽视的细节"><a href="#容易忽视的细节" class="headerlink" title="容易忽视的细节"></a>容易忽视的细节</h2><p>1    运算溢出【强制】</p>
+<p>【反例】Integer a = Integer b * Integer c;</p>
+<p>【正例】Long a =  Integer b * Integer c;(强转)</p>
+<p>整数相乘可能会溢出，需要使用Long接收</p>
+<p>2    Double类型的精度问题【强制】</p>
+<p>Double不能用于商业计算，使用BigDecimal代替</p>
+<p>3    BigDecimal规范【强制】</p>
+<p>【反例】</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line">BigDecimal totalMoney = <span class="keyword">new</span> BigDecimal(<span class="string">"100.42"</span>);</div><div class="line">BigDecimal averageMoney = totalMoney.divide(<span class="keyword">new</span> BigDecimal(<span class="string">"22"</span>));</div></pre></td></tr></table></figure>
+<p>【正例】 </p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line">BigDecimal totalMoney = <span class="keyword">new</span> BigDecimal(<span class="string">"100.42"</span>);</div><div class="line">BigDecimal averageMoney = totalMoney.divide(<span class="keyword">new</span> BigDecimal(<span class="string">"22"</span>),<span class="number">3</span>);</div></pre></td></tr></table></figure>
+<p>业务实体类中的与金额相关的变量统一使用BigDecimal,四则运算采用BigDecimal的相关api进行。<br>做<strong>除法</strong>时需要额外注意保留精度的问题，否则可能会报异常，并且不易被测试出</p>
+<p>4    equals规范【强制】</p>
+<p>【反例】</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div></pre></td><td class="code"><pre><div class="line">Integer a = 2333;</div><div class="line">Integer b = 2333;</div><div class="line">System.out.println(a == b);//fasle</div><div class="line">Integer a = 2;</div><div class="line">Integer b = 2;</div><div class="line">System.out.println(a == b);//true</div></pre></td></tr></table></figure>
+<p>【正例】</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">a.equals(b)</div></pre></td></tr></table></figure>
+<p>要注意正确的比较方法，谨慎使用==，它比较的是引用</p>
 <h2 id="数据库规范"><a href="#数据库规范" class="headerlink" title="数据库规范"></a>数据库规范</h2><p>1    必要的地方必须添加索引，如唯一索引，如作为条件查询的列【强制】<br>2    生产环境，uat环境，不允许使用<code>jpa.hibernate.ddl-auto: create</code>自动建表，每次ddl的修改需要保留脚本，统一管理【强制】<br>3    业务数据不能使用deleteBy…而要使用逻辑删除setDeleteFlag(true),查询时，findByxxxAndDeleteFlag(xxx,false)【强制】</p>
 <p>4    如有可替代方案，则禁止使用存储过程和触发器【强制】</p>
 <h2 id="ORM规范"><a href="#ORM规范" class="headerlink" title="ORM规范"></a>ORM规范</h2><p>【强制】条件查询超过三个参数的，使用<code>criteriaQuery</code>，<code>predicates</code> 而不能使用springdata的findBy</p>
@@ -304,6 +304,15 @@
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line">itering...</div><div class="line">map.remove(..)</div></pre></td></tr></table></figure>
 <p>【正例】</p>
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line">itering...</div><div class="line">iterator.remove(..)</div></pre></td></tr></table></figure>
+<p>2    hashCode和equals重写</p>
+<p>作为Map键值，Set值的实体类，务必重写hashCode与equals方法。重写时务必做到以下几点</p>
+<ul>
+<li><strong>自反性</strong>:  x.equals(x) 一定是true</li>
+<li><strong>对null</strong>:  x.equals(null) 一定是false</li>
+<li><strong>对称性</strong>:  x.equals(y)  和  y.equals(x)结果一致</li>
+<li><strong>传递性</strong>:  a 和 b equals , b 和 c  equals，那么 a 和 c也一定equals。</li>
+<li><strong>一致性</strong>:  在某个运行时期间，2个对象的状态的改变不会不影响equals的决策结果，那么，在这个运行时期间，无论调用多少次equals，都返回相同的结果。做到无状态。</li>
+</ul>
 <h2 id="禁止使用魔法数字"><a href="#禁止使用魔法数字" class="headerlink" title="禁止使用魔法数字"></a>禁止使用魔法数字</h2><p>【模型层与业务层】【强制】<br>一些固定业务含义的代码可以使用枚举类型，或者final static常量表示，在设值时，不能直接使用不具备业务含义的数值。</p>
 <p>【反例】</p>
 <figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div></pre></td><td class="code"><pre><div class="line"><span class="comment">//实体类定义</span></div><div class="line"><span class="comment">/**</span></div><div class="line"><span class="comment">  * 发送设置标志 (1：立即发送 2：预设时间发送 )</span></div><div class="line"><span class="comment">  */</span></div><div class="line"><span class="meta">@Column</span>(columnDefinition = <span class="string">"varchar(1) comment '发送设置标志'"</span>)</div><div class="line"><span class="keyword">protected</span> String sendFlag;</div><div class="line"><span class="comment">//业务代码赋值使用</span></div><div class="line">MailMessage mailMessage = <span class="keyword">new</span> MailMessage();</div><div class="line">mailMessage.setSendSuccessFlag(<span class="string">"1"</span>);</div><div class="line">mailMessage.setValidStatus(<span class="string">"0"</span>);</div><div class="line">mailMessage.setCustom(<span class="keyword">true</span>);</div></pre></td></tr></table></figure>
@@ -370,7 +379,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/08/25/project_rules/" data-id="cj7tuie2h001dlwudtfhrk1t4" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/08/25/project_rules/" data-id="cj7tutd5a001tdgudpub293bo" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
