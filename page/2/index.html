@@ -150,7 +150,7 @@
         </div>
         <div class="article-info profile-block">
             <div class="article-info-block">
-                45
+                46
                 <span>文章</span>
             </div>
             <div class="article-info-block">
@@ -185,6 +185,242 @@
 
             
             <section id="main">
+    <article id="post-解析Spring中的ResponseBody和RequestBody" class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        
+            <header class="article-header">
+                
+    
+        <h1 itemprop="name">
+            <a class="article-title" href="/2017/08/30/解析Spring中的ResponseBody和RequestBody/">解析Spring中的ResponseBody和RequestBody</a>
+        </h1>
+    
+
+                
+                    <div class="article-meta">
+                        
+    <div class="article-date">
+        <i class="fa fa-calendar"></i>
+        <a href="/2017/08/30/解析Spring中的ResponseBody和RequestBody/">
+            <time datetime="2017-08-30T04:44:21.000Z" itemprop="datePublished">2017-08-30</time>
+        </a>
+    </div>
+
+
+                        
+    <div class="article-category">
+    	<i class="fa fa-folder"></i>
+        <a class="article-category-link" href="/categories/Spring/">Spring</a>
+    </div>
+
+                        
+    <div class="article-tag">
+        <i class="fa fa-tag"></i>
+        <a class="tag-link" href="/tags/Spring/">Spring</a>
+    </div>
+
+                    </div>
+                
+            </header>
+        
+        
+        <div class="article-entry" itemprop="articleBody">
+        
+            
+             <p>spring，restful，前后端分离这些关键词都是大家耳熟能详的关键词了，一般spring常常需要与前端、第三方使用JSON，XML等形式进行交互，你也一定不会对@RequestBody和@ResponseBody这两个注解感到陌生。</p>
+<h2 id="ResponseBody的使用"><a href="#ResponseBody的使用" class="headerlink" title="@ResponseBody的使用"></a>@ResponseBody的使用</h2><p>由于@ResponseBody和@RequestBody的内部实现是同样的原理（封装请求和封装响应），所以本文以@ResponseBody为主要入手点，理解清楚任何一者，都可以同时掌握另一者。</p>
+<p>如果想要从spring获得一个json形式返回值，操作起来是非常容易的。首先定义一个实体类:</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Book</span> </span>&#123;</div><div class="line">    <span class="keyword">private</span> Integer id;</div><div class="line">    <span class="keyword">private</span> String bookName;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>接着定义一个后端端点：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@RestController</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">BookController</span> </span>&#123;</div><div class="line"></div><div class="line">    <span class="meta">@GetMapping</span>(value = <span class="string">"/book/&#123;bookId&#125;"</span>)</div><div class="line">    <span class="function"><span class="keyword">public</span> Book <span class="title">getBook</span><span class="params">(@PathVariable(<span class="string">"bookId"</span>)</span> Integer bookId) </span>&#123;</div><div class="line">        <span class="keyword">return</span> <span class="keyword">new</span> Book(bookId, <span class="string">"book"</span> + bookId);</div><div class="line">    &#125;</div><div class="line"></div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>在RestController中，相当于给所有的xxxMapping端点都添加了@ResponseBody注解，不返回视图，只返回数据。使用http工具访问这个后端端点<code>localhost:8080/book/2</code>，便可以得到如下的响应：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line">&#123;</div><div class="line">    <span class="attr">"id"</span>: <span class="number">2</span>,</div><div class="line">    <span class="attr">"bookName"</span>: <span class="string">"book2"</span></div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>这是一个最简单的返回JSON对象的使用示例了，相信这样的代码很多人在项目中都写过。</p>
+<h2 id="添加XML解析"><a href="#添加XML解析" class="headerlink" title="添加XML解析"></a>添加XML解析</h2><p>如果我们需要将Book对象以XML的形式返回，该如何操作呢？这也很简单，给Book对象添加@XmlRootElement注解，让spring内部能够解析XML对象。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@XmlRootElement</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Book</span> </span>&#123;</div><div class="line">    <span class="keyword">private</span> Integer id;</div><div class="line">    <span class="keyword">private</span> String bookName;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>在我们未对web层的BookController做任何改动之前，尝试访问<code>localhost:8080/book/2</code>时，会发现得到的结果仍然是前面的JSON对象。这也能够理解，因为Book对象如今既可以被解析为XML，也可以被解析为JSON，我们隐隐察觉这背后有一定的解析顺序关系，但不着急，先看看如何让RestController返回XML解析结果。</p>
+<p>方法1 http客户端指定接收的返回结果类型</p>
+<p>http协议中，可以给请求头添加Accept属性，笔者常用的http客户端是idea自带的Test RESTful Web Service以及chrome的插件Postman。简单的调试，前者基本可以满足我们大多数的需求，而这里为了给大家更直观的体验，笔者使用了Postman。以code形式展示：</p>
+<figure class="highlight http"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">GET</span> <span class="string">/book/2</span> HTTP/1.1</div><div class="line"><span class="attribute">Host</span>: localhost:8080</div><div class="line"><span class="attribute">Accept</span>: application/xml</div></pre></td></tr></table></figure>
+<p>响应内容如下：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line">&lt;?xml version="1.0" encoding="UTF-8" standalone="yes"?&gt;</div><div class="line"><span class="tag">&lt;<span class="name">book</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">bookName</span>&gt;</span>book2<span class="tag">&lt;/<span class="name">bookName</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">id</span>&gt;</span>2<span class="tag">&lt;/<span class="name">id</span>&gt;</span></div><div class="line"><span class="tag">&lt;/<span class="name">book</span>&gt;</span></div></pre></td></tr></table></figure>
+<p>方法2 在RestController后端端点中指定返回类型</p>
+<p>修改后的RestController如下所示</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@RestController</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">BookController</span> </span>&#123;</div><div class="line"></div><div class="line">    <span class="meta">@GetMapping</span>(value = <span class="string">"/book/&#123;bookId&#125;"</span>, produces = &#123;<span class="string">"application/xml"</span>&#125;)</div><div class="line">    <span class="function"><span class="keyword">public</span> Book <span class="title">getBook</span><span class="params">(@PathVariable(<span class="string">"bookId"</span>)</span> Integer bookId) </span>&#123;</div><div class="line">        <span class="keyword">return</span> <span class="keyword">new</span> Book(bookId, <span class="string">"book"</span> + bookId);</div><div class="line">    &#125;</div><div class="line"></div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>此时即使将请求中的<code>Accept: application/xml</code>去除，依旧可以返回上述的XML结果。</p>
+<p>通常情况下，我们的服务端返回的形式一般是固定的，即限定了是JSON，XML中的一种，不建议依赖于客户端添加Accept的信息，而是在服务端限定produces类型。</p>
+<h2 id="详解Accpect与produces"><a href="#详解Accpect与produces" class="headerlink" title="详解Accpect与produces"></a>详解Accpect与produces</h2><p>Accpect包含在http协议的请求头中，其本身代表着客户端发起请求时，期望返回的响应结果的媒体类型。如果服务端可能返回多个媒体类型，则可以通过Accpect指定具体的类型。</p>
+<p>produces是Spring为我们提供的注解参数，代表着服务端能够支持返回的媒体类型，我们注意到produces后跟随的是一个数组类型，也就意味着服务端支持多种媒体类型的响应。</p>
+<p>在上一节中，我们未显示指定produces值时，其实就隐式的表明，支持XML形式，JSON形式的媒体类型响应。从实验结果，我们也可以看出，当请求未指定Accpect，响应未指定produces时，具体采用何种形式返回是有Spring控制的。在接口交互时，最良好的对接方式，当然是客户端指定Accpect，服务端指定produces，这样可以避免模棱两可的请求响应，避免出现意想不到的对接结果。</p>
+<h2 id="详解ContentType与consumes"><a href="#详解ContentType与consumes" class="headerlink" title="详解ContentType与consumes"></a>详解ContentType与consumes</h2><p>恰恰和Accpect&amp;produces相反，这两个参数是与用于限制请求的。理解了前两者的含义，这两个参数可以举一反三理解清楚。</p>
+<p>ContentType包含在http协议的请求头中，其本身代表着客户端发起请求时，告知服务端自己的请求媒体类型是什么。</p>
+<p>consumes是Spring为我们提供的注解参数，代表着服务端能够支持处理的请求媒体类型，同样是一个数组，意味着服务端支持多种媒体类型的请求。一般而言，consumes与produces对请求响应媒体类型起到的限制作用，我们给他一个专有名词：窄化。</p>
+<h2 id="http请求响应媒体类型一览"><a href="#http请求响应媒体类型一览" class="headerlink" title="http请求响应媒体类型一览"></a>http请求响应媒体类型一览</h2><p>上面描述的4个属性：Accpect与produces，ContentType与consumes究竟有哪些类型与之对应呢？我只将常用的一些列举了出来：</p>
+<table>
+<thead>
+<tr>
+<th>媒体类型</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>text/html</td>
+<td>HTML格式</td>
+</tr>
+<tr>
+<td>text/plain</td>
+<td>纯文本格式</td>
+</tr>
+<tr>
+<td>text/xml, application/xml</td>
+<td>XML数据格式</td>
+</tr>
+<tr>
+<td>application/json</td>
+<td>JSON数据格式</td>
+</tr>
+<tr>
+<td>image/gif</td>
+<td>gif图片格式</td>
+</tr>
+<tr>
+<td>image/png</td>
+<td>png图片格式</td>
+</tr>
+<tr>
+<td>application/octet-stream</td>
+<td>二进制流数据</td>
+</tr>
+<tr>
+<td>application/ x-www-form-urlencoded</td>
+<td>form表单数据</td>
+</tr>
+<tr>
+<td>multipart/form-data</td>
+<td>含文件的form表单</td>
+</tr>
+</tbody>
+</table>
+<p>其中有几个类型值得一说，web开发中我们常用的提交表单操作，其默认的媒体类型就是application/ x-www-form-urlencoded，而当表单中包含文件时，大家估计都踩过坑，需要将enctype=multipart/form-data设置在form参数中。text/html也就是常见的网页了，json与xml常用于数据交互，其他不再赘述。</p>
+<p>而在JAVA中，提供了MediaType这样的抽象，来与http的媒体类型进行对应。‘/’之前的名词，如text，application被称为类型（type），‘/’之后被称为子类型(subType)。</p>
+<h2 id="详解HttpMessageConverter"><a href="#详解HttpMessageConverter" class="headerlink" title="详解HttpMessageConverter"></a>详解HttpMessageConverter</h2><p>我们想要搞懂Spring到底如何完成众多实体类等复杂类型的数据转换以及与媒体类型的对应，就必须要搞懂HttpMessageConverter这个顶级接口：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">HttpMessageConverter</span>&lt;<span class="title">T</span>&gt; </span>&#123;</div><div class="line">    <span class="function"><span class="keyword">boolean</span> <span class="title">canRead</span><span class="params">(Class&lt;?&gt; var1, MediaType var2)</span></span>;</div><div class="line"></div><div class="line">    <span class="function"><span class="keyword">boolean</span> <span class="title">canWrite</span><span class="params">(Class&lt;?&gt; var1, MediaType var2)</span></span>;</div><div class="line"></div><div class="line">    <span class="function">List&lt;MediaType&gt; <span class="title">getSupportedMediaTypes</span><span class="params">()</span></span>;</div><div class="line"></div><div class="line">    <span class="function">T <span class="title">read</span><span class="params">(Class&lt;? extends T&gt; var1, HttpInputMessage var2)</span> <span class="keyword">throws</span> IOException, HttpMessageNotReadableException</span>;</div><div class="line"></div><div class="line">    <span class="function"><span class="keyword">void</span> <span class="title">write</span><span class="params">(T var1, MediaType var2, HttpOutputMessage var3)</span> <span class="keyword">throws</span> IOException, HttpMessageNotWritableException</span>;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>大致能看出Spring的处理思路。下面的流程图可以更好方便我们的理解：</p>
+<p><img src="/css/images/post/httpMessageConveter.png" alt="HttpMessageConverter运转流程"></p>
+<p>对于添加了@RequestBody和@ResponseBody注解的后端端点，都会经历由HttpMessageConverter进行的数据转换的过程。而在Spring启动之初，就已经有一些默认的转换器被注册了。通过在<code>RequestResponseBodyMethodProcessor</code> 中打断点，我们可以获取到一个converters列表：</p>
+<p><img src="/css/images/post/converters.png" alt="内置转换器列表"></p>
+<p>源码方面不做过多的解读，有兴趣的朋友可以研究一下<code>RequestResponseBodyMethodProcessor</code> 中的handleReturnValue方法，包含了转换的核心实现。</p>
+<h2 id="自定义HttpMessageConverter"><a href="#自定义HttpMessageConverter" class="headerlink" title="自定义HttpMessageConverter"></a>自定义HttpMessageConverter</h2><p>前面已经提及了消息转换器是通过判断媒体类型来调用响应的转换类的，不禁引发了我们的思考，如果我们遇到了不常用的MediaType，或者自定义的MediaType，又想要使用Spring的@RequestBody，@ResponseBody注解，该如何添加代码呢？下面我们通过自定义一个HttpMessageConverter来了解Spring内部的转换过程。</p>
+<p>先定义我们的需求，自定一个MediaType：application/toString，当返回一个带有@ResponseBody注解的实体类时，将该实体类的ToString作为响应内容。</p>
+<p>1 首先重写Book的ToString方法，方便后期效果展示</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Override</span></div><div class="line"><span class="function"><span class="keyword">public</span> String <span class="title">toString</span><span class="params">()</span> </span>&#123;</div><div class="line">    <span class="keyword">return</span> <span class="string">"~~~Book&#123;"</span> +</div><div class="line">            <span class="string">"id="</span> + id +</div><div class="line">            <span class="string">", bookName='"</span> + bookName + <span class="string">'\''</span> +</div><div class="line">            <span class="string">"&#125;~~~"</span>;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>2 编写自定义的消息转换器</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ToStringHttpMessageConverter</span> <span class="keyword">extends</span> <span class="title">AbstractHttpMessageConverter</span>&lt;<span class="title">Object</span>&gt; </span>&#123;</div><div class="line"></div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="title">ToStringHttpMessageConverter</span><span class="params">()</span> </span>&#123;</div><div class="line">        <span class="keyword">super</span>(<span class="keyword">new</span> MediaType(<span class="string">"application"</span>, <span class="string">"toString"</span>, Charset.forName(<span class="string">"UTF-8"</span>)));<span class="comment">// &lt;1&gt;</span></div><div class="line">    &#125;</div><div class="line"></div><div class="line">    <span class="meta">@Override</span></div><div class="line">    <span class="function"><span class="keyword">protected</span> <span class="keyword">boolean</span> <span class="title">supports</span><span class="params">(Class&lt;?&gt; clazz)</span> </span>&#123;</div><div class="line">        <span class="keyword">return</span> <span class="keyword">true</span>;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    <span class="comment">//从请求体封装数据 对应RequestBody 用String接收</span></div><div class="line">    <span class="meta">@Override</span></div><div class="line">    <span class="function"><span class="keyword">protected</span> Object <span class="title">readInternal</span><span class="params">(Class&lt;?&gt; clazz, HttpInputMessage inputMessage)</span> <span class="keyword">throws</span> IOException, HttpMessageNotReadableException </span>&#123;</div><div class="line">        <span class="keyword">return</span> StreamUtils.copyToString(inputMessage.getBody(), Charset.forName(<span class="string">"UTF-8"</span>));</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    <span class="comment">//从响应体封装数据 对应ResponseBody</span></div><div class="line">    <span class="meta">@Override</span></div><div class="line">    <span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">writeInternal</span><span class="params">(Object o, HttpOutputMessage outputMessage)</span> <span class="keyword">throws</span> IOException, HttpMessageNotWritableException </span>&#123;</div><div class="line">        String result = o.toString();<span class="comment">//&lt;2&gt;</span></div><div class="line">        outputMessage.getBody().write(result.getBytes());</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p><1> 此处指定了支持的媒体类型</1></p>
+<p><2> 调用类的ToString方法，将结果写入到输出流中</2></p>
+<p>3 配置自定义的消息转换器</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Configuration</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">WebMvcConfig</span> <span class="keyword">extends</span> <span class="title">WebMvcConfigurerAdapter</span></span>&#123;</div><div class="line"></div><div class="line">    <span class="meta">@Override</span></div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">configureMessageConverters</span><span class="params">(List&lt;HttpMessageConverter&lt;?&gt;&gt; converters)</span> </span>&#123;</div><div class="line">        converters.add(<span class="keyword">new</span> ToStringHttpMessageConverter());</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>4 配置后端端点，指定生产类型</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@RestController</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">BookController</span> </span>&#123;</div><div class="line"></div><div class="line">    <span class="meta">@GetMapping</span>(value = <span class="string">"/book/&#123;bookId&#125;"</span>,produces = &#123;<span class="string">"application/toString"</span>,<span class="string">"application/json"</span>,<span class="string">"application/xml"</span>&#125;)</div><div class="line">    <span class="function"><span class="keyword">public</span> Book <span class="title">getBook</span><span class="params">(@PathVariable(<span class="string">"bookId"</span>)</span> Integer bookId) </span>&#123;</div><div class="line">        <span class="keyword">return</span> <span class="keyword">new</span> Book(bookId, <span class="string">"book"</span> + bookId);</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>此处只是为了演示，添加了三个生产类型，我们的后端端点可以支持输出三种类型，而具体输出哪一者，则依赖客户端的Accept指定。</p>
+<p>5 客户端请求</p>
+<figure class="highlight http"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">GET</span> <span class="string">/book/2</span> HTTP/1.1</div><div class="line"><span class="attribute">Host</span>: localhost:8080</div><div class="line"><span class="attribute">Accept</span>: application/toString</div></pre></td></tr></table></figure>
+<p>响应结果如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">​~~~Book&#123;id=2, bookName=&apos;book2&apos;&#125;~~~</div></pre></td></tr></table></figure>
+<p>此时，你可以任意指定Accept的类型，即可获得不同形式的Book返回结果，可以是application/toString，application/json，application/xml，都会对应各自的HttpMessageConverter。</p>
+
+           
+        
+        </div>
+        <footer class="article-footer">
+            <div class="share-container">
+
+
+
+</div>
+
+    <a data-url="http://lexburner.github.io/2017/08/30/解析Spring中的ResponseBody和RequestBody/" data-id="cj7vo936n00431gudklrmje1q" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+<script>
+    (function ($) {
+        // Prevent duplicate binding
+        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
+            __SHARE_BUTTON_BINDED__ = true;
+        } else {
+            return;
+        }
+        $('body').on('click', function() {
+            $('.article-share-box.on').removeClass('on');
+        }).on('click', '.article-share-link', function(e) {
+            e.stopPropagation();
+
+            var $this = $(this),
+                url = $this.attr('data-url'),
+                encodedUrl = encodeURIComponent(url),
+                id = 'article-share-box-' + $this.attr('data-id'),
+                offset = $this.offset(),
+                box;
+
+            if ($('#' + id).length) {
+                box = $('#' + id);
+
+                if (box.hasClass('on')){
+                    box.removeClass('on');
+                    return;
+                }
+            } else {
+                var html = [
+                    '<div id="' + id + '" class="article-share-box">',
+                        '<input class="article-share-input" value="' + url + '">',
+                        '<div class="article-share-links">',
+                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
+                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
+                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
+                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
+                        '</div>',
+                    '</div>'
+                ].join('');
+
+              box = $(html);
+
+              $('body').append(box);
+            }
+
+            $('.article-share-box.on').hide();
+
+            box.css({
+                top: offset.top + 25,
+                left: offset.left
+            }).addClass('on');
+
+        }).on('click', '.article-share-box', function (e) {
+            e.stopPropagation();
+        }).on('click', '.article-share-box-input', function () {
+            $(this).select();
+        }).on('click', '.article-share-box-link', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
+        });
+    })(jQuery);
+</script>
+
+            
+    
+        <a href="http://lexburner.github.io/2017/08/30/解析Spring中的ResponseBody和RequestBody/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/08/30/解析Spring中的ResponseBody和RequestBody/">评论</a>
+    
+
+        </footer>
+    </div>
+	
+    
+	
+</article>
+
+
+
     <article id="post-xml与javabean的转换" class="article article-type-post" itemscope itemprop="blogPost">
     <div class="article-inner">
         
@@ -251,7 +487,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/08/26/xml与javabean的转换/" data-id="cj7u73v88002jwoud1l8anzcw" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/08/26/xml与javabean的转换/" data-id="cj7vo935b002n1gudfr476s13" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -375,21 +611,13 @@
         
             
              <h2 id="介绍"><a href="#介绍" class="headerlink" title="介绍"></a>介绍</h2><p>本文档主要针对我们项目内部正在使用的框架，以及代码审查发现的一些共性问题提出一些开发规范。</p>
-<h2 id="包结构规范"><a href="#包结构规范" class="headerlink" title="包结构规范"></a>包结构规范</h2><p>1    包命名【强制】 </p>
-<p>格式如下：公司名.模块名.层次名<br>包名应当尽量使用能够概括模块总体含义,单词义,单数,不包含特殊字符的单词<br>【正例】: <code>sinosoftgz.message.admin</code><br>【反例】: <code>sinosoftgz.mailsms.admin</code> <code>sinosoftgz.mail.sms.admin</code></p>
-<p>2    包结构【推荐】<br>当项目模块的职责较为复杂，且考虑到以后拓展的情况下，单个模块依旧包含着很多小的业务模块时，应当优先按照业务区分包名</p>
-<p>【反例】:</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div></pre></td><td class="code"><pre><div class="line">sinosoftgz.message.admin</div><div class="line">    config</div><div class="line">        模块公用Config.java</div><div class="line">    service</div><div class="line">        模块公用Service.java</div><div class="line">        Mail私有Service.java</div><div class="line">        MailTemplateService.java</div><div class="line">        MailMessageService.java</div><div class="line">        Sms私有Service.java</div><div class="line">        SmsTemplateService.java</div><div class="line">        SmsMessageService.java</div><div class="line">    web</div><div class="line">        模块公用Controller.java</div><div class="line">        IndexController.java</div><div class="line">        Mail私有Controller.java</div><div class="line">        MailTemplateController.java</div><div class="line">        MailMessageController.java</div><div class="line">        Sms私有Controller.java</div><div class="line">        SmsTemplateController.java</div><div class="line">        SmsMessageController.java</div><div class="line">    MailSmsAdminApp.java</div></pre></td></tr></table></figure>
-<p>【正例】: </p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div></pre></td><td class="code"><pre><div class="line">sinosoftgz.message.admin</div><div class="line">    config</div><div class="line">        模块公用Config.java</div><div class="line">    service</div><div class="line">        模块公用Service.java</div><div class="line">    web</div><div class="line">        模块公用Controller.java</div><div class="line">        IndexController.java</div><div class="line">    mail</div><div class="line">        config</div><div class="line">            MailConfig.java</div><div class="line">        service</div><div class="line">            Mail私有Service.java</div><div class="line">            MailTemplateService.java</div><div class="line">            MailMessageService.java</div><div class="line">        web</div><div class="line">            Mail私有Controller.java</div><div class="line">            MailTemplateController.java</div><div class="line">            MailMessageController.java</div><div class="line">    sms</div><div class="line">        config</div><div class="line">            Smsconfig.java</div><div class="line">        service</div><div class="line">            Sms私有Service.java</div><div class="line">            SmsTemplateService.java</div><div class="line">            SmsMessageService.java</div><div class="line">        web</div><div class="line">            Sms私有Controller.java</div><div class="line">            SmsTemplateController.java</div><div class="line">            SmsMessageController.java</div><div class="line">    MessageAdminApp.java</div></pre></td></tr></table></figure>
-<p>service和controller以及其他业务模块相关的包相隔太远，或者干脆全部丢到一个包内，单纯用前缀区分，会形成臃肿，充血的包结构。如果是项目结构较为单一，可以仅仅使用前缀区分；如果是项目中业务模块有明显的区分条件，应当单独作为一个包，用包名代表业务模块的含义。</p>
-<h2 id="领域模型规范"><a href="#领域模型规范" class="headerlink" title="领域模型规范"></a>领域模型规范</h2><h3 id="JavaBean规范"><a href="#JavaBean规范" class="headerlink" title="JavaBean规范"></a>JavaBean规范</h3><p>1    驼峰命名法【强制】</p>
+<h3 id="JavaBean规范"><a href="#JavaBean规范" class="headerlink" title="JavaBean规范"></a>JavaBean规范</h3><p>1    驼峰命名法【强制】</p>
 <p>2    布尔类型规范【强制】<br>【说明】所有的布尔类型不允许以is开头，否则会导致部分序列化，hibernate框架出现解析异常。<br>【反例】<br>原来项目的BaseDomain中标记逻辑删除的字段,在部分场景下会出现问题</p>
 <figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Column</span>(name = <span class="string">"is_delete"</span>)</div><div class="line"><span class="keyword">private</span> Boolean isDelete = <span class="keyword">false</span>;</div><div class="line"></div><div class="line"><span class="function"><span class="keyword">public</span> Boolean <span class="title">getIsDelete</span><span class="params">()</span> </span>&#123;</div><div class="line">        <span class="keyword">return</span> isDelete;</div><div class="line">    &#125;</div><div class="line"></div><div class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">setIsDelete</span><span class="params">(Boolean isDelete)</span> </span>&#123;</div><div class="line">    <span class="keyword">if</span>(deleteFlag)</div><div class="line">        <span class="keyword">this</span>.deleteDate = <span class="keyword">new</span> Date();</div><div class="line">    <span class="keyword">this</span>.isDelete = isDelete;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
 <p>tips: 使用intellij idea的快捷键（for eclipse）alt+shift+r，<br>或者菜单栏Refactor-&gt;Rename，可以重构字段名称<br>【正例】</p>
 <figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Column</span>(name = <span class="string">"is_delete"</span>)</div><div class="line"><span class="keyword">private</span> Boolean deleteFlag = <span class="keyword">false</span>;</div></pre></td></tr></table></figure>
 <p>3    装箱类型优于原生类型【推荐】<br>在业务代码中，更加推荐使用装箱类型Integer Double Boolean…<br>【说明】在未设值的情况下，基础类型具有默认值，而装箱类型为null<br>以Boolean类型为例，如果使用boolean，那么在未复制时，无法得知其到底是被赋值成了false，<br>还是未赋值</p>
-<h3 id="领域模型规范-1"><a href="#领域模型规范-1" class="headerlink" title="领域模型规范"></a>领域模型规范</h3><p>首先理解各个常用的领域模型的含义：</p>
+<h3 id="领域模型规范"><a href="#领域模型规范" class="headerlink" title="领域模型规范"></a>领域模型规范</h3><p>首先理解各个常用的领域模型的含义：</p>
 <table>
 <thead>
 <tr>
@@ -418,6 +646,14 @@
 </table>
 <p>对于View Object，PO等等其他一些的对象不在此做要求，只说明一下常用的几个<br>DO就是我们最常用的数据库持久对象，是OOP对于现实中的抽象，一般使用orm框架映射到数据库<br>DTO这一层，目前我们的项目还没有投入使用，即将考虑投入使用，理论上来说，两个微服务模块是严禁共享数据库的<br>所以A模块要查询B模块的数据，需要使用B模块app层暴露出来的api来查询，其中B模块返回的实体，不能是直接从数据库中<br>查询出来的DO，而应该是DO转换而成的DTO。以及其他服务服务用语传输的变量，都叫做DTO<br>VO就是常存在于视图层模板渲染使用的实体类</p>
 <p>【推荐】领域模型命名规范<br>【说明】由于DO这一层大家已经养成了习惯，不做要求了。DTO有些特殊，他常常与业务的传输对象相关，而不限于以DTO结尾，如xxxQuery也可以是DTO对象。VO对象推荐以VO结尾。注意：不要命名为Vo,Dto。</p>
+<h3 id="包结构规范"><a href="#包结构规范" class="headerlink" title="包结构规范"></a>包结构规范</h3><p>1    包命名【强制】 </p>
+<p>格式如下：公司名.模块名.层次名<br>包名应当尽量使用能够概括模块总体含义,单词义,单数,不包含特殊字符的单词<br>【正例】: <code>sinosoftgz.message.admin</code><br>【反例】: <code>sinosoftgz.mailsms.admin</code> <code>sinosoftgz.mail.sms.admin</code></p>
+<p>2    包结构【推荐】<br>当项目模块的职责较为复杂，且考虑到以后拓展的情况下，单个模块依旧包含着很多小的业务模块时，应当优先按照业务区分包名</p>
+<p>【反例】:</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div></pre></td><td class="code"><pre><div class="line">sinosoftgz.message.admin</div><div class="line">    config</div><div class="line">        模块公用Config.java</div><div class="line">    service</div><div class="line">        模块公用Service.java</div><div class="line">        Mail私有Service.java</div><div class="line">        MailTemplateService.java</div><div class="line">        MailMessageService.java</div><div class="line">        Sms私有Service.java</div><div class="line">        SmsTemplateService.java</div><div class="line">        SmsMessageService.java</div><div class="line">    web</div><div class="line">        模块公用Controller.java</div><div class="line">        IndexController.java</div><div class="line">        Mail私有Controller.java</div><div class="line">        MailTemplateController.java</div><div class="line">        MailMessageController.java</div><div class="line">        Sms私有Controller.java</div><div class="line">        SmsTemplateController.java</div><div class="line">        SmsMessageController.java</div><div class="line">    MailSmsAdminApp.java</div></pre></td></tr></table></figure>
+<p>【正例】: </p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div></pre></td><td class="code"><pre><div class="line">sinosoftgz.message.admin</div><div class="line">    config</div><div class="line">        模块公用Config.java</div><div class="line">    service</div><div class="line">        模块公用Service.java</div><div class="line">    web</div><div class="line">        模块公用Controller.java</div><div class="line">        IndexController.java</div><div class="line">    mail</div><div class="line">        config</div><div class="line">            MailConfig.java</div><div class="line">        service</div><div class="line">            Mail私有Service.java</div><div class="line">            MailTemplateService.java</div><div class="line">            MailMessageService.java</div><div class="line">        web</div><div class="line">            Mail私有Controller.java</div><div class="line">            MailTemplateController.java</div><div class="line">            MailMessageController.java</div><div class="line">    sms</div><div class="line">        config</div><div class="line">            Smsconfig.java</div><div class="line">        service</div><div class="line">            Sms私有Service.java</div><div class="line">            SmsTemplateService.java</div><div class="line">            SmsMessageService.java</div><div class="line">        web</div><div class="line">            Sms私有Controller.java</div><div class="line">            SmsTemplateController.java</div><div class="line">            SmsMessageController.java</div><div class="line">    MessageAdminApp.java</div></pre></td></tr></table></figure>
+<p>service和controller以及其他业务模块相关的包相隔太远，或者干脆全部丢到一个包内，单纯用前缀区分，会形成臃肿，充血的包结构。如果是项目结构较为单一，可以仅仅使用前缀区分；如果是项目中业务模块有明显的区分条件，应当单独作为一个包，用包名代表业务模块的含义。</p>
 <h2 id="容易忽视的细节"><a href="#容易忽视的细节" class="headerlink" title="容易忽视的细节"></a>容易忽视的细节</h2><p>1    运算溢出【强制】</p>
 <p>【反例】Integer a = Integer b * Integer c;</p>
 <p>【正例】Long a =  Integer b * Integer c;(强转)</p>
@@ -436,8 +672,18 @@
 <p>【正例】</p>
 <figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">a.equals(b)</div></pre></td></tr></table></figure>
 <p>要注意正确的比较方法，谨慎使用==，它比较的是引用</p>
-<h2 id="数据库规范"><a href="#数据库规范" class="headerlink" title="数据库规范"></a>数据库规范</h2><p>1    必要的地方必须添加索引，如唯一索引，如作为条件查询的列【强制】<br>2    生产环境，uat环境，不允许使用<code>jpa.hibernate.ddl-auto: create</code>自动建表，每次ddl的修改需要保留脚本，统一管理【强制】<br>3    业务数据不能使用deleteBy…而要使用逻辑删除setDeleteFlag(true),查询时，findByxxxAndDeleteFlag(xxx,false)【强制】</p>
+<h2 id="数据库规范"><a href="#数据库规范" class="headerlink" title="数据库规范"></a>数据库规范</h2><p>1    必要的地方必须添加索引，如唯一索引，作为条件查询的列【强制】</p>
+<p>不添加索引，会造成全表扫描，浪费性能。</p>
+<p>2    生产环境，uat环境，不允许使用<code>jpa.hibernate.ddl-auto: create</code>自动建表，每次ddl的修改需要保留脚本，统一管理【强制】<br>3    业务数据不能使用deleteBy…而要使用逻辑删除setDeleteFlag(true),查询时，findByxxxAndDeleteFlag(xxx,false)【强制】</p>
 <p>4    如有可替代方案，则禁止使用存储过程和触发器【强制】</p>
+<p>5    字段的长度和类型需要按照实际含义定制【推荐】</p>
+<p>【反例】</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Entity</span></div><div class="line"><span class="class"><span class="keyword">class</span> <span class="title">Person</span></span>&#123;</div><div class="line">	<span class="keyword">private</span> String name;</div><div class="line">	<span class="keyword">private</span> Integer age;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>【正例】</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Entity</span></div><div class="line"><span class="class"><span class="keyword">class</span> <span class="title">Person</span></span>&#123;</div><div class="line">  	<span class="meta">@Column</span>(columnDefinition = <span class="string">"varchar(50)"</span>)</div><div class="line">	<span class="keyword">private</span> String name;</div><div class="line">    <span class="meta">@Column</span>(columnDefinition = <span class="string">"int(3)"</span>)</div><div class="line">	<span class="keyword">private</span> Integer age;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>明确字段的长度和类型可以迫使开发者去思考字段所处的业务场景，在性能上，字段长度也可以加强索引的性能。</p>
+<p>6    使用外键不要使用数据库层面的约束【强制】</p>
+<p>不便于数据迁移，统一在应用层控制关联。</p>
 <h2 id="ORM规范"><a href="#ORM规范" class="headerlink" title="ORM规范"></a>ORM规范</h2><p>【强制】条件查询超过三个参数的，使用<code>criteriaQuery</code>，<code>predicates</code> 而不能使用springdata的findBy</p>
 <p>【反例】</p>
 <figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div></pre></td><td class="code"><pre><div class="line"><span class="function"><span class="keyword">public</span> Page&lt;GatewayApiDefine&gt; <span class="title">findAll</span><span class="params">(GatewayApiDefine gatewayApiDefine,Pageable pageable)</span></span>&#123;</div><div class="line">        <span class="keyword">if</span>(Lang.isEmpty(gatewayApiDefine.getRole()))&#123;</div><div class="line">            gatewayApiDefine.setRole(<span class="string">""</span>);</div><div class="line">        &#125;</div><div class="line">        <span class="keyword">if</span>(Lang.isEmpty(gatewayApiDefine.getApiName()))&#123;</div><div class="line">            gatewayApiDefine.setApiName(<span class="string">""</span>);</div><div class="line">        &#125;</div><div class="line">        <span class="keyword">if</span>(Lang.isEmpty(gatewayApiDefine.getEnabled()))&#123;</div><div class="line">            <span class="keyword">return</span> gatewayApiDefineDao.findByRoleLikeAndApiNameLikeOrderByLastUpdatedDesc(<span class="string">"%"</span>+gatewayApiDefine.getRole()+<span class="string">"%"</span>,<span class="string">"%"</span>+gatewayApiDefine.getApiName()+<span class="string">"%"</span>,pageable);</div><div class="line">        &#125;<span class="keyword">else</span>&#123;</div><div class="line">            <span class="keyword">return</span> gatewayApiDefineDao.findByRoleLikeAndApiNameLikeAndEnabledOrderByLastUpdatedDesc(<span class="string">"%"</span>+gatewayApiDefine.getRole()+<span class="string">"%"</span>,<span class="string">"%"</span>+gatewayApiDefine.getApiName()+<span class="string">"%"</span>,gatewayApiDefine.getEnabled(),pageable);</div><div class="line">        &#125;</div><div class="line">    &#125;</div></pre></td></tr></table></figure>
@@ -445,13 +691,13 @@
 <p>【正例】</p>
 <figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div></pre></td><td class="code"><pre><div class="line"><span class="function"><span class="keyword">public</span> Page&lt;MailTemplateConfig&gt; <span class="title">findAll</span><span class="params">(MailTemplateConfig mailTemplateConfig, Pageable pageable)</span> </span>&#123;</div><div class="line">        Specification querySpecification = (Specification&lt;MailTemplateConfig&gt;) (root, criteriaQuery, criteriaBuilder) -&gt; &#123;</div><div class="line">            List&lt;Predicate&gt; predicates = <span class="keyword">new</span> ArrayList&lt;&gt;();</div><div class="line">            predicates.add(criteriaBuilder.isFalse(root.get(<span class="string">"deleteFlag"</span>)));</div><div class="line">            <span class="comment">//级联查询mailTemplate</span></div><div class="line">            <span class="keyword">if</span> (!Lang.isEmpty(mailTemplateConfig.getMailTemplate())) &#123;</div><div class="line">                <span class="comment">//短信模板名称</span></div><div class="line">                <span class="keyword">if</span> (!Lang.isEmpty(mailTemplateConfig.getMailTemplate().getTemplateName())) &#123;</div><div class="line">                    predicates.add(criteriaBuilder.like(root.join(<span class="string">"mailTemplate"</span>).get(<span class="string">"templateName"</span>), String.format(<span class="string">"%%%s%%"</span>, mailTemplateConfig.getMailTemplate().getTemplateName())));</div><div class="line">                &#125;</div><div class="line">                <span class="comment">//短信模板类型</span></div><div class="line">                <span class="keyword">if</span> (!Lang.isEmpty(mailTemplateConfig.getMailTemplate().getTemplateType())) &#123;</div><div class="line">                    predicates.add(criteriaBuilder.equal(root.join(<span class="string">"mailTemplate"</span>).get(<span class="string">"templateType"</span>), mailTemplateConfig.getMailTemplate().getTemplateType()));</div><div class="line">                &#125;</div><div class="line">            &#125;</div><div class="line">            <span class="comment">//产品分类</span></div><div class="line">            <span class="keyword">if</span> (!Lang.isEmpty(mailTemplateConfig.getProductType())) &#123;</div><div class="line">                predicates.add(criteriaBuilder.equal(root.get(<span class="string">"productType"</span>), mailTemplateConfig.getProductType()));</div><div class="line">            &#125;</div><div class="line">            <span class="comment">//客户类型</span></div><div class="line">            <span class="keyword">if</span> (!Lang.isEmpty(mailTemplateConfig.getConsumerType())) &#123;</div><div class="line">                predicates.add(criteriaBuilder.equal(root.get(<span class="string">"consumerType"</span>), mailTemplateConfig.getConsumerType()));</div><div class="line">            &#125;</div><div class="line">            <span class="keyword">return</span> criteriaBuilder.and(predicates.toArray(<span class="keyword">new</span> Predicate[predicates.size()]));</div><div class="line">        &#125;;</div><div class="line">        <span class="keyword">return</span> mailTemplateConfigRepos.findAll(querySpecification, pageable);</div><div class="line">    &#125;</div></pre></td></tr></table></figure>
 <p>条件查询是admin模块不可避免的一个业务功能，使用<code>criteriaQuery</code>可以轻松的添加条件，使得代码容易维护，他也可以进行分页，排序，连表操作，充分发挥jpa面向对象的特性，使得业务开发变得快捷。</p>
-<h2 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h2><p>1    Map中迭代过程中删除数据使用迭代器完成</p>
+<h2 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h2><p>1    集合中迭代过程中增删数据使用迭代器完成</p>
 <p>【反例】</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line">itering...</div><div class="line">map.remove(..)</div></pre></td></tr></table></figure>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line">List&lt;String&gt; a = <span class="keyword">new</span> ArrayList&lt;String&gt;();</div><div class="line">a.add(<span class="string">"1"</span>); </div><div class="line">a.add(<span class="string">"2"</span>); </div><div class="line"><span class="keyword">for</span> (String temp : a) &#123; </div><div class="line">  <span class="keyword">if</span>(<span class="string">"1"</span>.equals(temp))&#123; </div><div class="line">	a.remove(temp); </div><div class="line">  &#125; </div><div class="line">&#125;</div></pre></td></tr></table></figure>
 <p>【正例】</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line">itering...</div><div class="line">iterator.remove(..)</div></pre></td></tr></table></figure>
-<p>2    hashCode和equals重写</p>
-<p>作为Map键值，Set值的实体类，务必重写hashCode与equals方法。重写时务必做到以下几点</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div></pre></td><td class="code"><pre><div class="line">Iterator&lt;String&gt; it = a.iterator(); </div><div class="line"><span class="keyword">while</span>(it.hasNext())&#123; </div><div class="line">  String temp = it.next(); </div><div class="line">  <span class="keyword">if</span>((<span class="string">"1"</span>.equals(temp))&#123; </div><div class="line">    it.remove(); </div><div class="line">  &#125; </div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>2    hashCode和equals重写规范【强制】</p>
+<p>作为Map键值，Set值的实体类，务必重写hashCode与equals方法，可参考《effective java》。重写时务必做到以下几点</p>
 <ul>
 <li><strong>自反性</strong>:  x.equals(x) 一定是true</li>
 <li><strong>对null</strong>:  x.equals(null) 一定是false</li>
@@ -469,8 +715,8 @@
 <figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">protected</span> String productType;</div><div class="line"></div><div class="line"><span class="keyword">protected</span> String productName;</div><div class="line"></div><div class="line"><span class="meta">@Enumerated</span>(EnumType.STRING)</div><div class="line"><span class="keyword">protected</span> ConsumerTypeEnum consumerType;</div><div class="line"></div><div class="line"><span class="meta">@Enumerated</span>(EnumType.STRING)</div><div class="line"><span class="keyword">protected</span> PolicyTypeEnum policyType;</div><div class="line"></div><div class="line"><span class="meta">@Enumerated</span>(EnumType.STRING)</div><div class="line"><span class="keyword">protected</span> ReceiverEnum receiver;</div><div class="line"><span class="keyword">public</span> <span class="keyword">enum</span> ConsumerTypeEnum &#123;</div><div class="line">  PERSONAL, ORGANIZATION;</div><div class="line"></div><div class="line">  <span class="function"><span class="keyword">public</span> String <span class="title">getLabel</span><span class="params">()</span> </span>&#123;</div><div class="line">    <span class="keyword">switch</span> (<span class="keyword">this</span>) &#123;</div><div class="line">      <span class="keyword">case</span> PERSONAL:</div><div class="line">        <span class="keyword">return</span> <span class="string">"个人"</span>;</div><div class="line">      <span class="keyword">case</span> ORGANIZATION:</div><div class="line">        <span class="keyword">return</span> <span class="string">"团体"</span>;</div><div class="line">      <span class="keyword">default</span>:</div><div class="line">        <span class="keyword">return</span> <span class="string">""</span>;</div><div class="line">    &#125;</div><div class="line">  &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
 <p>【视图层】【推荐】<br>例如，页面迭代select的option，不应该在view层判断，而应该在后台传入map在前台迭代<br>【正例】：<br><figure class="highlight"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line">model.put(<span class="string">"typeMap"</span>,typeMap);</div><div class="line"></div><div class="line">模板类型：&lt;select type=<span class="string">"text"</span> name=<span class="string">"templateType"</span>&gt;</div><div class="line">	&lt;option value=""&gt;全部&lt;/option&gt;</div><div class="line">	&lt;#list typeMap?keys as key&gt;</div><div class="line">		&lt;option &lt;#if ((mailTemplate.templateType!"")==key)&gt;selected="selected"&lt;/#if&gt;value="$&#123;key&#125;"&gt;$&#123;typeMap[key]&#125;&lt;/option&gt;</div><div class="line">	 &lt;/#list&gt;</div><div class="line">&lt;/select&gt;</div></pre></td></tr></table></figure></p>
 <p>【反例】：<br><figure class="highlight"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line">模板类型：&lt;select type=<span class="string">"text"</span> name=<span class="string">"templateType"</span>&gt;</div><div class="line">	&lt;option value=""&gt;全部&lt;/option&gt;</div><div class="line">	&lt;option &lt;#if $&#123;xxx.templateType!&#125;=="1"</div><div class="line">		selected="selected"&lt;/#if&gt; value="1"&gt;承保通知&lt;/option&gt;</div><div class="line">	...</div><div class="line">	&lt;option &lt;#if $&#123;xxx.templateType!&#125;=="5"</div><div class="line">		selected="selected"&lt;/#if&gt; value="5"&gt;核保通知&lt;/option&gt;</div><div class="line">&lt;/select&gt;</div></pre></td></tr></table></figure></p>
-<p>【说明】：否则修改后台代码后，前端页面也要修改，设计原则应当是修改一处，其他全部变化。且 1，2…,5的含义可能会变化，不能从页面得知value和option的含义是否对应。</p>
-<h2 id="并发注意事项"><a href="#并发注意事项" class="headerlink" title="并发注意事项"></a>并发注意事项</h2><p>项目中会出现很多并发问题，要做到根据业务选择合适的并发解决方案，避免线程安全问题</p>
+<p>否则修改后台代码后，前端页面也要修改，设计原则应当是修改一处，其他全部变化。且 1，2…,5的含义可能会变化，不能从页面得知value和option的含义是否对应。</p>
+<h2 id="并发处理"><a href="#并发处理" class="headerlink" title="并发处理"></a>并发处理</h2><p>项目中会出现很多并发问题，要做到根据业务选择合适的并发解决方案，避免线程安全问题</p>
 <p>1    simpleDateFormat有并发问题，不能作为static类变量【强制】<br>【反例】：<br>这是我在某个项目模块中，发现的一段代码<br><figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div></pre></td><td class="code"><pre><div class="line">Class XxxController&#123;</div><div class="line">	<span class="keyword">public</span> <span class="keyword">final</span> <span class="keyword">static</span> SimpleDateFormat simpleDateFormat = <span class="keyword">new</span> SimpleDateFormat(<span class="string">"yyyy-MM-dd hh:mm:ss"</span>);</div><div class="line">	</div><div class="line">	<span class="meta">@RequestMapping</span>(<span class="string">"/xxxx"</span>)</div><div class="line">	<span class="function"><span class="keyword">public</span> String <span class="title">xxxx</span><span class="params">(String dateStr)</span></span>&#123;</div><div class="line">		XxxEntity xxxEntity = <span class="keyword">new</span> XxxEntity();</div><div class="line">		xxxEntity.setDate(simpleDateFormat.parse(dateStr));</div><div class="line">		xxxDao.save(xxxEntity);</div><div class="line">		<span class="keyword">return</span> <span class="string">"xxx"</span>;</div><div class="line">	&#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure></p>
 <p>【说明】SimpleDateFormat 是线程不安全的类，不能作为静态类变量给多线程并发访问。如果不了解多线程，可以将其作为实例变量，每次使用时都new一个出来使用。不过更推荐使用ThreadLocal来维护，减少new的开销。<br>【正例】一个使用ThreadLocal维护SimpleDateFormat的线程安全的日期转换类：<br><figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ConcurrentDateUtil</span> </span>&#123;</div><div class="line"></div><div class="line">    <span class="keyword">private</span> <span class="keyword">static</span> ThreadLocal&lt;DateFormat&gt; threadLocal = <span class="keyword">new</span> ThreadLocal&lt;DateFormat&gt;() &#123;</div><div class="line">        <span class="meta">@Override</span></div><div class="line">        <span class="function"><span class="keyword">protected</span> DateFormat <span class="title">initialValue</span><span class="params">()</span> </span>&#123;</div><div class="line">            <span class="keyword">return</span> <span class="keyword">new</span> SimpleDateFormat(<span class="string">"yyyy-MM-dd HH:mm:ss"</span>);</div><div class="line">        &#125;</div><div class="line">    &#125;;</div><div class="line"></div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">static</span> Date <span class="title">parse</span><span class="params">(String dateStr)</span> <span class="keyword">throws</span> ParseException </span>&#123;</div><div class="line">        <span class="keyword">return</span> threadLocal.get().parse(dateStr);</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">static</span> String <span class="title">format</span><span class="params">(Date date)</span> </span>&#123;</div><div class="line">        <span class="keyword">return</span> threadLocal.get().format(date);</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure></p>
 <p>2    名称唯一性校验出现的线程安全问题【推荐】<br>各个项目的admin模块在需求中经常会出现要求名称不能重复，即唯一性问题。通常在前台做ajax校验，后台使用<code>select count(1) from table_name where name=?</code>的方式查询数据库。这么做无可厚非，但是在极端的情况下，会出现并发问题。两个线程同时插入一条相同的name，如果没有做并发控制，会导致出现脏数据。如果仅仅是后台系统，那么没有必要加锁去避免，只需要对数据库加上唯一索引，并且再web层或者service层捕获数据异常即可。<br>【正例】：</p>
@@ -525,7 +771,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/08/25/project_rules/" data-id="cj7u73v79001swoudk74acqyn" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/08/25/project_rules/" data-id="cj7vo934s001s1gudxk3lkbuo" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -667,7 +913,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/08/22/博客搬家/" data-id="cj7u73v99003awoudm4lojb7p" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/08/22/博客搬家/" data-id="cj7vo9369003h1gudgp3ahfv3" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -802,7 +1048,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/08/21/一个DDD指导下的实体类设计案例/" data-id="cj7u73v8g002qwoudzmzhsnas" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/08/21/一个DDD指导下的实体类设计案例/" data-id="cj7vo935r002v1gudj8t09cs8" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -938,7 +1184,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/08/16/使用spring validation完成数据后端校验/" data-id="cj7u73v8t002xwoudris18v1c" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/08/16/使用spring validation完成数据后端校验/" data-id="cj7vo935w00331gudv3m3f4ff" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1078,7 +1324,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/08/10/Re：从零开始的Spring Security OAuth2（三）/" data-id="cj7u73v520008woud691nc3u5" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/08/10/Re：从零开始的Spring Security OAuth2（三）/" data-id="cj7vo932v00021gud3xcqr9oy" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1219,7 +1465,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/08/09/Re：从零开始的Spring Security OAuth2（二）/" data-id="cj7u73v540009woud3gqfv2lp" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/08/09/Re：从零开始的Spring Security OAuth2（二）/" data-id="cj7vo933900091gudrwewoec1" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1356,7 +1602,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/08/08/Re：从零开始的Spring Security OAuth2（一）/" data-id="cj7u73v4x0006woudkaljwygg" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/08/08/Re：从零开始的Spring Security OAuth2（一）/" data-id="cj7vo933500081gudnsxrhc7u" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1493,7 +1739,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/08/03/对于Spring Cloud Feign入门示例的一点思考/" data-id="cj7u73v9f003ewoudehjwua7e" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/08/03/对于Spring Cloud Feign入门示例的一点思考/" data-id="cj7vo936e003p1guddc47cmfj" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1573,147 +1819,6 @@
 
 
 
-    <article id="post-Re：从零开始的领域驱动设计" class="article article-type-post" itemscope itemprop="blogPost">
-    <div class="article-inner">
-        
-        
-            <header class="article-header">
-                
-    
-        <h1 itemprop="name">
-            <a class="article-title" href="/2017/07/28/Re：从零开始的领域驱动设计/">Re：从零开始的领域驱动设计</a>
-        </h1>
-    
-
-                
-                    <div class="article-meta">
-                        
-    <div class="article-date">
-        <i class="fa fa-calendar"></i>
-        <a href="/2017/07/28/Re：从零开始的领域驱动设计/">
-            <time datetime="2017-07-28T05:15:46.000Z" itemprop="datePublished">2017-07-28</time>
-        </a>
-    </div>
-
-
-                        
-    <div class="article-category">
-    	<i class="fa fa-folder"></i>
-        <a class="article-category-link" href="/categories/领域驱动设计/">领域驱动设计</a>
-    </div>
-
-                        
-    <div class="article-tag">
-        <i class="fa fa-tag"></i>
-        <a class="tag-link" href="/tags/领域驱动设计/">领域驱动设计</a>
-    </div>
-
-                    </div>
-                
-            </header>
-        
-        
-        <div class="article-entry" itemprop="articleBody">
-        
-            <p><p>[TOC]</p>
-<h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>领域驱动的火爆程度不用我赘述，但是即便其如此得耳熟能详，但大多数人对其的认识，还只是停留在知道它的缩写是DDD，知道它是一种软件思想，或者知道它和微服务有千丝万缕的关系。Eric Evans对DDD的诠释是那么地惜字如金，而我所认识的领域驱动设计的专家又都是行业中的资深前辈，他们擅长于对软件设计进行高屋建瓴的论述，如果没有丰富的互联网从业经验，是不能从他们的分享中获取太多的营养的，可以用曲高和寡来形容。1000个互联网从业者，100个懂微服务，10个人懂领域驱动设计。</p>
-<p>可能有很多和我一样的读者，在得知DDD如此火爆之后，尝试去读了开山之作《领域驱动设计——软件核心复杂性应对之道》，翻看了几张之后，晦涩的语句，不明所以的专业术语，加上翻译导致的语句流畅性，可以说观看体验并不是很好，特别是对于开发经验不是很多的读者。我总结了一下，为何这本书难以理解：</p>
-<ol>
-<li>没有阅读软件设计丛书的习惯，更多人偏向于阅读偏应用层面的书籍，“talk is cheap，show me the code”往往更符合大多数人的习惯。<br>2.没有太多的开发经验支撑。没有踩过坑，就不会意识到设计的重要性，无法产生共情。<br>3.年代有些久远，这本书写于2004年，书中很多软件设计的反例，在当时是非常流行的，但是在现在已经基本绝迹了。大师之所以为大师，是因为其能跨越时代的限制，预见未来的问题，这也是为什么DDD在十几年前就被提出，却在微服务逐渐流行的现阶段才被大家重视。</li>
-</ol>
-<p>诚然如标题所示，本文是领域驱动设计的一个入门文章，或者更多的是一个个人理解的笔记，笔者也正在学习DDD的路上，可能会有很多的疏漏。如有理解有偏颇的地方，还望各位指摘。</p></p>
-            <p class="article-more-link">
-                <a href="/2017/07/28/Re：从零开始的领域驱动设计/#more">查看更多</a>
-            </p>
-        
-        </div>
-        <footer class="article-footer">
-            <div class="share-container">
-
-
-
-</div>
-
-    <a data-url="http://lexburner.github.io/2017/07/28/Re：从零开始的领域驱动设计/" data-id="cj7u73v5m000jwoud5exydn1v" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
-<script>
-    (function ($) {
-        // Prevent duplicate binding
-        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
-            __SHARE_BUTTON_BINDED__ = true;
-        } else {
-            return;
-        }
-        $('body').on('click', function() {
-            $('.article-share-box.on').removeClass('on');
-        }).on('click', '.article-share-link', function(e) {
-            e.stopPropagation();
-
-            var $this = $(this),
-                url = $this.attr('data-url'),
-                encodedUrl = encodeURIComponent(url),
-                id = 'article-share-box-' + $this.attr('data-id'),
-                offset = $this.offset(),
-                box;
-
-            if ($('#' + id).length) {
-                box = $('#' + id);
-
-                if (box.hasClass('on')){
-                    box.removeClass('on');
-                    return;
-                }
-            } else {
-                var html = [
-                    '<div id="' + id + '" class="article-share-box">',
-                        '<input class="article-share-input" value="' + url + '">',
-                        '<div class="article-share-links">',
-                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
-                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
-                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
-                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
-                        '</div>',
-                    '</div>'
-                ].join('');
-
-              box = $(html);
-
-              $('body').append(box);
-            }
-
-            $('.article-share-box.on').hide();
-
-            box.css({
-                top: offset.top + 25,
-                left: offset.left
-            }).addClass('on');
-
-        }).on('click', '.article-share-box', function (e) {
-            e.stopPropagation();
-        }).on('click', '.article-share-box-input', function () {
-            $(this).select();
-        }).on('click', '.article-share-box-link', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-
-            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
-        });
-    })(jQuery);
-</script>
-
-            
-    
-        <a href="http://lexburner.github.io/2017/07/28/Re：从零开始的领域驱动设计/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/07/28/Re：从零开始的领域驱动设计/">评论</a>
-    
-
-        </footer>
-    </div>
-	
-    
-	
-</article>
-
-
-
     <nav id="page-nav">
         <a class="extend prev" rel="prev" href="/">&laquo; 上一页</a><a class="page-number" href="/">1</a><span class="page-number current">2</span><a class="page-number" href="/page/3/">3</a><a class="page-number" href="/page/4/">4</a><a class="page-number" href="/page/5/">5</a><a class="extend next" rel="next" href="/page/3/">下一页 &raquo;</a>
     </nav>
@@ -1726,6 +1831,25 @@
         <h3 class="widget-title">最新文章</h3>
         <div class="widget">
             <ul id="recent-post" class="">
+                
+                    <li>
+                        
+                        <div class="item-thumbnail">
+                            <a href="/2017/09/20/spring-security-3/" class="thumbnail">
+    
+    
+        <span class="thumbnail-image thumbnail-none"></span>
+    
+</a>
+
+                        </div>
+                        
+                        <div class="item-inner">
+                            <p class="item-category"><a class="article-category-link" href="/categories/Spring-Security/">Spring Security</a></p>
+                            <p class="item-title"><a href="/2017/09/20/spring-security-3/" class="title">Spring Security(三)--核心配置解读</a></p>
+                            <p class="item-date"><time datetime="2017-09-20T15:25:34.000Z" itemprop="datePublished">2017-09-20</time></p>
+                        </div>
+                    </li>
                 
                     <li>
                         
@@ -1803,25 +1927,6 @@
                         </div>
                     </li>
                 
-                    <li>
-                        
-                        <div class="item-thumbnail">
-                            <a href="/2017/09/10/event-1/" class="thumbnail">
-    
-    
-        <span class="thumbnail-image thumbnail-none"></span>
-    
-</a>
-
-                        </div>
-                        
-                        <div class="item-inner">
-                            <p class="item-category"><a class="article-category-link" href="/categories/Spring/">Spring</a></p>
-                            <p class="item-title"><a href="/2017/09/10/event-1/" class="title">浅析Spring中的事件驱动机制</a></p>
-                            <p class="item-date"><time datetime="2017-09-10T12:03:58.000Z" itemprop="datePublished">2017-09-10</time></p>
-                        </div>
-                    </li>
-                
             </ul>
         </div>
     </div>
@@ -1831,7 +1936,7 @@
     <div class="widget-wrap">
         <h3 class="widget-title">分类</h3>
         <div class="widget">
-            <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/DevOps/">DevOps</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/JAVA/">JAVA</a><span class="category-list-count">10</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring/">Spring</a><span class="category-list-count">6</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Cloud/">Spring Cloud</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security/">Spring Security</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security-OAuth2/">Spring Security OAuth2</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Session/">Spring Session</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/技术杂谈/">技术杂谈</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/架构设计/">架构设计</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/规则引擎/">规则引擎</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/领域驱动设计/">领域驱动设计</a><span class="category-list-count">2</span></li></ul>
+            <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/DevOps/">DevOps</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/JAVA/">JAVA</a><span class="category-list-count">10</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring/">Spring</a><span class="category-list-count">6</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Cloud/">Spring Cloud</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security/">Spring Security</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security-OAuth2/">Spring Security OAuth2</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Session/">Spring Session</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/技术杂谈/">技术杂谈</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/架构设计/">架构设计</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/规则引擎/">规则引擎</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/领域驱动设计/">领域驱动设计</a><span class="category-list-count">2</span></li></ul>
         </div>
     </div>
 
@@ -1840,7 +1945,7 @@
     <div class="widget-wrap">
         <h3 class="widget-title">归档</h3>
         <div class="widget">
-            <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a><span class="archive-list-count">9</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a><span class="archive-list-count">10</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/02/">二月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/11/">十一月 2016</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/08/">八月 2016</a><span class="archive-list-count">3</span></li></ul>
+            <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a><span class="archive-list-count">10</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a><span class="archive-list-count">10</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/02/">二月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/11/">十一月 2016</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/08/">八月 2016</a><span class="archive-list-count">3</span></li></ul>
         </div>
     </div>
 
@@ -1849,7 +1954,7 @@
     <div class="widget-wrap">
         <h3 class="widget-title">标签云</h3>
         <div class="widget tagcloud">
-            <a href="/tags/DevOps/" style="font-size: 12px;">DevOps</a> <a href="/tags/JAVA/" style="font-size: 20px;">JAVA</a> <a href="/tags/JMM/" style="font-size: 10px;">JMM</a> <a href="/tags/RPC/" style="font-size: 10px;">RPC</a> <a href="/tags/Spring/" style="font-size: 20px;">Spring</a> <a href="/tags/Spring-Cloud/" style="font-size: 12px;">Spring Cloud</a> <a href="/tags/Spring-Cloud-Zuul/" style="font-size: 12px;">Spring Cloud Zuul</a> <a href="/tags/Spring-Security/" style="font-size: 12px;">Spring Security</a> <a href="/tags/Spring-Security-OAuth2/" style="font-size: 14px;">Spring Security OAuth2</a> <a href="/tags/Spring-Session/" style="font-size: 14px;">Spring Session</a> <a href="/tags/Validation/" style="font-size: 12px;">Validation</a> <a href="/tags/XML/" style="font-size: 10px;">XML</a> <a href="/tags/Zipkin/" style="font-size: 10px;">Zipkin</a> <a href="/tags/drools/" style="font-size: 16px;">drools</a> <a href="/tags/lua/" style="font-size: 10px;">lua</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/zookeeper/" style="font-size: 10px;">zookeeper</a> <a href="/tags/事务/" style="font-size: 10px;">事务</a> <a href="/tags/代码规范/" style="font-size: 10px;">代码规范</a> <a href="/tags/多线程/" style="font-size: 18px;">多线程</a> <a href="/tags/微服务/" style="font-size: 10px;">微服务</a> <a href="/tags/技术杂谈/" style="font-size: 14px;">技术杂谈</a> <a href="/tags/数据库/" style="font-size: 10px;">数据库</a> <a href="/tags/杂谈/" style="font-size: 10px;">杂谈</a> <a href="/tags/架构设计/" style="font-size: 12px;">架构设计</a> <a href="/tags/求职/" style="font-size: 10px;">求职</a> <a href="/tags/规则引擎/" style="font-size: 16px;">规则引擎</a> <a href="/tags/领域驱动设计/" style="font-size: 12px;">领域驱动设计</a>
+            <a href="/tags/DevOps/" style="font-size: 12px;">DevOps</a> <a href="/tags/JAVA/" style="font-size: 20px;">JAVA</a> <a href="/tags/JMM/" style="font-size: 10px;">JMM</a> <a href="/tags/RPC/" style="font-size: 10px;">RPC</a> <a href="/tags/Spring/" style="font-size: 20px;">Spring</a> <a href="/tags/Spring-Cloud/" style="font-size: 12px;">Spring Cloud</a> <a href="/tags/Spring-Cloud-Zuul/" style="font-size: 12px;">Spring Cloud Zuul</a> <a href="/tags/Spring-Security/" style="font-size: 14px;">Spring Security</a> <a href="/tags/Spring-Security-OAuth2/" style="font-size: 14px;">Spring Security OAuth2</a> <a href="/tags/Spring-Session/" style="font-size: 14px;">Spring Session</a> <a href="/tags/Validation/" style="font-size: 12px;">Validation</a> <a href="/tags/XML/" style="font-size: 10px;">XML</a> <a href="/tags/Zipkin/" style="font-size: 10px;">Zipkin</a> <a href="/tags/drools/" style="font-size: 16px;">drools</a> <a href="/tags/lua/" style="font-size: 10px;">lua</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/zookeeper/" style="font-size: 10px;">zookeeper</a> <a href="/tags/事务/" style="font-size: 10px;">事务</a> <a href="/tags/代码规范/" style="font-size: 10px;">代码规范</a> <a href="/tags/多线程/" style="font-size: 18px;">多线程</a> <a href="/tags/微服务/" style="font-size: 10px;">微服务</a> <a href="/tags/技术杂谈/" style="font-size: 14px;">技术杂谈</a> <a href="/tags/数据库/" style="font-size: 10px;">数据库</a> <a href="/tags/杂谈/" style="font-size: 10px;">杂谈</a> <a href="/tags/架构设计/" style="font-size: 12px;">架构设计</a> <a href="/tags/求职/" style="font-size: 10px;">求职</a> <a href="/tags/规则引擎/" style="font-size: 16px;">规则引擎</a> <a href="/tags/领域驱动设计/" style="font-size: 12px;">领域驱动设计</a>
         </div>
     </div>
 

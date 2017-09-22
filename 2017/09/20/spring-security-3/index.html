@@ -3,15 +3,20 @@
 <head>
     <meta charset="utf-8">
     
-    <title>分类: Spring Security OAuth2 | 徐靖峰|个人博客</title>
+    <title>Spring Security(三)--核心配置解读 | 徐靖峰|个人博客</title>
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-    <meta property="og:type" content="website">
-<meta property="og:title" content="徐靖峰|个人博客">
-<meta property="og:url" content="http://lexburner.github.io/categories/Spring-Security-OAuth2/index.html">
+    <meta name="description" content="上一篇文章《Spring Security(二)–Guides》，通过Spring Security的配置项了解了Spring Security是如何保护我们的应用的，本篇文章对上一次的配置做一个讲解。 [TOC] 3 核心配置解读3.1 功能介绍这是Spring Security入门指南中的配置项： 1234567891011121314151617181920212223242526@Conf">
+<meta name="keywords" content="Spring Security">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Spring Security(三)--核心配置解读">
+<meta property="og:url" content="http://lexburner.github.io/2017/09/20/spring-security-3/index.html">
 <meta property="og:site_name" content="徐靖峰|个人博客">
+<meta property="og:description" content="上一篇文章《Spring Security(二)–Guides》，通过Spring Security的配置项了解了Spring Security是如何保护我们的应用的，本篇文章对上一次的配置做一个讲解。 [TOC] 3 核心配置解读3.1 功能介绍这是Spring Security入门指南中的配置项： 1234567891011121314151617181920212223242526@Conf">
 <meta property="og:locale" content="zh-CN">
+<meta property="og:updated_time" content="2017-09-22T05:28:23.393Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="徐靖峰|个人博客">
+<meta name="twitter:title" content="Spring Security(三)--核心配置解读">
+<meta name="twitter:description" content="上一篇文章《Spring Security(二)–Guides》，通过Spring Security的配置项了解了Spring Security是如何保护我们的应用的，本篇文章对上一次的配置做一个讲解。 [TOC] 3 核心配置解读3.1 功能介绍这是Spring Security入门指南中的配置项： 1234567891011121314151617181920212223242526@Conf">
     
 
     
@@ -184,122 +189,228 @@
 </aside>
 
             
-            <section id="main">
-<div class="timeline timeline-wrap">
-    <div class="timeline-row timeline-row-major">
-        <span class="node"><i class="fa fa-folder"></i></span>
-        <h1 class="title">Spring Security OAuth2</h1>
-    </div>
-    
-        <div class="timeline-row">
-            <span class="node"></span>
-            <div class="content">
+            <section id="main"><article id="post-spring-security-3" class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        
+            <header class="article-header">
                 
     
-        <h1 itemprop="name">
-            <a class="timeline-article-title" href="/2017/08/10/Re：从零开始的Spring Security OAuth2（三）/">Re：从零开始的Spring Security OAuth2（三）</a>
+        <h1 class="article-title" itemprop="name">
+            Spring Security(三)--核心配置解读
         </h1>
     
 
-                <div class="article-meta">
-                    
+                
+                    <div class="article-meta">
+                        
     <div class="article-date">
         <i class="fa fa-calendar"></i>
-        <a href="/2017/08/10/Re：从零开始的Spring Security OAuth2（三）/">
-            <time datetime="2017-08-10T06:22:12.000Z" itemprop="datePublished">2017-08-10</time>
+        <a href="/2017/09/20/spring-security-3/">
+            <time datetime="2017-09-20T15:25:34.000Z" itemprop="datePublished">2017-09-20</time>
         </a>
     </div>
 
 
-                    
+                        
     <div class="article-category">
     	<i class="fa fa-folder"></i>
-        <a class="article-category-link" href="/categories/Spring-Security-OAuth2/">Spring Security OAuth2</a>
+        <a class="article-category-link" href="/categories/Spring-Security/">Spring Security</a>
     </div>
 
-                    
+                        
     <div class="article-tag">
         <i class="fa fa-tag"></i>
-        <a class="tag-link" href="/tags/Spring-Security-OAuth2/">Spring Security OAuth2</a>
+        <a class="tag-link" href="/tags/Spring-Security/">Spring Security</a>
     </div>
 
-                </div>
-            </div>
-        </div>
-    
-        <div class="timeline-row">
-            <span class="node"></span>
-            <div class="content">
+                    </div>
                 
-    
-        <h1 itemprop="name">
-            <a class="timeline-article-title" href="/2017/08/09/Re：从零开始的Spring Security OAuth2（二）/">Re：从零开始的Spring Security OAuth2（二）</a>
-        </h1>
-    
+            </header>
+        
+        
+        <div class="article-entry" itemprop="articleBody">
+        
+            
+             <p>上一篇文章《Spring Security(二)–Guides》，通过Spring Security的配置项了解了Spring Security是如何保护我们的应用的，本篇文章对上一次的配置做一个讲解。</p>
+<p>[TOC]</p>
+<h2 id="3-核心配置解读"><a href="#3-核心配置解读" class="headerlink" title="3 核心配置解读"></a>3 核心配置解读</h2><h3 id="3-1-功能介绍"><a href="#3-1-功能介绍" class="headerlink" title="3.1 功能介绍"></a>3.1 功能介绍</h3><p>这是Spring Security入门指南中的配置项：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Configuration</span></div><div class="line"><span class="meta">@EnableWebSecurity</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">WebSecurityConfig</span> <span class="keyword">extends</span> <span class="title">WebSecurityConfigurerAdapter</span> </span>&#123;</div><div class="line"></div><div class="line">  <span class="meta">@Override</span></div><div class="line">  <span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">configure</span><span class="params">(HttpSecurity http)</span> <span class="keyword">throws</span> Exception </span>&#123;</div><div class="line">      http</div><div class="line">          .authorizeRequests()</div><div class="line">              .antMatchers(<span class="string">"/"</span>, <span class="string">"/home"</span>).permitAll()</div><div class="line">              .anyRequest().authenticated()</div><div class="line">              .and()</div><div class="line">          .formLogin()</div><div class="line">              .loginPage(<span class="string">"/login"</span>)</div><div class="line">              .permitAll()</div><div class="line">              .and()</div><div class="line">          .logout()</div><div class="line">              .permitAll();</div><div class="line">  &#125;</div><div class="line"></div><div class="line">  <span class="meta">@Autowired</span></div><div class="line">  <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">configureGlobal</span><span class="params">(AuthenticationManagerBuilder auth)</span> <span class="keyword">throws</span> Exception </span>&#123;</div><div class="line">      auth</div><div class="line">          .inMemoryAuthentication()</div><div class="line">              .withUser(<span class="string">"admin"</span>).password(<span class="string">"admin"</span>).roles(<span class="string">"USER"</span>);</div><div class="line">  &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>当配置了上述的javaconfig之后，我们的应用便具备了如下的功能：</p>
+<ul>
+<li>除了“/”,”/home”(首页),”/login”(登录),”/logout”(注销),之外，其他路径都需要认证。</li>
+<li>指定“/login”该路径为登录页面，当未认证的用户尝试访问任何受保护的资源时，都会跳转到“/login”。</li>
+<li>默认指定“/logout”为注销页面</li>
+<li>配置一个内存中的用户认证器，使用admin/admin作为用户名和密码，具有USER角色</li>
+</ul>
+<ul>
+<li>防止CSRF攻击</li>
+<li><a href="https://en.wikipedia.org/wiki/Session_fixation" target="_blank" rel="external">Session Fixation</a> protection(可以参考我之前讲解Spring Session的文章，防止别人篡改sessionId)</li>
+<li>Security Header(添加一系列和Header相关的控制)<ul>
+<li><a href="https://en.wikipedia.org/wiki/HTTP_Strict_Transport_Security" target="_blank" rel="external">HTTP Strict Transport Security</a> for secure requests</li>
+<li>集成X-Content-Type-Options</li>
+<li>缓存控制</li>
+<li>集成<a href="https://msdn.microsoft.com/en-us/library/dd565647(v=vs.85" target="_blank" rel="external">X-XSS-Protection</a>.aspx) </li>
+<li>X-Frame-Options integration to help prevent <a href="https://en.wikipedia.org/wiki/Clickjacking" target="_blank" rel="external">Clickjacking</a>(iframe被默认禁止使用)</li>
+</ul>
+</li>
+<li>为Servlet API集成了如下的几个方法<ul>
+<li><a href="https://docs.oracle.com/javaee/6/api/javax/servlet/http/HttpServletRequest.html#getRemoteUser(" target="_blank" rel="external">HttpServletRequest#getRemoteUser()</a>)</li>
+<li><a href="https://docs.oracle.com/javaee/6/api/javax/servlet/http/HttpServletRequest.html#getUserPrincipal(" target="_blank" rel="external">HttpServletRequest.html#getUserPrincipal()</a>)</li>
+<li><a href="https://docs.oracle.com/javaee/6/api/javax/servlet/http/HttpServletRequest.html#isUserInRole(java.lang.String" target="_blank" rel="external">HttpServletRequest.html#isUserInRole(java.lang.String)</a>)</li>
+<li><a href="https://docs.oracle.com/javaee/6/api/javax/servlet/http/HttpServletRequest.html#login(java.lang.String,%20java.lang.String" target="_blank" rel="external">HttpServletRequest.html#login(java.lang.String, java.lang.String)</a>)</li>
+<li><a href="https://docs.oracle.com/javaee/6/api/javax/servlet/http/HttpServletRequest.html#logout(" target="_blank" rel="external">HttpServletRequest.html#logout()</a>)</li>
+</ul>
+</li>
+</ul>
+<h3 id="3-2-解读-EnableWebSecurity"><a href="#3-2-解读-EnableWebSecurity" class="headerlink" title="3.2 解读@EnableWebSecurity"></a>3.2 解读@EnableWebSecurity</h3><p>我们自己定义的配置类WebSecurityConfig加上了@EnableWebSecurity注解，同时继承了WebSecurityConfigurerAdapter。你可能会在想谁的作用大一点，先给出结论：毫无疑问@EnableWebSecurity起到决定性的配置作用，他其实是个组合注解，背后SpringBoot做了非常多的配置。</p>
 
-                <div class="article-meta">
-                    
-    <div class="article-date">
-        <i class="fa fa-calendar"></i>
-        <a href="/2017/08/09/Re：从零开始的Spring Security OAuth2（二）/">
-            <time datetime="2017-08-09T06:58:52.000Z" itemprop="datePublished">2017-08-09</time>
-        </a>
-    </div>
-
-
-                    
-    <div class="article-category">
-    	<i class="fa fa-folder"></i>
-        <a class="article-category-link" href="/categories/Spring-Security-OAuth2/">Spring Security OAuth2</a>
-    </div>
-
-                    
-    <div class="article-tag">
-        <i class="fa fa-tag"></i>
-        <a class="tag-link" href="/tags/Spring-Security-OAuth2/">Spring Security OAuth2</a>
-    </div>
-
-                </div>
-            </div>
+           
+        
         </div>
-    
-        <div class="timeline-row">
-            <span class="node"></span>
-            <div class="content">
-                
-    
-        <h1 itemprop="name">
-            <a class="timeline-article-title" href="/2017/08/08/Re：从零开始的Spring Security OAuth2（一）/">Re：从零开始的Spring Security OAuth2（一）</a>
-        </h1>
-    
-
-                <div class="article-meta">
-                    
-    <div class="article-date">
-        <i class="fa fa-calendar"></i>
-        <a href="/2017/08/08/Re：从零开始的Spring Security OAuth2（一）/">
-            <time datetime="2017-08-08T07:16:52.000Z" itemprop="datePublished">2017-08-08</time>
-        </a>
-    </div>
+        <footer class="article-footer">
+            <div class="share-container">
 
 
-                    
-    <div class="article-category">
-    	<i class="fa fa-folder"></i>
-        <a class="article-category-link" href="/categories/Spring-Security-OAuth2/">Spring Security OAuth2</a>
-    </div>
 
-                    
-    <div class="article-tag">
-        <i class="fa fa-tag"></i>
-        <a class="tag-link" href="/tags/Spring-Security-OAuth2/">Spring Security OAuth2</a>
-    </div>
-
-                </div>
-            </div>
-        </div>
-    
 </div>
+
+    <a data-url="http://lexburner.github.io/2017/09/20/spring-security-3/" data-id="cj7vo935200281gud25vluhse" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+<script>
+    (function ($) {
+        // Prevent duplicate binding
+        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
+            __SHARE_BUTTON_BINDED__ = true;
+        } else {
+            return;
+        }
+        $('body').on('click', function() {
+            $('.article-share-box.on').removeClass('on');
+        }).on('click', '.article-share-link', function(e) {
+            e.stopPropagation();
+
+            var $this = $(this),
+                url = $this.attr('data-url'),
+                encodedUrl = encodeURIComponent(url),
+                id = 'article-share-box-' + $this.attr('data-id'),
+                offset = $this.offset(),
+                box;
+
+            if ($('#' + id).length) {
+                box = $('#' + id);
+
+                if (box.hasClass('on')){
+                    box.removeClass('on');
+                    return;
+                }
+            } else {
+                var html = [
+                    '<div id="' + id + '" class="article-share-box">',
+                        '<input class="article-share-input" value="' + url + '">',
+                        '<div class="article-share-links">',
+                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
+                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
+                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
+                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
+                        '</div>',
+                    '</div>'
+                ].join('');
+
+              box = $(html);
+
+              $('body').append(box);
+            }
+
+            $('.article-share-box.on').hide();
+
+            box.css({
+                top: offset.top + 25,
+                left: offset.left
+            }).addClass('on');
+
+        }).on('click', '.article-share-box', function (e) {
+            e.stopPropagation();
+        }).on('click', '.article-share-box-input', function () {
+            $(this).select();
+        }).on('click', '.article-share-box-link', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
+        });
+    })(jQuery);
+</script>
+
+            
+    
+        <a href="http://lexburner.github.io/2017/09/20/spring-security-3/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/09/20/spring-security-3/">评论</a>
+    
+
+        </footer>
+    </div>
+	
+		<! -- 添加捐赠图标 -->
+<div class ="post-donate">
+    <div id="donate_board" class="donate_bar center">
+        <a id="btn_donate" class="btn_donate" href="javascript:;" title="打赏"></a>
+        <span class="donate_txt">
+           &uarr;<br>
+		   大吉大利，今晚吃鸡。
+        </span>
+        <br>
+      </div>  
+	<div id="donate_guide" class="donate_bar center hidden" >
+		<div>
+			<span class="donate-title">支付宝</span>
+			<span class="donate-title">微信</span>
+		</div>
+		<div>
+			<!-- 支付宝打赏图案 -->
+			<img src="/css/images/alipay.png"  alt="支付宝打赏"> 
+			<!-- 微信打赏图案 -->
+			<img src="/css/images/wechatpay.png" alt="微信打赏">  
+		</div>
+    </div>
+	<script type="text/javascript">
+		document.getElementById('btn_donate').onclick = function(){
+			$('#donate_board').addClass('hidden');
+			$('#donate_guide').removeClass('hidden');
+		}
+	</script>
+</div>
+<! -- 添加捐赠图标 -->
+
+
+	
+    
+        
+<nav id="article-nav">
+    
+    
+        <a href="/2017/09/20/spring-security-2/" id="article-nav-older" class="article-nav-link-wrap">
+            <strong class="article-nav-caption">下一篇</strong>
+            <div class="article-nav-title">Spring Security(二)--Guides</div>
+        </a>
+    
+</nav>
+
+
+    
+	
+</article>
+
+
+    
+    <section id="comments">
+    
+        
+    <div id="disqus_thread">
+        <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+    </div>
+
+    
+    </section>
+
 </section>
             
                 <aside id="sidebar">
@@ -478,11 +589,13 @@
     <script>
     var disqus_config = function () {
         
-        this.page.identifier = '';
+            this.page.url = 'http://lexburner.github.io/2017/09/20/spring-security-3/';
+        
+        this.page.identifier = 'spring-security-3';
     };
     (function() { 
         var d = document, s = d.createElement('script');  
-        s.src = '//' + 'hexo-theme-icarus' + '.disqus.com/count.js';
+        s.src = '//' + 'hexo-theme-icarus' + '.disqus.com/embed.js';
         s.setAttribute('data-timestamp', +new Date());
         (d.head || d.body).appendChild(s);
     })();

@@ -150,7 +150,7 @@
         </div>
         <div class="article-info profile-block">
             <div class="article-info-block">
-                45
+                46
                 <span>文章</span>
             </div>
             <div class="article-info-block">
@@ -185,6 +185,172 @@
 
             
             <section id="main">
+    <article id="post-spring-security-3" class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        
+            <header class="article-header">
+                
+    
+        <h1 itemprop="name">
+            <a class="article-title" href="/2017/09/20/spring-security-3/">Spring Security(三)--核心配置解读</a>
+        </h1>
+    
+
+                
+                    <div class="article-meta">
+                        
+    <div class="article-date">
+        <i class="fa fa-calendar"></i>
+        <a href="/2017/09/20/spring-security-3/">
+            <time datetime="2017-09-20T15:25:34.000Z" itemprop="datePublished">2017-09-20</time>
+        </a>
+    </div>
+
+
+                        
+    <div class="article-category">
+    	<i class="fa fa-folder"></i>
+        <a class="article-category-link" href="/categories/Spring-Security/">Spring Security</a>
+    </div>
+
+                        
+    <div class="article-tag">
+        <i class="fa fa-tag"></i>
+        <a class="tag-link" href="/tags/Spring-Security/">Spring Security</a>
+    </div>
+
+                    </div>
+                
+            </header>
+        
+        
+        <div class="article-entry" itemprop="articleBody">
+        
+            
+             <p>上一篇文章《Spring Security(二)–Guides》，通过Spring Security的配置项了解了Spring Security是如何保护我们的应用的，本篇文章对上一次的配置做一个讲解。</p>
+<p>[TOC]</p>
+<h2 id="3-核心配置解读"><a href="#3-核心配置解读" class="headerlink" title="3 核心配置解读"></a>3 核心配置解读</h2><h3 id="3-1-功能介绍"><a href="#3-1-功能介绍" class="headerlink" title="3.1 功能介绍"></a>3.1 功能介绍</h3><p>这是Spring Security入门指南中的配置项：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Configuration</span></div><div class="line"><span class="meta">@EnableWebSecurity</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">WebSecurityConfig</span> <span class="keyword">extends</span> <span class="title">WebSecurityConfigurerAdapter</span> </span>&#123;</div><div class="line"></div><div class="line">  <span class="meta">@Override</span></div><div class="line">  <span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">configure</span><span class="params">(HttpSecurity http)</span> <span class="keyword">throws</span> Exception </span>&#123;</div><div class="line">      http</div><div class="line">          .authorizeRequests()</div><div class="line">              .antMatchers(<span class="string">"/"</span>, <span class="string">"/home"</span>).permitAll()</div><div class="line">              .anyRequest().authenticated()</div><div class="line">              .and()</div><div class="line">          .formLogin()</div><div class="line">              .loginPage(<span class="string">"/login"</span>)</div><div class="line">              .permitAll()</div><div class="line">              .and()</div><div class="line">          .logout()</div><div class="line">              .permitAll();</div><div class="line">  &#125;</div><div class="line"></div><div class="line">  <span class="meta">@Autowired</span></div><div class="line">  <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">configureGlobal</span><span class="params">(AuthenticationManagerBuilder auth)</span> <span class="keyword">throws</span> Exception </span>&#123;</div><div class="line">      auth</div><div class="line">          .inMemoryAuthentication()</div><div class="line">              .withUser(<span class="string">"admin"</span>).password(<span class="string">"admin"</span>).roles(<span class="string">"USER"</span>);</div><div class="line">  &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>当配置了上述的javaconfig之后，我们的应用便具备了如下的功能：</p>
+<ul>
+<li>除了“/”,”/home”(首页),”/login”(登录),”/logout”(注销),之外，其他路径都需要认证。</li>
+<li>指定“/login”该路径为登录页面，当未认证的用户尝试访问任何受保护的资源时，都会跳转到“/login”。</li>
+<li>默认指定“/logout”为注销页面</li>
+<li>配置一个内存中的用户认证器，使用admin/admin作为用户名和密码，具有USER角色</li>
+</ul>
+<ul>
+<li>防止CSRF攻击</li>
+<li><a href="https://en.wikipedia.org/wiki/Session_fixation" target="_blank" rel="external">Session Fixation</a> protection(可以参考我之前讲解Spring Session的文章，防止别人篡改sessionId)</li>
+<li>Security Header(添加一系列和Header相关的控制)<ul>
+<li><a href="https://en.wikipedia.org/wiki/HTTP_Strict_Transport_Security" target="_blank" rel="external">HTTP Strict Transport Security</a> for secure requests</li>
+<li>集成X-Content-Type-Options</li>
+<li>缓存控制</li>
+<li>集成<a href="https://msdn.microsoft.com/en-us/library/dd565647(v=vs.85" target="_blank" rel="external">X-XSS-Protection</a>.aspx) </li>
+<li>X-Frame-Options integration to help prevent <a href="https://en.wikipedia.org/wiki/Clickjacking" target="_blank" rel="external">Clickjacking</a>(iframe被默认禁止使用)</li>
+</ul>
+</li>
+<li>为Servlet API集成了如下的几个方法<ul>
+<li><a href="https://docs.oracle.com/javaee/6/api/javax/servlet/http/HttpServletRequest.html#getRemoteUser(" target="_blank" rel="external">HttpServletRequest#getRemoteUser()</a>)</li>
+<li><a href="https://docs.oracle.com/javaee/6/api/javax/servlet/http/HttpServletRequest.html#getUserPrincipal(" target="_blank" rel="external">HttpServletRequest.html#getUserPrincipal()</a>)</li>
+<li><a href="https://docs.oracle.com/javaee/6/api/javax/servlet/http/HttpServletRequest.html#isUserInRole(java.lang.String" target="_blank" rel="external">HttpServletRequest.html#isUserInRole(java.lang.String)</a>)</li>
+<li><a href="https://docs.oracle.com/javaee/6/api/javax/servlet/http/HttpServletRequest.html#login(java.lang.String,%20java.lang.String" target="_blank" rel="external">HttpServletRequest.html#login(java.lang.String, java.lang.String)</a>)</li>
+<li><a href="https://docs.oracle.com/javaee/6/api/javax/servlet/http/HttpServletRequest.html#logout(" target="_blank" rel="external">HttpServletRequest.html#logout()</a>)</li>
+</ul>
+</li>
+</ul>
+<h3 id="3-2-解读-EnableWebSecurity"><a href="#3-2-解读-EnableWebSecurity" class="headerlink" title="3.2 解读@EnableWebSecurity"></a>3.2 解读@EnableWebSecurity</h3><p>我们自己定义的配置类WebSecurityConfig加上了@EnableWebSecurity注解，同时继承了WebSecurityConfigurerAdapter。你可能会在想谁的作用大一点，先给出结论：毫无疑问@EnableWebSecurity起到决定性的配置作用，他其实是个组合注解，背后SpringBoot做了非常多的配置。</p>
+
+           
+        
+        </div>
+        <footer class="article-footer">
+            <div class="share-container">
+
+
+
+</div>
+
+    <a data-url="http://lexburner.github.io/2017/09/20/spring-security-3/" data-id="cj7vo935200281gud25vluhse" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+<script>
+    (function ($) {
+        // Prevent duplicate binding
+        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
+            __SHARE_BUTTON_BINDED__ = true;
+        } else {
+            return;
+        }
+        $('body').on('click', function() {
+            $('.article-share-box.on').removeClass('on');
+        }).on('click', '.article-share-link', function(e) {
+            e.stopPropagation();
+
+            var $this = $(this),
+                url = $this.attr('data-url'),
+                encodedUrl = encodeURIComponent(url),
+                id = 'article-share-box-' + $this.attr('data-id'),
+                offset = $this.offset(),
+                box;
+
+            if ($('#' + id).length) {
+                box = $('#' + id);
+
+                if (box.hasClass('on')){
+                    box.removeClass('on');
+                    return;
+                }
+            } else {
+                var html = [
+                    '<div id="' + id + '" class="article-share-box">',
+                        '<input class="article-share-input" value="' + url + '">',
+                        '<div class="article-share-links">',
+                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
+                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
+                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
+                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
+                        '</div>',
+                    '</div>'
+                ].join('');
+
+              box = $(html);
+
+              $('body').append(box);
+            }
+
+            $('.article-share-box.on').hide();
+
+            box.css({
+                top: offset.top + 25,
+                left: offset.left
+            }).addClass('on');
+
+        }).on('click', '.article-share-box', function (e) {
+            e.stopPropagation();
+        }).on('click', '.article-share-box-input', function () {
+            $(this).select();
+        }).on('click', '.article-share-box-link', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
+        });
+    })(jQuery);
+</script>
+
+            
+    
+        <a href="http://lexburner.github.io/2017/09/20/spring-security-3/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/09/20/spring-security-3/">评论</a>
+    
+
+        </footer>
+    </div>
+	
+    
+	
+</article>
+
+
+
     <article id="post-spring-security-2" class="article article-type-post" itemscope itemprop="blogPost">
     <div class="article-inner">
         
@@ -243,7 +409,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/09/20/spring-security-2/" data-id="cj7u73v7u0024woud3yxp3pdu" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/09/20/spring-security-2/" data-id="cj7vo935000251gude0hkd616" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -385,7 +551,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/09/19/spring-security-1/" data-id="cj7u73v7f001zwoudx3683zap" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/09/19/spring-security-1/" data-id="cj7vo934y00201gudfmuglolz" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -531,7 +697,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/09/13/event-2/" data-id="cj7u73v6e0016woudl5z2wmhz" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/09/13/event-2/" data-id="cj7vo934a00181gudxbxnoiqh" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -695,7 +861,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/09/11/rethink-1/" data-id="cj7u73v7c001wwoudkxkn0iqr" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/09/11/rethink-1/" data-id="cj7vo934q001p1gud874blsft" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -886,7 +1052,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/09/10/event-1/" data-id="cj7u73v6h0018woud9tc9amwv" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/09/10/event-1/" data-id="cj7vo934600121gudyhg8fbkb" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1079,7 +1245,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/09/09/feign-1/" data-id="cj7u73v6m001bwoudwrpgvexu" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/09/09/feign-1/" data-id="cj7vo934c001b1gudpoi2oa2z" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1236,7 +1402,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/09/04/Re：从零开始的Spring Session(三)/" data-id="cj7u73v5c000fwoudqj3d2wrl" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/09/04/Re：从零开始的Spring Session(三)/" data-id="cj7vo933i000e1gudo5rsv8fw" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1389,7 +1555,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/09/03/Re：从零开始的Spring Session(二)/" data-id="cj7u73v5i000iwoudw7g0tk31" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/09/03/Re：从零开始的Spring Session(二)/" data-id="cj7vo933n000h1gud9p75kwy2" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1525,7 +1691,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/09/03/Re：从零开始的Spring Session(一)/" data-id="cj7u73v58000dwoud479ypffh" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/09/03/Re：从零开始的Spring Session(一)/" data-id="cj7vo933e000c1gud28c12mmg" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1605,242 +1771,6 @@
 
 
 
-    <article id="post-解析Spring中的ResponseBody和RequestBody" class="article article-type-post" itemscope itemprop="blogPost">
-    <div class="article-inner">
-        
-        
-            <header class="article-header">
-                
-    
-        <h1 itemprop="name">
-            <a class="article-title" href="/2017/08/30/解析Spring中的ResponseBody和RequestBody/">解析Spring中的ResponseBody和RequestBody</a>
-        </h1>
-    
-
-                
-                    <div class="article-meta">
-                        
-    <div class="article-date">
-        <i class="fa fa-calendar"></i>
-        <a href="/2017/08/30/解析Spring中的ResponseBody和RequestBody/">
-            <time datetime="2017-08-30T04:44:21.000Z" itemprop="datePublished">2017-08-30</time>
-        </a>
-    </div>
-
-
-                        
-    <div class="article-category">
-    	<i class="fa fa-folder"></i>
-        <a class="article-category-link" href="/categories/Spring/">Spring</a>
-    </div>
-
-                        
-    <div class="article-tag">
-        <i class="fa fa-tag"></i>
-        <a class="tag-link" href="/tags/Spring/">Spring</a>
-    </div>
-
-                    </div>
-                
-            </header>
-        
-        
-        <div class="article-entry" itemprop="articleBody">
-        
-            
-             <p>spring，restful，前后端分离这些关键词都是大家耳熟能详的关键词了，一般spring常常需要与前端、第三方使用JSON，XML等形式进行交互，你也一定不会对@RequestBody和@ResponseBody这两个注解感到陌生。</p>
-<h2 id="ResponseBody的使用"><a href="#ResponseBody的使用" class="headerlink" title="@ResponseBody的使用"></a>@ResponseBody的使用</h2><p>由于@ResponseBody和@RequestBody的内部实现是同样的原理（封装请求和封装响应），所以本文以@ResponseBody为主要入手点，理解清楚任何一者，都可以同时掌握另一者。</p>
-<p>如果想要从spring获得一个json形式返回值，操作起来是非常容易的。首先定义一个实体类:</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Book</span> </span>&#123;</div><div class="line">    <span class="keyword">private</span> Integer id;</div><div class="line">    <span class="keyword">private</span> String bookName;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>接着定义一个后端端点：</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@RestController</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">BookController</span> </span>&#123;</div><div class="line"></div><div class="line">    <span class="meta">@GetMapping</span>(value = <span class="string">"/book/&#123;bookId&#125;"</span>)</div><div class="line">    <span class="function"><span class="keyword">public</span> Book <span class="title">getBook</span><span class="params">(@PathVariable(<span class="string">"bookId"</span>)</span> Integer bookId) </span>&#123;</div><div class="line">        <span class="keyword">return</span> <span class="keyword">new</span> Book(bookId, <span class="string">"book"</span> + bookId);</div><div class="line">    &#125;</div><div class="line"></div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>在RestController中，相当于给所有的xxxMapping端点都添加了@ResponseBody注解，不返回视图，只返回数据。使用http工具访问这个后端端点<code>localhost:8080/book/2</code>，便可以得到如下的响应：</p>
-<figure class="highlight json"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line">&#123;</div><div class="line">    <span class="attr">"id"</span>: <span class="number">2</span>,</div><div class="line">    <span class="attr">"bookName"</span>: <span class="string">"book2"</span></div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>这是一个最简单的返回JSON对象的使用示例了，相信这样的代码很多人在项目中都写过。</p>
-<h2 id="添加XML解析"><a href="#添加XML解析" class="headerlink" title="添加XML解析"></a>添加XML解析</h2><p>如果我们需要将Book对象以XML的形式返回，该如何操作呢？这也很简单，给Book对象添加@XmlRootElement注解，让spring内部能够解析XML对象。</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@XmlRootElement</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Book</span> </span>&#123;</div><div class="line">    <span class="keyword">private</span> Integer id;</div><div class="line">    <span class="keyword">private</span> String bookName;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>在我们未对web层的BookController做任何改动之前，尝试访问<code>localhost:8080/book/2</code>时，会发现得到的结果仍然是前面的JSON对象。这也能够理解，因为Book对象如今既可以被解析为XML，也可以被解析为JSON，我们隐隐察觉这背后有一定的解析顺序关系，但不着急，先看看如何让RestController返回XML解析结果。</p>
-<p>方法1 http客户端指定接收的返回结果类型</p>
-<p>http协议中，可以给请求头添加Accept属性，笔者常用的http客户端是idea自带的Test RESTful Web Service以及chrome的插件Postman。简单的调试，前者基本可以满足我们大多数的需求，而这里为了给大家更直观的体验，笔者使用了Postman。以code形式展示：</p>
-<figure class="highlight http"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">GET</span> <span class="string">/book/2</span> HTTP/1.1</div><div class="line"><span class="attribute">Host</span>: localhost:8080</div><div class="line"><span class="attribute">Accept</span>: application/xml</div></pre></td></tr></table></figure>
-<p>响应内容如下：</p>
-<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line">&lt;?xml version="1.0" encoding="UTF-8" standalone="yes"?&gt;</div><div class="line"><span class="tag">&lt;<span class="name">book</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">bookName</span>&gt;</span>book2<span class="tag">&lt;/<span class="name">bookName</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">id</span>&gt;</span>2<span class="tag">&lt;/<span class="name">id</span>&gt;</span></div><div class="line"><span class="tag">&lt;/<span class="name">book</span>&gt;</span></div></pre></td></tr></table></figure>
-<p>方法2 在RestController后端端点中指定返回类型</p>
-<p>修改后的RestController如下所示</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@RestController</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">BookController</span> </span>&#123;</div><div class="line"></div><div class="line">    <span class="meta">@GetMapping</span>(value = <span class="string">"/book/&#123;bookId&#125;"</span>, produces = &#123;<span class="string">"application/xml"</span>&#125;)</div><div class="line">    <span class="function"><span class="keyword">public</span> Book <span class="title">getBook</span><span class="params">(@PathVariable(<span class="string">"bookId"</span>)</span> Integer bookId) </span>&#123;</div><div class="line">        <span class="keyword">return</span> <span class="keyword">new</span> Book(bookId, <span class="string">"book"</span> + bookId);</div><div class="line">    &#125;</div><div class="line"></div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>此时即使将请求中的<code>Accept: application/xml</code>去除，依旧可以返回上述的XML结果。</p>
-<p>通常情况下，我们的服务端返回的形式一般是固定的，即限定了是JSON，XML中的一种，不建议依赖于客户端添加Accept的信息，而是在服务端限定produces类型。</p>
-<h2 id="详解Accpect与produces"><a href="#详解Accpect与produces" class="headerlink" title="详解Accpect与produces"></a>详解Accpect与produces</h2><p>Accpect包含在http协议的请求头中，其本身代表着客户端发起请求时，期望返回的响应结果的媒体类型。如果服务端可能返回多个媒体类型，则可以通过Accpect指定具体的类型。</p>
-<p>produces是Spring为我们提供的注解参数，代表着服务端能够支持返回的媒体类型，我们注意到produces后跟随的是一个数组类型，也就意味着服务端支持多种媒体类型的响应。</p>
-<p>在上一节中，我们未显示指定produces值时，其实就隐式的表明，支持XML形式，JSON形式的媒体类型响应。从实验结果，我们也可以看出，当请求未指定Accpect，响应未指定produces时，具体采用何种形式返回是有Spring控制的。在接口交互时，最良好的对接方式，当然是客户端指定Accpect，服务端指定produces，这样可以避免模棱两可的请求响应，避免出现意想不到的对接结果。</p>
-<h2 id="详解ContentType与consumes"><a href="#详解ContentType与consumes" class="headerlink" title="详解ContentType与consumes"></a>详解ContentType与consumes</h2><p>恰恰和Accpect&amp;produces相反，这两个参数是与用于限制请求的。理解了前两者的含义，这两个参数可以举一反三理解清楚。</p>
-<p>ContentType包含在http协议的请求头中，其本身代表着客户端发起请求时，告知服务端自己的请求媒体类型是什么。</p>
-<p>consumes是Spring为我们提供的注解参数，代表着服务端能够支持处理的请求媒体类型，同样是一个数组，意味着服务端支持多种媒体类型的请求。一般而言，consumes与produces对请求响应媒体类型起到的限制作用，我们给他一个专有名词：窄化。</p>
-<h2 id="http请求响应媒体类型一览"><a href="#http请求响应媒体类型一览" class="headerlink" title="http请求响应媒体类型一览"></a>http请求响应媒体类型一览</h2><p>上面描述的4个属性：Accpect与produces，ContentType与consumes究竟有哪些类型与之对应呢？我只将常用的一些列举了出来：</p>
-<table>
-<thead>
-<tr>
-<th>媒体类型</th>
-<th>含义</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>text/html</td>
-<td>HTML格式</td>
-</tr>
-<tr>
-<td>text/plain</td>
-<td>纯文本格式</td>
-</tr>
-<tr>
-<td>text/xml, application/xml</td>
-<td>XML数据格式</td>
-</tr>
-<tr>
-<td>application/json</td>
-<td>JSON数据格式</td>
-</tr>
-<tr>
-<td>image/gif</td>
-<td>gif图片格式</td>
-</tr>
-<tr>
-<td>image/png</td>
-<td>png图片格式</td>
-</tr>
-<tr>
-<td>application/octet-stream</td>
-<td>二进制流数据</td>
-</tr>
-<tr>
-<td>application/ x-www-form-urlencoded</td>
-<td>form表单数据</td>
-</tr>
-<tr>
-<td>multipart/form-data</td>
-<td>含文件的form表单</td>
-</tr>
-</tbody>
-</table>
-<p>其中有几个类型值得一说，web开发中我们常用的提交表单操作，其默认的媒体类型就是application/ x-www-form-urlencoded，而当表单中包含文件时，大家估计都踩过坑，需要将enctype=multipart/form-data设置在form参数中。text/html也就是常见的网页了，json与xml常用于数据交互，其他不再赘述。</p>
-<p>而在JAVA中，提供了MediaType这样的抽象，来与http的媒体类型进行对应。‘/’之前的名词，如text，application被称为类型（type），‘/’之后被称为子类型(subType)。</p>
-<h2 id="详解HttpMessageConverter"><a href="#详解HttpMessageConverter" class="headerlink" title="详解HttpMessageConverter"></a>详解HttpMessageConverter</h2><p>我们想要搞懂Spring到底如何完成众多实体类等复杂类型的数据转换以及与媒体类型的对应，就必须要搞懂HttpMessageConverter这个顶级接口：</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">HttpMessageConverter</span>&lt;<span class="title">T</span>&gt; </span>&#123;</div><div class="line">    <span class="function"><span class="keyword">boolean</span> <span class="title">canRead</span><span class="params">(Class&lt;?&gt; var1, MediaType var2)</span></span>;</div><div class="line"></div><div class="line">    <span class="function"><span class="keyword">boolean</span> <span class="title">canWrite</span><span class="params">(Class&lt;?&gt; var1, MediaType var2)</span></span>;</div><div class="line"></div><div class="line">    <span class="function">List&lt;MediaType&gt; <span class="title">getSupportedMediaTypes</span><span class="params">()</span></span>;</div><div class="line"></div><div class="line">    <span class="function">T <span class="title">read</span><span class="params">(Class&lt;? extends T&gt; var1, HttpInputMessage var2)</span> <span class="keyword">throws</span> IOException, HttpMessageNotReadableException</span>;</div><div class="line"></div><div class="line">    <span class="function"><span class="keyword">void</span> <span class="title">write</span><span class="params">(T var1, MediaType var2, HttpOutputMessage var3)</span> <span class="keyword">throws</span> IOException, HttpMessageNotWritableException</span>;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>大致能看出Spring的处理思路。下面的流程图可以更好方便我们的理解：</p>
-<p><img src="/css/images/post/httpMessageConveter.png" alt="HttpMessageConverter运转流程"></p>
-<p>对于添加了@RequestBody和@ResponseBody注解的后端端点，都会经历由HttpMessageConverter进行的数据转换的过程。而在Spring启动之初，就已经有一些默认的转换器被注册了。通过在<code>RequestResponseBodyMethodProcessor</code> 中打断点，我们可以获取到一个converters列表：</p>
-<p><img src="/css/images/post/converters.png" alt="内置转换器列表"></p>
-<p>源码方面不做过多的解读，有兴趣的朋友可以研究一下<code>RequestResponseBodyMethodProcessor</code> 中的handleReturnValue方法，包含了转换的核心实现。</p>
-<h2 id="自定义HttpMessageConverter"><a href="#自定义HttpMessageConverter" class="headerlink" title="自定义HttpMessageConverter"></a>自定义HttpMessageConverter</h2><p>前面已经提及了消息转换器是通过判断媒体类型来调用响应的转换类的，不禁引发了我们的思考，如果我们遇到了不常用的MediaType，或者自定义的MediaType，又想要使用Spring的@RequestBody，@ResponseBody注解，该如何添加代码呢？下面我们通过自定义一个HttpMessageConverter来了解Spring内部的转换过程。</p>
-<p>先定义我们的需求，自定一个MediaType：application/toString，当返回一个带有@ResponseBody注解的实体类时，将该实体类的ToString作为响应内容。</p>
-<p>1 首先重写Book的ToString方法，方便后期效果展示</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Override</span></div><div class="line"><span class="function"><span class="keyword">public</span> String <span class="title">toString</span><span class="params">()</span> </span>&#123;</div><div class="line">    <span class="keyword">return</span> <span class="string">"~~~Book&#123;"</span> +</div><div class="line">            <span class="string">"id="</span> + id +</div><div class="line">            <span class="string">", bookName='"</span> + bookName + <span class="string">'\''</span> +</div><div class="line">            <span class="string">"&#125;~~~"</span>;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>2 编写自定义的消息转换器</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ToStringHttpMessageConverter</span> <span class="keyword">extends</span> <span class="title">AbstractHttpMessageConverter</span>&lt;<span class="title">Object</span>&gt; </span>&#123;</div><div class="line"></div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="title">ToStringHttpMessageConverter</span><span class="params">()</span> </span>&#123;</div><div class="line">        <span class="keyword">super</span>(<span class="keyword">new</span> MediaType(<span class="string">"application"</span>, <span class="string">"toString"</span>, Charset.forName(<span class="string">"UTF-8"</span>)));<span class="comment">// &lt;1&gt;</span></div><div class="line">    &#125;</div><div class="line"></div><div class="line">    <span class="meta">@Override</span></div><div class="line">    <span class="function"><span class="keyword">protected</span> <span class="keyword">boolean</span> <span class="title">supports</span><span class="params">(Class&lt;?&gt; clazz)</span> </span>&#123;</div><div class="line">        <span class="keyword">return</span> <span class="keyword">true</span>;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    <span class="comment">//从请求体封装数据 对应RequestBody 用String接收</span></div><div class="line">    <span class="meta">@Override</span></div><div class="line">    <span class="function"><span class="keyword">protected</span> Object <span class="title">readInternal</span><span class="params">(Class&lt;?&gt; clazz, HttpInputMessage inputMessage)</span> <span class="keyword">throws</span> IOException, HttpMessageNotReadableException </span>&#123;</div><div class="line">        <span class="keyword">return</span> StreamUtils.copyToString(inputMessage.getBody(), Charset.forName(<span class="string">"UTF-8"</span>));</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    <span class="comment">//从响应体封装数据 对应ResponseBody</span></div><div class="line">    <span class="meta">@Override</span></div><div class="line">    <span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">writeInternal</span><span class="params">(Object o, HttpOutputMessage outputMessage)</span> <span class="keyword">throws</span> IOException, HttpMessageNotWritableException </span>&#123;</div><div class="line">        String result = o.toString();<span class="comment">//&lt;2&gt;</span></div><div class="line">        outputMessage.getBody().write(result.getBytes());</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p><1> 此处指定了支持的媒体类型</1></p>
-<p><2> 调用类的ToString方法，将结果写入到输出流中</2></p>
-<p>3 配置自定义的消息转换器</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Configuration</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">WebMvcConfig</span> <span class="keyword">extends</span> <span class="title">WebMvcConfigurerAdapter</span></span>&#123;</div><div class="line"></div><div class="line">    <span class="meta">@Override</span></div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">configureMessageConverters</span><span class="params">(List&lt;HttpMessageConverter&lt;?&gt;&gt; converters)</span> </span>&#123;</div><div class="line">        converters.add(<span class="keyword">new</span> ToStringHttpMessageConverter());</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>4 配置后端端点，指定生产类型</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@RestController</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">BookController</span> </span>&#123;</div><div class="line"></div><div class="line">    <span class="meta">@GetMapping</span>(value = <span class="string">"/book/&#123;bookId&#125;"</span>,produces = &#123;<span class="string">"application/toString"</span>,<span class="string">"application/json"</span>,<span class="string">"application/xml"</span>&#125;)</div><div class="line">    <span class="function"><span class="keyword">public</span> Book <span class="title">getBook</span><span class="params">(@PathVariable(<span class="string">"bookId"</span>)</span> Integer bookId) </span>&#123;</div><div class="line">        <span class="keyword">return</span> <span class="keyword">new</span> Book(bookId, <span class="string">"book"</span> + bookId);</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>此处只是为了演示，添加了三个生产类型，我们的后端端点可以支持输出三种类型，而具体输出哪一者，则依赖客户端的Accept指定。</p>
-<p>5 客户端请求</p>
-<figure class="highlight http"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">GET</span> <span class="string">/book/2</span> HTTP/1.1</div><div class="line"><span class="attribute">Host</span>: localhost:8080</div><div class="line"><span class="attribute">Accept</span>: application/toString</div></pre></td></tr></table></figure>
-<p>响应结果如下：</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">​~~~Book&#123;id=2, bookName=&apos;book2&apos;&#125;~~~</div></pre></td></tr></table></figure>
-<p>此时，你可以任意指定Accept的类型，即可获得不同形式的Book返回结果，可以是application/toString，application/json，application/xml，都会对应各自的HttpMessageConverter。</p>
-
-           
-        
-        </div>
-        <footer class="article-footer">
-            <div class="share-container">
-
-
-
-</div>
-
-    <a data-url="http://lexburner.github.io/2017/08/30/解析Spring中的ResponseBody和RequestBody/" data-id="cj7u73v9y003wwoud7vtkmdky" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
-<script>
-    (function ($) {
-        // Prevent duplicate binding
-        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
-            __SHARE_BUTTON_BINDED__ = true;
-        } else {
-            return;
-        }
-        $('body').on('click', function() {
-            $('.article-share-box.on').removeClass('on');
-        }).on('click', '.article-share-link', function(e) {
-            e.stopPropagation();
-
-            var $this = $(this),
-                url = $this.attr('data-url'),
-                encodedUrl = encodeURIComponent(url),
-                id = 'article-share-box-' + $this.attr('data-id'),
-                offset = $this.offset(),
-                box;
-
-            if ($('#' + id).length) {
-                box = $('#' + id);
-
-                if (box.hasClass('on')){
-                    box.removeClass('on');
-                    return;
-                }
-            } else {
-                var html = [
-                    '<div id="' + id + '" class="article-share-box">',
-                        '<input class="article-share-input" value="' + url + '">',
-                        '<div class="article-share-links">',
-                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
-                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
-                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
-                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
-                        '</div>',
-                    '</div>'
-                ].join('');
-
-              box = $(html);
-
-              $('body').append(box);
-            }
-
-            $('.article-share-box.on').hide();
-
-            box.css({
-                top: offset.top + 25,
-                left: offset.left
-            }).addClass('on');
-
-        }).on('click', '.article-share-box', function (e) {
-            e.stopPropagation();
-        }).on('click', '.article-share-box-input', function () {
-            $(this).select();
-        }).on('click', '.article-share-box-link', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-
-            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
-        });
-    })(jQuery);
-</script>
-
-            
-    
-        <a href="http://lexburner.github.io/2017/08/30/解析Spring中的ResponseBody和RequestBody/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/08/30/解析Spring中的ResponseBody和RequestBody/">评论</a>
-    
-
-        </footer>
-    </div>
-	
-    
-	
-</article>
-
-
-
     <nav id="page-nav">
         <span class="page-number current">1</span><a class="page-number" href="/page/2/">2</a><a class="page-number" href="/page/3/">3</a><span class="space">&hellip;</span><a class="page-number" href="/page/5/">5</a><a class="extend next" rel="next" href="/page/2/">下一页 &raquo;</a>
     </nav>
@@ -1853,6 +1783,25 @@
         <h3 class="widget-title">最新文章</h3>
         <div class="widget">
             <ul id="recent-post" class="">
+                
+                    <li>
+                        
+                        <div class="item-thumbnail">
+                            <a href="/2017/09/20/spring-security-3/" class="thumbnail">
+    
+    
+        <span class="thumbnail-image thumbnail-none"></span>
+    
+</a>
+
+                        </div>
+                        
+                        <div class="item-inner">
+                            <p class="item-category"><a class="article-category-link" href="/categories/Spring-Security/">Spring Security</a></p>
+                            <p class="item-title"><a href="/2017/09/20/spring-security-3/" class="title">Spring Security(三)--核心配置解读</a></p>
+                            <p class="item-date"><time datetime="2017-09-20T15:25:34.000Z" itemprop="datePublished">2017-09-20</time></p>
+                        </div>
+                    </li>
                 
                     <li>
                         
@@ -1930,25 +1879,6 @@
                         </div>
                     </li>
                 
-                    <li>
-                        
-                        <div class="item-thumbnail">
-                            <a href="/2017/09/10/event-1/" class="thumbnail">
-    
-    
-        <span class="thumbnail-image thumbnail-none"></span>
-    
-</a>
-
-                        </div>
-                        
-                        <div class="item-inner">
-                            <p class="item-category"><a class="article-category-link" href="/categories/Spring/">Spring</a></p>
-                            <p class="item-title"><a href="/2017/09/10/event-1/" class="title">浅析Spring中的事件驱动机制</a></p>
-                            <p class="item-date"><time datetime="2017-09-10T12:03:58.000Z" itemprop="datePublished">2017-09-10</time></p>
-                        </div>
-                    </li>
-                
             </ul>
         </div>
     </div>
@@ -1958,7 +1888,7 @@
     <div class="widget-wrap">
         <h3 class="widget-title">分类</h3>
         <div class="widget">
-            <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/DevOps/">DevOps</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/JAVA/">JAVA</a><span class="category-list-count">10</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring/">Spring</a><span class="category-list-count">6</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Cloud/">Spring Cloud</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security/">Spring Security</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security-OAuth2/">Spring Security OAuth2</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Session/">Spring Session</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/技术杂谈/">技术杂谈</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/架构设计/">架构设计</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/规则引擎/">规则引擎</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/领域驱动设计/">领域驱动设计</a><span class="category-list-count">2</span></li></ul>
+            <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/DevOps/">DevOps</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/JAVA/">JAVA</a><span class="category-list-count">10</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring/">Spring</a><span class="category-list-count">6</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Cloud/">Spring Cloud</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security/">Spring Security</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security-OAuth2/">Spring Security OAuth2</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Session/">Spring Session</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/技术杂谈/">技术杂谈</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/架构设计/">架构设计</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/规则引擎/">规则引擎</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/领域驱动设计/">领域驱动设计</a><span class="category-list-count">2</span></li></ul>
         </div>
     </div>
 
@@ -1967,7 +1897,7 @@
     <div class="widget-wrap">
         <h3 class="widget-title">归档</h3>
         <div class="widget">
-            <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a><span class="archive-list-count">9</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a><span class="archive-list-count">10</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/02/">二月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/11/">十一月 2016</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/08/">八月 2016</a><span class="archive-list-count">3</span></li></ul>
+            <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a><span class="archive-list-count">10</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a><span class="archive-list-count">10</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/02/">二月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/11/">十一月 2016</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/08/">八月 2016</a><span class="archive-list-count">3</span></li></ul>
         </div>
     </div>
 
@@ -1976,7 +1906,7 @@
     <div class="widget-wrap">
         <h3 class="widget-title">标签云</h3>
         <div class="widget tagcloud">
-            <a href="/tags/DevOps/" style="font-size: 12px;">DevOps</a> <a href="/tags/JAVA/" style="font-size: 20px;">JAVA</a> <a href="/tags/JMM/" style="font-size: 10px;">JMM</a> <a href="/tags/RPC/" style="font-size: 10px;">RPC</a> <a href="/tags/Spring/" style="font-size: 20px;">Spring</a> <a href="/tags/Spring-Cloud/" style="font-size: 12px;">Spring Cloud</a> <a href="/tags/Spring-Cloud-Zuul/" style="font-size: 12px;">Spring Cloud Zuul</a> <a href="/tags/Spring-Security/" style="font-size: 12px;">Spring Security</a> <a href="/tags/Spring-Security-OAuth2/" style="font-size: 14px;">Spring Security OAuth2</a> <a href="/tags/Spring-Session/" style="font-size: 14px;">Spring Session</a> <a href="/tags/Validation/" style="font-size: 12px;">Validation</a> <a href="/tags/XML/" style="font-size: 10px;">XML</a> <a href="/tags/Zipkin/" style="font-size: 10px;">Zipkin</a> <a href="/tags/drools/" style="font-size: 16px;">drools</a> <a href="/tags/lua/" style="font-size: 10px;">lua</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/zookeeper/" style="font-size: 10px;">zookeeper</a> <a href="/tags/事务/" style="font-size: 10px;">事务</a> <a href="/tags/代码规范/" style="font-size: 10px;">代码规范</a> <a href="/tags/多线程/" style="font-size: 18px;">多线程</a> <a href="/tags/微服务/" style="font-size: 10px;">微服务</a> <a href="/tags/技术杂谈/" style="font-size: 14px;">技术杂谈</a> <a href="/tags/数据库/" style="font-size: 10px;">数据库</a> <a href="/tags/杂谈/" style="font-size: 10px;">杂谈</a> <a href="/tags/架构设计/" style="font-size: 12px;">架构设计</a> <a href="/tags/求职/" style="font-size: 10px;">求职</a> <a href="/tags/规则引擎/" style="font-size: 16px;">规则引擎</a> <a href="/tags/领域驱动设计/" style="font-size: 12px;">领域驱动设计</a>
+            <a href="/tags/DevOps/" style="font-size: 12px;">DevOps</a> <a href="/tags/JAVA/" style="font-size: 20px;">JAVA</a> <a href="/tags/JMM/" style="font-size: 10px;">JMM</a> <a href="/tags/RPC/" style="font-size: 10px;">RPC</a> <a href="/tags/Spring/" style="font-size: 20px;">Spring</a> <a href="/tags/Spring-Cloud/" style="font-size: 12px;">Spring Cloud</a> <a href="/tags/Spring-Cloud-Zuul/" style="font-size: 12px;">Spring Cloud Zuul</a> <a href="/tags/Spring-Security/" style="font-size: 14px;">Spring Security</a> <a href="/tags/Spring-Security-OAuth2/" style="font-size: 14px;">Spring Security OAuth2</a> <a href="/tags/Spring-Session/" style="font-size: 14px;">Spring Session</a> <a href="/tags/Validation/" style="font-size: 12px;">Validation</a> <a href="/tags/XML/" style="font-size: 10px;">XML</a> <a href="/tags/Zipkin/" style="font-size: 10px;">Zipkin</a> <a href="/tags/drools/" style="font-size: 16px;">drools</a> <a href="/tags/lua/" style="font-size: 10px;">lua</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/zookeeper/" style="font-size: 10px;">zookeeper</a> <a href="/tags/事务/" style="font-size: 10px;">事务</a> <a href="/tags/代码规范/" style="font-size: 10px;">代码规范</a> <a href="/tags/多线程/" style="font-size: 18px;">多线程</a> <a href="/tags/微服务/" style="font-size: 10px;">微服务</a> <a href="/tags/技术杂谈/" style="font-size: 14px;">技术杂谈</a> <a href="/tags/数据库/" style="font-size: 10px;">数据库</a> <a href="/tags/杂谈/" style="font-size: 10px;">杂谈</a> <a href="/tags/架构设计/" style="font-size: 12px;">架构设计</a> <a href="/tags/求职/" style="font-size: 10px;">求职</a> <a href="/tags/规则引擎/" style="font-size: 16px;">规则引擎</a> <a href="/tags/领域驱动设计/" style="font-size: 12px;">领域驱动设计</a>
         </div>
     </div>
 
