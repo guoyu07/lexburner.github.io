@@ -820,7 +820,7 @@ code {
 }
 .article-title {
   font-size: 2em;
-  color: #565a5f;
+  color: #009688;
   text-decoration: none;
   line-height: 1.3em;
 }
@@ -1857,9 +1857,6 @@ ol.toc {
     font-size: 32px;
     line-height: 48px;
   }
-}
-#recent-post li {
-  padding: 10px 0 10px 94px;
 }
 #recent-post li:before,
 #recent-post li:after {

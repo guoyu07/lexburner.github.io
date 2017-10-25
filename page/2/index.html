@@ -35,10 +35,7 @@
     
 
 
-	<!-- UY BEGIN -->
-	<div id="uyan_frame"></div>
-	<script type="text/javascript" src="http://v2.uyan.cc/code/uyan.js?uid=2145086"></script>
-	<!-- UY END -->
+
 </head>
 
 <body>
@@ -150,7 +147,7 @@
         </div>
         <div class="article-info profile-block">
             <div class="article-info-block">
-                46
+                49
                 <span>文章</span>
             </div>
             <div class="article-info-block">
@@ -185,6 +182,455 @@
 
             
             <section id="main">
+    <article id="post-Re：从零开始的Spring Session(三)" class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        
+            <header class="article-header">
+                
+    
+        <h1 itemprop="name">
+            <a class="article-title" href="/2017/09/04/Re：从零开始的Spring Session(三)/">Re：从零开始的Spring Session(三)</a>
+        </h1>
+    
+
+                
+                    <div class="article-meta">
+                        
+    <div class="article-date">
+        <i class="fa fa-calendar"></i>
+        <a href="/2017/09/04/Re：从零开始的Spring Session(三)/">
+            <time datetime="2017-09-04T12:57:43.000Z" itemprop="datePublished">2017-09-04</time>
+        </a>
+    </div>
+
+
+                        
+    <div class="article-category">
+    	<i class="fa fa-folder"></i>
+        <a class="article-category-link" href="/categories/Spring-Session/">Spring Session</a>
+    </div>
+
+                        <!-- 不显示标签 -->
+                        <!-- 
+    <div class="article-tag">
+        <i class="fa fa-tag"></i>
+        <a class="tag-link" href="/tags/Spring/">Spring</a>, <a class="tag-link" href="/tags/Spring-Session/">Spring Session</a>
+    </div>
+ -->
+                    </div>
+                
+            </header>
+        
+        
+        <div class="article-entry" itemprop="articleBody">
+        
+            
+             <p>上一篇文章中，我们使用Redis集成了Spring Session。大多数的配置都是Spring Boot帮我们自动配置的，这一节我们介绍一点Spring Session较为高级的特性。</p>
+<h2 id="集成Spring-Security"><a href="#集成Spring-Security" class="headerlink" title="集成Spring Security"></a>集成Spring Security</h2><p>之所以把Spring Session和Spring Security放在一起讨论，是因为我们的应用在集成Spring Security之后，用户相关的认证与Session密不可分，如果不注意一些细节，会引发意想不到的问题。</p>
+<p>与Spring Session相关的依赖可以参考上一篇文章，这里给出增量的依赖：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="name">dependency</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>org.springframework.boot<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>spring-boot-starter-security<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></div><div class="line"><span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></div></pre></td></tr></table></figure>
+<p>我们引入依赖后，就已经自动配置了Spring Security，我们在application.yml添加一个内存中的用户：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line"><span class="attr">security:</span></div><div class="line"><span class="attr">  user:</span></div><div class="line"><span class="attr">    name:</span> <span class="string">admin</span></div><div class="line"><span class="attr">    password:</span> <span class="string">admin</span></div></pre></td></tr></table></figure>
+<p>测试登录点沿用上一篇文章的端点，访问<code>http://localhost:8080/test/cookie?browser=chrome</code>端点后会出现http basic的认证框，我们输入admin/admin，即可获得结果，也遇到了第一个坑点，我们会发现每次请求，sessionId都会被刷新，这显然不是我们想要的结果。</p>
+<p><img src="http://ov0zuistv.bkt.clouddn.com/QQ%E5%9B%BE%E7%89%8720170904212709.png" alt="诡异的运行结果"></p>
+<p>这个现象笔者研究了不少源码，但并没有得到非常满意的解释，只能理解为SecurityAutoConfiguration提供的默认配置，没有触发到响应的配置，导致了session的不断刷新（如果读者有合理的解释可以和我沟通）。Spring Session之所以能够替换默认的tomcat httpSession是因为配置了<code>springSessionRepositoryFilter</code>这个过滤器，且提供了非常高的优先级，这归功于<code>AbstractSecurityWebApplicationInitializer</code> ，<code>AbstractHttpSessionApplicationInitializer</code> 这两个初始化器，当然，也保证了Spring Session会在Spring Security之前起作用。</p>
+<p>而解决上述的诡异现象也比较容易（但原理不清），我们使用@EnableWebSecurity对Spring Security进行一些配置，即可解决这个问题。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@EnableWebSecurity</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">SecurityConfig</span> <span class="keyword">extends</span> <span class="title">WebSecurityConfigurerAdapter</span> </span>&#123;</div><div class="line"></div><div class="line">    <span class="comment">// @formatter:off</span></div><div class="line">    <span class="meta">@Override</span></div><div class="line">    <span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">configure</span><span class="params">(HttpSecurity http)</span> <span class="keyword">throws</span> Exception </span>&#123;</div><div class="line">        http</div><div class="line">            .authorizeRequests()</div><div class="line">            .antMatchers(<span class="string">"/resources/**"</span>).permitAll()</div><div class="line">            .anyRequest().authenticated()</div><div class="line">            .and()</div><div class="line">                .httpBasic()<span class="comment">//&lt;1&gt;</span></div><div class="line">            .and()</div><div class="line">            .logout().permitAll();</div><div class="line">    &#125;</div><div class="line">    <span class="comment">// @formatter:on</span></div><div class="line"></div><div class="line">    <span class="comment">// @formatter:off</span></div><div class="line">    <span class="meta">@Autowired</span></div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">configureGlobal</span><span class="params">(AuthenticationManagerBuilder auth)</span> <span class="keyword">throws</span> Exception </span>&#123;</div><div class="line">        auth</div><div class="line">                .inMemoryAuthentication()</div><div class="line">                .withUser(<span class="string">"admin"</span>).password(<span class="string">"admin"</span>).roles(<span class="string">"USER"</span>);<span class="comment">//&lt;2&gt;</span></div><div class="line">    &#125;</div><div class="line">    <span class="comment">// @formatter:on</span></div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p><1> 不想大费周章写一个登录页面，于是开启了http basic认证</1></p>
+<p><2> 配置了security config之后，springboot的autoConfig就会失效，于是需要手动配置用户。</2></p>
+<p>再次请求，可以发现SessionId返回正常，@EnableWebSecurity似乎触发了相关的配置，当然了，我们在使用Spring Security时不可能使用autoconfig，但是这个现象的确是一个疑点。</p>
+<h2 id="使用自定义CookieSerializer"><a href="#使用自定义CookieSerializer" class="headerlink" title="使用自定义CookieSerializer"></a>使用自定义CookieSerializer</h2><figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Bean</span></div><div class="line"><span class="function"><span class="keyword">public</span> CookieSerializer <span class="title">cookieSerializer</span><span class="params">()</span> </span>&#123;</div><div class="line">    DefaultCookieSerializer serializer = <span class="keyword">new</span> DefaultCookieSerializer();</div><div class="line">    serializer.setCookieName(<span class="string">"JSESSIONID"</span>);</div><div class="line">    serializer.setCookiePath(<span class="string">"/"</span>);</div><div class="line">    serializer.setDomainNamePattern(<span class="string">"^.+?\\.(\\w+\\.[a-z]+)$"</span>);</div><div class="line">    <span class="keyword">return</span> serializer;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>使用上述配置后，我们可以将Spring Session默认的Cookie Key从SESSION替换为原生的JSESSIONID。而CookiePath设置为根路径且配置了相关的正则表达式，可以达到同父域下的单点登录的效果，在未涉及跨域的单点登录系统中，这是一个非常优雅的解决方案。如果我们的当前域名是<code>moe.cnkirito.moe</code>，该正则会将Cookie设置在父域<code>cnkirito.moe</code>中，如果有另一个相同父域的子域名<code>blog.cnkirito.moe</code>也会识别这个Cookie，便可以很方便的实现同父域下的单点登录。</p>
+<h2 id="根据用户名查找用户归属的SESSION"><a href="#根据用户名查找用户归属的SESSION" class="headerlink" title="根据用户名查找用户归属的SESSION"></a>根据用户名查找用户归属的SESSION</h2><p>这个特性听起来非常有意思，你可以在一些有趣的场景下使用它，如知道用户名后即可删除其SESSION。一直以来我们都是通过线程绑定的方式，让用户操作自己的SESSION，包括获取用户名等操作。但如今它提供了一个反向的操作，根据用户名获取SESSION，恰巧，在一些项目中真的可以使用到这个特性，最起码，当别人问起你，或者讨论到和SESSION相关的知识时，你可以明晰一点，这是可以做到的。</p>
+<p>我们使用Redis作为Session Store还有一个好处，就是其实现了<code>FindByIndexNameSessionRepository</code>接口，下面让我们来见证这一点。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Controller</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">CookieController</span> </span>&#123;</div><div class="line">    <span class="meta">@Autowired</span></div><div class="line">    FindByIndexNameSessionRepository&lt;? extends ExpiringSession&gt; sessionRepository;</div><div class="line"></div><div class="line">    <span class="meta">@RequestMapping</span>(<span class="string">"/test/findByUsername"</span>)</div><div class="line">    <span class="meta">@ResponseBody</span></div><div class="line">    <span class="function"><span class="keyword">public</span> Map <span class="title">findByUsername</span><span class="params">(@RequestParam String username)</span> </span>&#123;</div><div class="line">        Map&lt;String, ? extends ExpiringSession&gt; usersSessions = sessionRepository.findByIndexNameAndIndexValue(FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME, username);</div><div class="line">        <span class="keyword">return</span> usersSessions;</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>由于一个用户可能拥有多个Session，所以返回的是一个Map信息，而这里的username，则就是与Spring Security集成之后的用户名，最令人感动Spring厉害的地方，是这一切都是自动配置好的。我们在内存中配置的用户的username是admin，于是我们访问这个端点,可以看到如下的结果</p>
+<p><img src="http://ov0zuistv.bkt.clouddn.com/2.png" alt="用户名访问session"></p>
+<p>连同我们存入session中的browser=chrome，browser=360都可以看见（只有键名）。</p>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>Spring Session对各种场景下的Session管理提供一套非常完善的实现。笔者所介绍的，仅仅是Spring Session常用的一些特性，更多的知识点可以在spring.io的文档中一览无余，以及本文中作者存在的一个疑惑，如有兴趣可与我沟通。</p>
+
+           
+        
+        </div>
+        <footer class="article-footer">
+            <div class="share-container">
+
+
+
+</div>
+
+    <a data-url="http://lexburner.github.io/2017/09/04/Re：从零开始的Spring Session(三)/" data-id="cj96wf2bz000gj0udkhrmtvz7" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+<script>
+    (function ($) {
+        // Prevent duplicate binding
+        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
+            __SHARE_BUTTON_BINDED__ = true;
+        } else {
+            return;
+        }
+        $('body').on('click', function() {
+            $('.article-share-box.on').removeClass('on');
+        }).on('click', '.article-share-link', function(e) {
+            e.stopPropagation();
+
+            var $this = $(this),
+                url = $this.attr('data-url'),
+                encodedUrl = encodeURIComponent(url),
+                id = 'article-share-box-' + $this.attr('data-id'),
+                offset = $this.offset(),
+                box;
+
+            if ($('#' + id).length) {
+                box = $('#' + id);
+
+                if (box.hasClass('on')){
+                    box.removeClass('on');
+                    return;
+                }
+            } else {
+                var html = [
+                    '<div id="' + id + '" class="article-share-box">',
+                        '<input class="article-share-input" value="' + url + '">',
+                        '<div class="article-share-links">',
+                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
+                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
+                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
+                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
+                        '</div>',
+                    '</div>'
+                ].join('');
+
+              box = $(html);
+
+              $('body').append(box);
+            }
+
+            $('.article-share-box.on').hide();
+
+            box.css({
+                top: offset.top + 25,
+                left: offset.left
+            }).addClass('on');
+
+        }).on('click', '.article-share-box', function (e) {
+            e.stopPropagation();
+        }).on('click', '.article-share-box-input', function () {
+            $(this).select();
+        }).on('click', '.article-share-box-link', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
+        });
+    })(jQuery);
+</script>
+
+            
+    
+        <a href="http://lexburner.github.io/2017/09/04/Re：从零开始的Spring Session(三)/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/09/04/Re：从零开始的Spring Session(三)/">评论</a>
+    
+
+        </footer>
+    </div>
+	
+    
+	
+</article>
+
+
+
+    <article id="post-Re：从零开始的Spring Session(二)" class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        
+            <header class="article-header">
+                
+    
+        <h1 itemprop="name">
+            <a class="article-title" href="/2017/09/03/Re：从零开始的Spring Session(二)/">Re：从零开始的Spring Session(二)</a>
+        </h1>
+    
+
+                
+                    <div class="article-meta">
+                        
+    <div class="article-date">
+        <i class="fa fa-calendar"></i>
+        <a href="/2017/09/03/Re：从零开始的Spring Session(二)/">
+            <time datetime="2017-09-03T12:06:12.000Z" itemprop="datePublished">2017-09-03</time>
+        </a>
+    </div>
+
+
+                        
+    <div class="article-category">
+    	<i class="fa fa-folder"></i>
+        <a class="article-category-link" href="/categories/Spring-Session/">Spring Session</a>
+    </div>
+
+                        <!-- 不显示标签 -->
+                        <!-- 
+    <div class="article-tag">
+        <i class="fa fa-tag"></i>
+        <a class="tag-link" href="/tags/Spring/">Spring</a>, <a class="tag-link" href="/tags/Spring-Session/">Spring Session</a>
+    </div>
+ -->
+                    </div>
+                
+            </header>
+        
+        
+        <div class="article-entry" itemprop="articleBody">
+        
+            <p><p>上一篇文章介绍了一些Session和Cookie的基础知识，这篇文章开始正式介绍Spring Session是如何对传统的Session进行改造的。官网这么介绍Spring Session：</p>
+<p>Spring Session provides an API and implementations for managing a user’s session information. It also provides transparent integration with:</p>
+<ul>
+<li><a href="https://docs.spring.io/spring-session/docs/1.3.1.RELEASE/reference/html5/#httpsession" target="_blank" rel="external">HttpSession</a> - allows replacing the HttpSession in an application container (i.e. Tomcat) neutral way. Additional features include:<ul>
+<li><strong>Clustered Sessions</strong> - Spring Session makes it trivial to support <a href="https://docs.spring.io/spring-session/docs/1.3.1.RELEASE/reference/html5/#httpsession-redis" target="_blank" rel="external">clustered sessions</a> without being tied to an application container specific solution.</li>
+<li><strong>Multiple Browser Sessions</strong> - Spring Session supports <a href="https://docs.spring.io/spring-session/docs/1.3.1.RELEASE/reference/html5/#httpsession-multi" target="_blank" rel="external">managing multiple users’ sessions</a> in a single browser instance (i.e. multiple authenticated accounts similar to Google).</li>
+<li><strong>RESTful APIs</strong> - Spring Session allows providing session ids in headers to work with <a href="https://docs.spring.io/spring-session/docs/1.3.1.RELEASE/reference/html5/#httpsession-rest" target="_blank" rel="external">RESTful APIs</a></li>
+</ul>
+</li>
+<li><a href="https://docs.spring.io/spring-session/docs/1.3.1.RELEASE/reference/html5/#websocket" target="_blank" rel="external">WebSocket</a> - provides the ability to keep the <code>HttpSession</code> alive when receiving WebSocket messages</li>
+</ul>
+<p>其具体的特性非常之多，具体的内容可以从文档中了解到，笔者做一点自己的总结，Spring Session的特性包括但不限于以下：</p>
+<ul>
+<li>使用GemFire来构建C/S架构的httpSession（不关注）</li>
+<li>使用第三方仓储来实现集群session管理，也就是常说的分布式session容器，替换应用容器（如tomcat的session容器）。仓储的实现，Spring Session提供了三个实现（redis，mongodb，jdbc），其中redis使我们最常用的。程序的实现，使用AOP技术，几乎可以做到透明化地替换。（核心）</li>
+<li>可以非常方便的扩展Cookie和自定义Session相关的Listener，Filter。</li>
+<li>可以很方便的与Spring Security集成，增加诸如findSessionsByUserName，rememberMe，限制同一个账号可以同时在线的Session数（如设置成1，即可达到把前一次登录顶掉的效果）等等</li>
+</ul>
+<p>介绍完特性，下面开始一步步集成Spring Session</p></p>
+            <p class="article-more-link">
+                <a href="/2017/09/03/Re：从零开始的Spring Session(二)/#more">查看更多</a>
+            </p>
+        
+        </div>
+        <footer class="article-footer">
+            <div class="share-container">
+
+
+
+</div>
+
+    <a data-url="http://lexburner.github.io/2017/09/03/Re：从零开始的Spring Session(二)/" data-id="cj96wf2c4000lj0udj5ttyx5k" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+<script>
+    (function ($) {
+        // Prevent duplicate binding
+        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
+            __SHARE_BUTTON_BINDED__ = true;
+        } else {
+            return;
+        }
+        $('body').on('click', function() {
+            $('.article-share-box.on').removeClass('on');
+        }).on('click', '.article-share-link', function(e) {
+            e.stopPropagation();
+
+            var $this = $(this),
+                url = $this.attr('data-url'),
+                encodedUrl = encodeURIComponent(url),
+                id = 'article-share-box-' + $this.attr('data-id'),
+                offset = $this.offset(),
+                box;
+
+            if ($('#' + id).length) {
+                box = $('#' + id);
+
+                if (box.hasClass('on')){
+                    box.removeClass('on');
+                    return;
+                }
+            } else {
+                var html = [
+                    '<div id="' + id + '" class="article-share-box">',
+                        '<input class="article-share-input" value="' + url + '">',
+                        '<div class="article-share-links">',
+                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
+                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
+                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
+                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
+                        '</div>',
+                    '</div>'
+                ].join('');
+
+              box = $(html);
+
+              $('body').append(box);
+            }
+
+            $('.article-share-box.on').hide();
+
+            box.css({
+                top: offset.top + 25,
+                left: offset.left
+            }).addClass('on');
+
+        }).on('click', '.article-share-box', function (e) {
+            e.stopPropagation();
+        }).on('click', '.article-share-box-input', function () {
+            $(this).select();
+        }).on('click', '.article-share-box-link', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
+        });
+    })(jQuery);
+</script>
+
+            
+    
+        <a href="http://lexburner.github.io/2017/09/03/Re：从零开始的Spring Session(二)/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/09/03/Re：从零开始的Spring Session(二)/">评论</a>
+    
+
+        </footer>
+    </div>
+	
+    
+	
+</article>
+
+
+
+    <article id="post-Re：从零开始的Spring Session(一)" class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        
+            <header class="article-header">
+                
+    
+        <h1 itemprop="name">
+            <a class="article-title" href="/2017/09/03/Re：从零开始的Spring Session(一)/">Re:从零开始的Spring Session(一)</a>
+        </h1>
+    
+
+                
+                    <div class="article-meta">
+                        
+    <div class="article-date">
+        <i class="fa fa-calendar"></i>
+        <a href="/2017/09/03/Re：从零开始的Spring Session(一)/">
+            <time datetime="2017-09-03T07:27:04.000Z" itemprop="datePublished">2017-09-03</time>
+        </a>
+    </div>
+
+
+                        
+    <div class="article-category">
+    	<i class="fa fa-folder"></i>
+        <a class="article-category-link" href="/categories/Spring-Session/">Spring Session</a>
+    </div>
+
+                        <!-- 不显示标签 -->
+                        <!-- 
+    <div class="article-tag">
+        <i class="fa fa-tag"></i>
+        <a class="tag-link" href="/tags/Spring/">Spring</a>, <a class="tag-link" href="/tags/Spring-Session/">Spring Session</a>
+    </div>
+ -->
+                    </div>
+                
+            </header>
+        
+        
+        <div class="article-entry" itemprop="articleBody">
+        
+            <p><p>Session和Cookie这两个概念，在学习java web开发之初，大多数人就已经接触过了。最近在研究跨域单点登录的实现时，发现对于Session和Cookie的了解，并不是很深入，所以打算写两篇文章记录一下自己的理解。在我们的应用集成Spring Session之前，先补充一点Session和Cookie的关键知识。</p>
+<h2 id="Session与Cookie基础"><a href="#Session与Cookie基础" class="headerlink" title="Session与Cookie基础"></a>Session与Cookie基础</h2><p>由于http协议是无状态的协议，为了能够记住请求的状态，于是引入了Session和Cookie的机制。我们应该有一个很明确的概念，那就是Session是存在于服务器端的，在单体式应用中，他是由tomcat管理的，存在于tomcat的内存中，当我们为了解决分布式场景中的session共享问题时，引入了redis，其共享内存，以及支持key自动过期的特性，非常契合session的特性，我们在企业开发中最常用的也就是这种模式。但是只要你愿意，也可以选择存储在JDBC，Mongo中，这些，spring都提供了默认的实现，在大多数情况下，我们只需要引入配置即可。而Cookie则是存在于客户端，更方便理解的说法，可以说存在于浏览器。Cookie并不常用，至少在我不长的web开发生涯中，并没有什么场景需要我过多的关注Cookie。http协议允许从服务器返回Response时携带一些Cookie，并且同一个域下对Cookie的数量有所限制，之前说过Session的持久化依赖于服务端的策略，而Cookie的持久化则是依赖于本地文件。虽然说Cookie并不常用，但是有一类特殊的Cookie却是我们需要额外关注的，那便是与Session相关的sessionId，他是真正维系客户端和服务端的桥梁。</p></p>
+            <p class="article-more-link">
+                <a href="/2017/09/03/Re：从零开始的Spring Session(一)/#more">查看更多</a>
+            </p>
+        
+        </div>
+        <footer class="article-footer">
+            <div class="share-container">
+
+
+
+</div>
+
+    <a data-url="http://lexburner.github.io/2017/09/03/Re：从零开始的Spring Session(一)/" data-id="cj96wf2bp000dj0uds9y6f10d" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+<script>
+    (function ($) {
+        // Prevent duplicate binding
+        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
+            __SHARE_BUTTON_BINDED__ = true;
+        } else {
+            return;
+        }
+        $('body').on('click', function() {
+            $('.article-share-box.on').removeClass('on');
+        }).on('click', '.article-share-link', function(e) {
+            e.stopPropagation();
+
+            var $this = $(this),
+                url = $this.attr('data-url'),
+                encodedUrl = encodeURIComponent(url),
+                id = 'article-share-box-' + $this.attr('data-id'),
+                offset = $this.offset(),
+                box;
+
+            if ($('#' + id).length) {
+                box = $('#' + id);
+
+                if (box.hasClass('on')){
+                    box.removeClass('on');
+                    return;
+                }
+            } else {
+                var html = [
+                    '<div id="' + id + '" class="article-share-box">',
+                        '<input class="article-share-input" value="' + url + '">',
+                        '<div class="article-share-links">',
+                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
+                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
+                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
+                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
+                        '</div>',
+                    '</div>'
+                ].join('');
+
+              box = $(html);
+
+              $('body').append(box);
+            }
+
+            $('.article-share-box.on').hide();
+
+            box.css({
+                top: offset.top + 25,
+                left: offset.left
+            }).addClass('on');
+
+        }).on('click', '.article-share-box', function (e) {
+            e.stopPropagation();
+        }).on('click', '.article-share-box-input', function () {
+            $(this).select();
+        }).on('click', '.article-share-box-link', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
+        });
+    })(jQuery);
+</script>
+
+            
+    
+        <a href="http://lexburner.github.io/2017/09/03/Re：从零开始的Spring Session(一)/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/09/03/Re：从零开始的Spring Session(一)/">评论</a>
+    
+
+        </footer>
+    </div>
+	
+    
+	
+</article>
+
+
+
     <article id="post-解析Spring中的ResponseBody和RequestBody" class="article article-type-post" itemscope itemprop="blogPost">
     <div class="article-inner">
         
@@ -214,12 +660,13 @@
         <a class="article-category-link" href="/categories/Spring/">Spring</a>
     </div>
 
-                        
+                        <!-- 不显示标签 -->
+                        <!-- 
     <div class="article-tag">
         <i class="fa fa-tag"></i>
         <a class="tag-link" href="/tags/Spring/">Spring</a>
     </div>
-
+ -->
                     </div>
                 
             </header>
@@ -341,7 +788,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/08/30/解析Spring中的ResponseBody和RequestBody/" data-id="cj7vo936n00431gudklrmje1q" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/08/30/解析Spring中的ResponseBody和RequestBody/" data-id="cj96wf2g6004lj0udfpujkj38" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -450,12 +897,13 @@
         <a class="article-category-link" href="/categories/JAVA/">JAVA</a>
     </div>
 
-                        
+                        <!-- 不显示标签 -->
+                        <!-- 
     <div class="article-tag">
         <i class="fa fa-tag"></i>
         <a class="tag-link" href="/tags/XML/">XML</a>
     </div>
-
+ -->
                     </div>
                 
             </header>
@@ -487,7 +935,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/08/26/xml与javabean的转换/" data-id="cj7vo935b002n1gudfr476s13" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/08/26/xml与javabean的转换/" data-id="cj96wf2f40034j0udewd45ssf" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -596,12 +1044,13 @@
         <a class="article-category-link" href="/categories/技术杂谈/">技术杂谈</a>
     </div>
 
-                        
+                        <!-- 不显示标签 -->
+                        <!-- 
     <div class="article-tag">
         <i class="fa fa-tag"></i>
         <a class="tag-link" href="/tags/代码规范/">代码规范</a>, <a class="tag-link" href="/tags/技术杂谈/">技术杂谈</a>
     </div>
-
+ -->
                     </div>
                 
             </header>
@@ -771,7 +1220,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/08/25/project_rules/" data-id="cj7vo934s001s1gudxk3lkbuo" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/08/25/project_rules/" data-id="cj96wf2ee0023j0udrf70ih5t" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -890,7 +1339,8 @@
         <a class="article-category-link" href="/categories/技术杂谈/">技术杂谈</a>
     </div>
 
-                        
+                        <!-- 不显示标签 -->
+                        <!--  -->
                     </div>
                 
             </header>
@@ -913,7 +1363,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/08/22/博客搬家/" data-id="cj7vo9369003h1gudgp3ahfv3" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/08/22/博客搬家/" data-id="cj96wf2fw0046j0udc468lwfl" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1022,12 +1472,13 @@
         <a class="article-category-link" href="/categories/领域驱动设计/">领域驱动设计</a>
     </div>
 
-                        
+                        <!-- 不显示标签 -->
+                        <!-- 
     <div class="article-tag">
         <i class="fa fa-tag"></i>
         <a class="tag-link" href="/tags/领域驱动设计/">领域驱动设计</a>
     </div>
-
+ -->
                     </div>
                 
             </header>
@@ -1048,7 +1499,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/08/21/一个DDD指导下的实体类设计案例/" data-id="cj7vo935r002v1gudj8t09cs8" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/08/21/一个DDD指导下的实体类设计案例/" data-id="cj96wf2fh003pj0udnemodzrh" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1157,12 +1608,13 @@
         <a class="article-category-link" href="/categories/Spring/">Spring</a>
     </div>
 
-                        
+                        <!-- 不显示标签 -->
+                        <!-- 
     <div class="article-tag">
         <i class="fa fa-tag"></i>
         <a class="tag-link" href="/tags/Spring/">Spring</a>, <a class="tag-link" href="/tags/Validation/">Validation</a>
     </div>
-
+ -->
                     </div>
                 
             </header>
@@ -1184,7 +1636,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/08/16/使用spring validation完成数据后端校验/" data-id="cj7vo935w00331gudv3m3f4ff" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/08/16/使用spring validation完成数据后端校验/" data-id="cj96wf2fb003hj0ud2zi7fwn4" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1293,12 +1745,13 @@
         <a class="article-category-link" href="/categories/Spring-Security-OAuth2/">Spring Security OAuth2</a>
     </div>
 
-                        
+                        <!-- 不显示标签 -->
+                        <!-- 
     <div class="article-tag">
         <i class="fa fa-tag"></i>
         <a class="tag-link" href="/tags/Spring-Security-OAuth2/">Spring Security OAuth2</a>
     </div>
-
+ -->
                     </div>
                 
             </header>
@@ -1324,7 +1777,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/08/10/Re：从零开始的Spring Security OAuth2（三）/" data-id="cj7vo932v00021gud3xcqr9oy" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/08/10/Re：从零开始的Spring Security OAuth2（三）/" data-id="cj96wf2bg0008j0ud9ykny2q0" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1404,421 +1857,6 @@
 
 
 
-    <article id="post-Re：从零开始的Spring Security OAuth2（二）" class="article article-type-post" itemscope itemprop="blogPost">
-    <div class="article-inner">
-        
-        
-            <header class="article-header">
-                
-    
-        <h1 itemprop="name">
-            <a class="article-title" href="/2017/08/09/Re：从零开始的Spring Security OAuth2（二）/">Re：从零开始的Spring Security OAuth2（二）</a>
-        </h1>
-    
-
-                
-                    <div class="article-meta">
-                        
-    <div class="article-date">
-        <i class="fa fa-calendar"></i>
-        <a href="/2017/08/09/Re：从零开始的Spring Security OAuth2（二）/">
-            <time datetime="2017-08-09T06:58:52.000Z" itemprop="datePublished">2017-08-09</time>
-        </a>
-    </div>
-
-
-                        
-    <div class="article-category">
-    	<i class="fa fa-folder"></i>
-        <a class="article-category-link" href="/categories/Spring-Security-OAuth2/">Spring Security OAuth2</a>
-    </div>
-
-                        
-    <div class="article-tag">
-        <i class="fa fa-tag"></i>
-        <a class="tag-link" href="/tags/Spring-Security-OAuth2/">Spring Security OAuth2</a>
-    </div>
-
-                    </div>
-                
-            </header>
-        
-        
-        <div class="article-entry" itemprop="articleBody">
-        
-            <p><p>本文开始从源码的层面，讲解一些Spring Security Oauth2的认证流程。本文较长，适合在空余时间段观看。且涉及了较多的源码，非关键性代码以…代替。</p>
-<h2 id="准备工作"><a href="#准备工作" class="headerlink" title="准备工作"></a>准备工作</h2><p>首先开启debug信息：</p>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line"><span class="attr">logging:</span></div><div class="line"><span class="attr">  level:</span></div><div class="line">    <span class="string">org.springframework:</span> <span class="string">DEBUG</span></div></pre></td></tr></table></figure>
-<p>可以完整的看到内部的运转流程。</p>
-<p>client模式稍微简单一些，使用client模式获取token<br> <code>http://localhost:8080/oauth/token?client_id=client_1&amp;client_secret=123456&amp;scope=select&amp;grant_type=client_credentials</code></p>
-<p>由于debug信息太多了，我简单按照顺序列了一下关键的几个类：</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line">ClientCredentialsTokenEndpointFilter</div><div class="line">DaoAuthenticationProvider</div><div class="line">TokenEndpoint</div><div class="line">TokenGranter</div></pre></td></tr></table></figure></p>
-            <p class="article-more-link">
-                <a href="/2017/08/09/Re：从零开始的Spring Security OAuth2（二）/#more">查看更多</a>
-            </p>
-        
-        </div>
-        <footer class="article-footer">
-            <div class="share-container">
-
-
-
-</div>
-
-    <a data-url="http://lexburner.github.io/2017/08/09/Re：从零开始的Spring Security OAuth2（二）/" data-id="cj7vo933900091gudrwewoec1" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
-<script>
-    (function ($) {
-        // Prevent duplicate binding
-        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
-            __SHARE_BUTTON_BINDED__ = true;
-        } else {
-            return;
-        }
-        $('body').on('click', function() {
-            $('.article-share-box.on').removeClass('on');
-        }).on('click', '.article-share-link', function(e) {
-            e.stopPropagation();
-
-            var $this = $(this),
-                url = $this.attr('data-url'),
-                encodedUrl = encodeURIComponent(url),
-                id = 'article-share-box-' + $this.attr('data-id'),
-                offset = $this.offset(),
-                box;
-
-            if ($('#' + id).length) {
-                box = $('#' + id);
-
-                if (box.hasClass('on')){
-                    box.removeClass('on');
-                    return;
-                }
-            } else {
-                var html = [
-                    '<div id="' + id + '" class="article-share-box">',
-                        '<input class="article-share-input" value="' + url + '">',
-                        '<div class="article-share-links">',
-                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
-                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
-                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
-                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
-                        '</div>',
-                    '</div>'
-                ].join('');
-
-              box = $(html);
-
-              $('body').append(box);
-            }
-
-            $('.article-share-box.on').hide();
-
-            box.css({
-                top: offset.top + 25,
-                left: offset.left
-            }).addClass('on');
-
-        }).on('click', '.article-share-box', function (e) {
-            e.stopPropagation();
-        }).on('click', '.article-share-box-input', function () {
-            $(this).select();
-        }).on('click', '.article-share-box-link', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-
-            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
-        });
-    })(jQuery);
-</script>
-
-            
-    
-        <a href="http://lexburner.github.io/2017/08/09/Re：从零开始的Spring Security OAuth2（二）/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/08/09/Re：从零开始的Spring Security OAuth2（二）/">评论</a>
-    
-
-        </footer>
-    </div>
-	
-    
-	
-</article>
-
-
-
-    <article id="post-Re：从零开始的Spring Security OAuth2（一）" class="article article-type-post" itemscope itemprop="blogPost">
-    <div class="article-inner">
-        
-        
-            <header class="article-header">
-                
-    
-        <h1 itemprop="name">
-            <a class="article-title" href="/2017/08/08/Re：从零开始的Spring Security OAuth2（一）/">Re：从零开始的Spring Security OAuth2（一）</a>
-        </h1>
-    
-
-                
-                    <div class="article-meta">
-                        
-    <div class="article-date">
-        <i class="fa fa-calendar"></i>
-        <a href="/2017/08/08/Re：从零开始的Spring Security OAuth2（一）/">
-            <time datetime="2017-08-08T07:16:52.000Z" itemprop="datePublished">2017-08-08</time>
-        </a>
-    </div>
-
-
-                        
-    <div class="article-category">
-    	<i class="fa fa-folder"></i>
-        <a class="article-category-link" href="/categories/Spring-Security-OAuth2/">Spring Security OAuth2</a>
-    </div>
-
-                        
-    <div class="article-tag">
-        <i class="fa fa-tag"></i>
-        <a class="tag-link" href="/tags/Spring-Security-OAuth2/">Spring Security OAuth2</a>
-    </div>
-
-                    </div>
-                
-            </header>
-        
-        
-        <div class="article-entry" itemprop="articleBody">
-        
-            <p><p>##前言<br>今天来聊聊一个接口对接的场景，A厂家有一套HTTP接口需要提供给B厂家使用，由于是外网环境，所以需要有一套安全机制保障，这个时候oauth2就可以作为一个方案。</p>
-<p>关于oauth2，其实是一个规范，本文重点讲解spring对他进行的实现，如果你还不清楚授权服务器，资源服务器，认证授权等基础概念，可以移步<a href="http://www.ruanyifeng.com/blog/2014/05/oauth_2_0.html" target="_blank" rel="external">理解OAuth 2.0 - 阮一峰</a>，这是一篇对于oauth2很好的科普文章。 </p>
-<p>需要对spring security有一定的配置使用经验，用户认证这一块，spring security oauth2建立在spring security的基础之上。第一篇文章主要是讲解使用springboot搭建一个简易的授权，资源服务器，在文末会给出具体代码的github地址。后续文章会进行spring security oauth2的相关源码分析。java中的安全框架如shrio，已经有<a href="http://jinnianshilongnian.iteye.com/blog/2018936" target="_blank" rel="external">跟我学shiro - 开涛</a>，非常成体系地，深入浅出地讲解了apache的这个开源安全框架，但是spring security包括oauth2一直没有成体系的文章，学习它们大多依赖于较少的官方文档，理解一下基本的使用配置；通过零散的博客，了解一下他人的使用经验；打断点，分析内部的工作流程；看源码中的接口设计，以及注释，了解设计者的用意。spring的各个框架都运用了很多的设计模式，在学习源码的过程中，也大概了解了一些套路。spring也在必要的地方添加了适当的注释，避免了源码阅读者对于一些细节设计的理解产生偏差，让我更加感叹，spring不仅仅是一个工具框架，更像是一个艺术品。</p></p>
-            <p class="article-more-link">
-                <a href="/2017/08/08/Re：从零开始的Spring Security OAuth2（一）/#more">查看更多</a>
-            </p>
-        
-        </div>
-        <footer class="article-footer">
-            <div class="share-container">
-
-
-
-</div>
-
-    <a data-url="http://lexburner.github.io/2017/08/08/Re：从零开始的Spring Security OAuth2（一）/" data-id="cj7vo933500081gudnsxrhc7u" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
-<script>
-    (function ($) {
-        // Prevent duplicate binding
-        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
-            __SHARE_BUTTON_BINDED__ = true;
-        } else {
-            return;
-        }
-        $('body').on('click', function() {
-            $('.article-share-box.on').removeClass('on');
-        }).on('click', '.article-share-link', function(e) {
-            e.stopPropagation();
-
-            var $this = $(this),
-                url = $this.attr('data-url'),
-                encodedUrl = encodeURIComponent(url),
-                id = 'article-share-box-' + $this.attr('data-id'),
-                offset = $this.offset(),
-                box;
-
-            if ($('#' + id).length) {
-                box = $('#' + id);
-
-                if (box.hasClass('on')){
-                    box.removeClass('on');
-                    return;
-                }
-            } else {
-                var html = [
-                    '<div id="' + id + '" class="article-share-box">',
-                        '<input class="article-share-input" value="' + url + '">',
-                        '<div class="article-share-links">',
-                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
-                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
-                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
-                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
-                        '</div>',
-                    '</div>'
-                ].join('');
-
-              box = $(html);
-
-              $('body').append(box);
-            }
-
-            $('.article-share-box.on').hide();
-
-            box.css({
-                top: offset.top + 25,
-                left: offset.left
-            }).addClass('on');
-
-        }).on('click', '.article-share-box', function (e) {
-            e.stopPropagation();
-        }).on('click', '.article-share-box-input', function () {
-            $(this).select();
-        }).on('click', '.article-share-box-link', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-
-            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
-        });
-    })(jQuery);
-</script>
-
-            
-    
-        <a href="http://lexburner.github.io/2017/08/08/Re：从零开始的Spring Security OAuth2（一）/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/08/08/Re：从零开始的Spring Security OAuth2（一）/">评论</a>
-    
-
-        </footer>
-    </div>
-	
-    
-	
-</article>
-
-
-
-    <article id="post-对于Spring Cloud Feign入门示例的一点思考" class="article article-type-post" itemscope itemprop="blogPost">
-    <div class="article-inner">
-        
-        
-            <header class="article-header">
-                
-    
-        <h1 itemprop="name">
-            <a class="article-title" href="/2017/08/03/对于Spring Cloud Feign入门示例的一点思考/">对于Spring Cloud Feign入门示例的一点思考</a>
-        </h1>
-    
-
-                
-                    <div class="article-meta">
-                        
-    <div class="article-date">
-        <i class="fa fa-calendar"></i>
-        <a href="/2017/08/03/对于Spring Cloud Feign入门示例的一点思考/">
-            <time datetime="2017-08-03T09:40:16.000Z" itemprop="datePublished">2017-08-03</time>
-        </a>
-    </div>
-
-
-                        
-    <div class="article-category">
-    	<i class="fa fa-folder"></i>
-        <a class="article-category-link" href="/categories/Spring-Cloud/">Spring Cloud</a>
-    </div>
-
-                        
-    <div class="article-tag">
-        <i class="fa fa-tag"></i>
-        <a class="tag-link" href="/tags/Spring-Cloud/">Spring Cloud</a>
-    </div>
-
-                    </div>
-                
-            </header>
-        
-        
-        <div class="article-entry" itemprop="articleBody">
-        
-            <p><h2 id="Spring-Cloud-Feign"><a href="#Spring-Cloud-Feign" class="headerlink" title="Spring Cloud Feign"></a>Spring Cloud Feign</h2><p>Spring Cloud Feign是一套基于Netflix Feign实现的声明式服务调用客户端。它使得编写Web服务客户端变得更加简单。我们只需要通过创建接口并用注解来配置它既可完成对Web服务接口的绑定。它具备可插拔的注解支持，包括Feign注解、JAX-RS注解。它也支持可插拔的编码器和解码器。Spring Cloud Feign还扩展了对Spring MVC注解的支持，同时还整合了Ribbon和Eureka来提供均衡负载的HTTP客户端实现。</p>
-<p>分布式应用早在十几年前就开始出现，各自的应用运行在各自的tomcat，jboss一类的容器中，他们之间的相互调用变成了一种远程调用，而实现远程调用的方式很多。按照协议划分，可以有RPC，Webservice，http。不同的框架也对他们有了各自的实现，如dubbo(x)，motan就都是RPC框架，本文所要讲解的Feign便可以理解为一种http框架，用于分布式服务之间通过Http进行接口交互。说他是框架，有点过了，可以理解为一个http工具，只不过在spring cloud全家桶的体系中，它比httpclient，okhttp，retrofit这些http工具都要强大的多。</p>
-<h2 id="入门"><a href="#入门" class="headerlink" title="入门"></a>入门</h2><p>先用一个简单的例子，看看如何在项目中使用Feign。示例项目使用maven多module构建，采用springcloud的Dalston.SR1版本</p></p>
-            <p class="article-more-link">
-                <a href="/2017/08/03/对于Spring Cloud Feign入门示例的一点思考/#more">查看更多</a>
-            </p>
-        
-        </div>
-        <footer class="article-footer">
-            <div class="share-container">
-
-
-
-</div>
-
-    <a data-url="http://lexburner.github.io/2017/08/03/对于Spring Cloud Feign入门示例的一点思考/" data-id="cj7vo936e003p1guddc47cmfj" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
-<script>
-    (function ($) {
-        // Prevent duplicate binding
-        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
-            __SHARE_BUTTON_BINDED__ = true;
-        } else {
-            return;
-        }
-        $('body').on('click', function() {
-            $('.article-share-box.on').removeClass('on');
-        }).on('click', '.article-share-link', function(e) {
-            e.stopPropagation();
-
-            var $this = $(this),
-                url = $this.attr('data-url'),
-                encodedUrl = encodeURIComponent(url),
-                id = 'article-share-box-' + $this.attr('data-id'),
-                offset = $this.offset(),
-                box;
-
-            if ($('#' + id).length) {
-                box = $('#' + id);
-
-                if (box.hasClass('on')){
-                    box.removeClass('on');
-                    return;
-                }
-            } else {
-                var html = [
-                    '<div id="' + id + '" class="article-share-box">',
-                        '<input class="article-share-input" value="' + url + '">',
-                        '<div class="article-share-links">',
-                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
-                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
-                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
-                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
-                        '</div>',
-                    '</div>'
-                ].join('');
-
-              box = $(html);
-
-              $('body').append(box);
-            }
-
-            $('.article-share-box.on').hide();
-
-            box.css({
-                top: offset.top + 25,
-                left: offset.left
-            }).addClass('on');
-
-        }).on('click', '.article-share-box', function (e) {
-            e.stopPropagation();
-        }).on('click', '.article-share-box-input', function () {
-            $(this).select();
-        }).on('click', '.article-share-box-link', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-
-            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
-        });
-    })(jQuery);
-</script>
-
-            
-    
-        <a href="http://lexburner.github.io/2017/08/03/对于Spring Cloud Feign入门示例的一点思考/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/08/03/对于Spring Cloud Feign入门示例的一点思考/">评论</a>
-    
-
-        </footer>
-    </div>
-	
-    
-	
-</article>
-
-
-
     <nav id="page-nav">
         <a class="extend prev" rel="prev" href="/">&laquo; 上一页</a><a class="page-number" href="/">1</a><span class="page-number current">2</span><a class="page-number" href="/page/3/">3</a><a class="page-number" href="/page/4/">4</a><a class="page-number" href="/page/5/">5</a><a class="extend next" rel="next" href="/page/3/">下一页 &raquo;</a>
     </nav>
@@ -1834,26 +1872,68 @@
                 
                     <li>
                         
-                        <div class="item-thumbnail">
-                            <a href="/2017/09/20/spring-security-3/" class="thumbnail">
+                        <!-- 去除图片 -->
+                        <!-- <div class="item-thumbnail">
+                            <a href="/2017/10/25/java-skill-1/" class="thumbnail">
     
     
         <span class="thumbnail-image thumbnail-none"></span>
     
 </a>
 
-                        </div>
+                        </div> -->
                         
                         <div class="item-inner">
-                            <p class="item-category"><a class="article-category-link" href="/categories/Spring-Security/">Spring Security</a></p>
-                            <p class="item-title"><a href="/2017/09/20/spring-security-3/" class="title">Spring Security(三)--核心配置解读</a></p>
-                            <p class="item-date"><time datetime="2017-09-20T15:25:34.000Z" itemprop="datePublished">2017-09-20</time></p>
+                            <p class="item-category"><a class="article-category-link" href="/categories/JAVA/">JAVA</a></p>
+                            <p class="item-title"><a href="/2017/10/25/java-skill-1/" class="title">java小技巧(一)--远程debug</a></p>
+                            <p class="item-date"><time datetime="2017-10-25T09:24:48.000Z" itemprop="datePublished">2017-10-25</time></p>
                         </div>
                     </li>
                 
                     <li>
                         
-                        <div class="item-thumbnail">
+                        <!-- 去除图片 -->
+                        <!-- <div class="item-thumbnail">
+                            <a href="/2017/09/30/spring-security-4/" class="thumbnail">
+    
+    
+        <span class="thumbnail-image thumbnail-none"></span>
+    
+</a>
+
+                        </div> -->
+                        
+                        <div class="item-inner">
+                            <p class="item-category"><a class="article-category-link" href="/categories/Spring-Security/">Spring Security</a></p>
+                            <p class="item-title"><a href="/2017/09/30/spring-security-4/" class="title">Spring Security(四)--核心过滤器源码分析</a></p>
+                            <p class="item-date"><time datetime="2017-09-30T15:25:34.000Z" itemprop="datePublished">2017-09-30</time></p>
+                        </div>
+                    </li>
+                
+                    <li>
+                        
+                        <!-- 去除图片 -->
+                        <!-- <div class="item-thumbnail">
+                            <a href="/2017/09/23/project-rules-2/" class="thumbnail">
+    
+    
+        <span class="thumbnail-image thumbnail-none"></span>
+    
+</a>
+
+                        </div> -->
+                        
+                        <div class="item-inner">
+                            <p class="item-category"><a class="article-category-link" href="/categories/技术杂谈/">技术杂谈</a></p>
+                            <p class="item-title"><a href="/2017/09/23/project-rules-2/" class="title">警惕不规范的变量命名</a></p>
+                            <p class="item-date"><time datetime="2017-09-23T05:45:56.000Z" itemprop="datePublished">2017-09-23</time></p>
+                        </div>
+                    </li>
+                
+                    <li>
+                        
+                        <!-- 去除图片 -->
+                        <!-- <div class="item-thumbnail">
                             <a href="/2017/09/20/spring-security-2/" class="thumbnail">
     
     
@@ -1861,7 +1941,7 @@
     
 </a>
 
-                        </div>
+                        </div> -->
                         
                         <div class="item-inner">
                             <p class="item-category"><a class="article-category-link" href="/categories/Spring-Security/">Spring Security</a></p>
@@ -1872,58 +1952,21 @@
                 
                     <li>
                         
-                        <div class="item-thumbnail">
-                            <a href="/2017/09/19/spring-security-1/" class="thumbnail">
+                        <!-- 去除图片 -->
+                        <!-- <div class="item-thumbnail">
+                            <a href="/2017/09/20/spring-security-3/" class="thumbnail">
     
     
         <span class="thumbnail-image thumbnail-none"></span>
     
 </a>
 
-                        </div>
+                        </div> -->
                         
                         <div class="item-inner">
                             <p class="item-category"><a class="article-category-link" href="/categories/Spring-Security/">Spring Security</a></p>
-                            <p class="item-title"><a href="/2017/09/19/spring-security-1/" class="title">Spring Security(一)--Architecture Overview</a></p>
-                            <p class="item-date"><time datetime="2017-09-19T12:12:55.000Z" itemprop="datePublished">2017-09-19</time></p>
-                        </div>
-                    </li>
-                
-                    <li>
-                        
-                        <div class="item-thumbnail">
-                            <a href="/2017/09/13/event-2/" class="thumbnail">
-    
-    
-        <span class="thumbnail-image thumbnail-none"></span>
-    
-</a>
-
-                        </div>
-                        
-                        <div class="item-inner">
-                            <p class="item-category"><a class="article-category-link" href="/categories/Spring/">Spring</a></p>
-                            <p class="item-title"><a href="/2017/09/13/event-2/" class="title">浅析分布式下的事件驱动机制（PubSub模式）</a></p>
-                            <p class="item-date"><time datetime="2017-09-13T14:49:23.000Z" itemprop="datePublished">2017-09-13</time></p>
-                        </div>
-                    </li>
-                
-                    <li>
-                        
-                        <div class="item-thumbnail">
-                            <a href="/2017/09/11/rethink-1/" class="thumbnail">
-    
-    
-        <span class="thumbnail-image thumbnail-none"></span>
-    
-</a>
-
-                        </div>
-                        
-                        <div class="item-inner">
-                            <p class="item-category"><a class="article-category-link" href="/categories/技术杂谈/">技术杂谈</a></p>
-                            <p class="item-title"><a href="/2017/09/11/rethink-1/" class="title">上一个电商项目的反思</a></p>
-                            <p class="item-date"><time datetime="2017-09-11T13:02:43.000Z" itemprop="datePublished">2017-09-11</time></p>
+                            <p class="item-title"><a href="/2017/09/20/spring-security-3/" class="title">Spring Security(三)--核心配置解读</a></p>
+                            <p class="item-date"><time datetime="2017-09-20T15:25:34.000Z" itemprop="datePublished">2017-09-20</time></p>
                         </div>
                     </li>
                 
@@ -1936,7 +1979,7 @@
     <div class="widget-wrap">
         <h3 class="widget-title">分类</h3>
         <div class="widget">
-            <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/DevOps/">DevOps</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/JAVA/">JAVA</a><span class="category-list-count">10</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring/">Spring</a><span class="category-list-count">6</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Cloud/">Spring Cloud</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security/">Spring Security</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security-OAuth2/">Spring Security OAuth2</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Session/">Spring Session</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/技术杂谈/">技术杂谈</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/架构设计/">架构设计</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/规则引擎/">规则引擎</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/领域驱动设计/">领域驱动设计</a><span class="category-list-count">2</span></li></ul>
+            <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/DevOps/">DevOps</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/JAVA/">JAVA</a><span class="category-list-count">11</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring/">Spring</a><span class="category-list-count">6</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Cloud/">Spring Cloud</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security/">Spring Security</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security-OAuth2/">Spring Security OAuth2</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Session/">Spring Session</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/技术杂谈/">技术杂谈</a><span class="category-list-count">6</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/架构设计/">架构设计</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/规则引擎/">规则引擎</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/领域驱动设计/">领域驱动设计</a><span class="category-list-count">2</span></li></ul>
         </div>
     </div>
 
@@ -1945,7 +1988,7 @@
     <div class="widget-wrap">
         <h3 class="widget-title">归档</h3>
         <div class="widget">
-            <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a><span class="archive-list-count">10</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a><span class="archive-list-count">10</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/02/">二月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/11/">十一月 2016</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/08/">八月 2016</a><span class="archive-list-count">3</span></li></ul>
+            <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/10/">十月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a><span class="archive-list-count">12</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a><span class="archive-list-count">10</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/02/">二月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/11/">十一月 2016</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/08/">八月 2016</a><span class="archive-list-count">3</span></li></ul>
         </div>
     </div>
 
@@ -1954,7 +1997,7 @@
     <div class="widget-wrap">
         <h3 class="widget-title">标签云</h3>
         <div class="widget tagcloud">
-            <a href="/tags/DevOps/" style="font-size: 12px;">DevOps</a> <a href="/tags/JAVA/" style="font-size: 20px;">JAVA</a> <a href="/tags/JMM/" style="font-size: 10px;">JMM</a> <a href="/tags/RPC/" style="font-size: 10px;">RPC</a> <a href="/tags/Spring/" style="font-size: 20px;">Spring</a> <a href="/tags/Spring-Cloud/" style="font-size: 12px;">Spring Cloud</a> <a href="/tags/Spring-Cloud-Zuul/" style="font-size: 12px;">Spring Cloud Zuul</a> <a href="/tags/Spring-Security/" style="font-size: 14px;">Spring Security</a> <a href="/tags/Spring-Security-OAuth2/" style="font-size: 14px;">Spring Security OAuth2</a> <a href="/tags/Spring-Session/" style="font-size: 14px;">Spring Session</a> <a href="/tags/Validation/" style="font-size: 12px;">Validation</a> <a href="/tags/XML/" style="font-size: 10px;">XML</a> <a href="/tags/Zipkin/" style="font-size: 10px;">Zipkin</a> <a href="/tags/drools/" style="font-size: 16px;">drools</a> <a href="/tags/lua/" style="font-size: 10px;">lua</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/zookeeper/" style="font-size: 10px;">zookeeper</a> <a href="/tags/事务/" style="font-size: 10px;">事务</a> <a href="/tags/代码规范/" style="font-size: 10px;">代码规范</a> <a href="/tags/多线程/" style="font-size: 18px;">多线程</a> <a href="/tags/微服务/" style="font-size: 10px;">微服务</a> <a href="/tags/技术杂谈/" style="font-size: 14px;">技术杂谈</a> <a href="/tags/数据库/" style="font-size: 10px;">数据库</a> <a href="/tags/杂谈/" style="font-size: 10px;">杂谈</a> <a href="/tags/架构设计/" style="font-size: 12px;">架构设计</a> <a href="/tags/求职/" style="font-size: 10px;">求职</a> <a href="/tags/规则引擎/" style="font-size: 16px;">规则引擎</a> <a href="/tags/领域驱动设计/" style="font-size: 12px;">领域驱动设计</a>
+            <a href="/tags/DevOps/" style="font-size: 11.67px;">DevOps</a> <a href="/tags/JAVA/" style="font-size: 20px;">JAVA</a> <a href="/tags/JMM/" style="font-size: 10px;">JMM</a> <a href="/tags/RPC/" style="font-size: 10px;">RPC</a> <a href="/tags/Spring/" style="font-size: 18.33px;">Spring</a> <a href="/tags/Spring-Cloud/" style="font-size: 11.67px;">Spring Cloud</a> <a href="/tags/Spring-Cloud-Zuul/" style="font-size: 11.67px;">Spring Cloud Zuul</a> <a href="/tags/Spring-Security/" style="font-size: 15px;">Spring Security</a> <a href="/tags/Spring-Security-OAuth2/" style="font-size: 13.33px;">Spring Security OAuth2</a> <a href="/tags/Spring-Session/" style="font-size: 13.33px;">Spring Session</a> <a href="/tags/Validation/" style="font-size: 11.67px;">Validation</a> <a href="/tags/XML/" style="font-size: 10px;">XML</a> <a href="/tags/Zipkin/" style="font-size: 10px;">Zipkin</a> <a href="/tags/drools/" style="font-size: 15px;">drools</a> <a href="/tags/lua/" style="font-size: 10px;">lua</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/zookeeper/" style="font-size: 10px;">zookeeper</a> <a href="/tags/事务/" style="font-size: 10px;">事务</a> <a href="/tags/代码规范/" style="font-size: 10px;">代码规范</a> <a href="/tags/多线程/" style="font-size: 16.67px;">多线程</a> <a href="/tags/微服务/" style="font-size: 10px;">微服务</a> <a href="/tags/技术杂谈/" style="font-size: 15px;">技术杂谈</a> <a href="/tags/数据库/" style="font-size: 10px;">数据库</a> <a href="/tags/杂谈/" style="font-size: 10px;">杂谈</a> <a href="/tags/架构设计/" style="font-size: 11.67px;">架构设计</a> <a href="/tags/求职/" style="font-size: 10px;">求职</a> <a href="/tags/规则引擎/" style="font-size: 15px;">规则引擎</a> <a href="/tags/领域驱动设计/" style="font-size: 11.67px;">领域驱动设计</a>
         </div>
     </div>
 
