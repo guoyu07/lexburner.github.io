@@ -3,20 +3,20 @@
 <head>
     <meta charset="utf-8">
     
-    <title>聊聊IT行业应届生求职 | 徐靖峰|个人博客</title>
+    <title>Spring Data Redis（一）--解析RedisTemplate | 徐靖峰|个人博客</title>
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-    <meta name="description" content="前言回首大三下的暑假，那时候刚开始出来找实习，如今已经即将进入大四下学期，恍惚间，已经过去了8，9个月。写这篇文章的初衷就是想结合自己的经验给即将要出来找工作的应届生一些建议，想当初自己刚出来时，也得到过热心学长的教导，权当一种传递吧。 个人经历坐标上海，目前在一家IT软件公司从事电子商务，金融保险类的网站开发，主要使用的语言是JAVA。从任职的3-4个月起，开始担任项目小组长协同项目经理进行开发">
-<meta name="keywords" content="技术杂谈,求职">
+    <meta name="description" content="谈及系统优化，缓存一直是不可或缺的一点。在缓存中间件层面，我们有MemCache，Redis等选择；在系统分层层面，又需要考虑多级缓存；在系统可用性层面，又要考虑到缓存雪崩，缓存穿透，缓存失效等常见的缓存问题…缓存的使用与优化值得我们花费一定的精力去深入理解。《Spring Data Redis》这个系列打算围绕spring-data-redis来进行分析，从hello world到源码分析，夹杂">
+<meta name="keywords" content="Spring Data Redis">
 <meta property="og:type" content="article">
-<meta property="og:title" content="聊聊IT行业应届生求职">
-<meta property="og:url" content="http://lexburner.github.io/2017/02/20/聊聊IT行业应届生求职/index.html">
+<meta property="og:title" content="Spring Data Redis（一）--解析RedisTemplate">
+<meta property="og:url" content="http://lexburner.github.io/2017/10/27/spring-data-redis-1/index.html">
 <meta property="og:site_name" content="徐靖峰|个人博客">
-<meta property="og:description" content="前言回首大三下的暑假，那时候刚开始出来找实习，如今已经即将进入大四下学期，恍惚间，已经过去了8，9个月。写这篇文章的初衷就是想结合自己的经验给即将要出来找工作的应届生一些建议，想当初自己刚出来时，也得到过热心学长的教导，权当一种传递吧。 个人经历坐标上海，目前在一家IT软件公司从事电子商务，金融保险类的网站开发，主要使用的语言是JAVA。从任职的3-4个月起，开始担任项目小组长协同项目经理进行开发">
+<meta property="og:description" content="谈及系统优化，缓存一直是不可或缺的一点。在缓存中间件层面，我们有MemCache，Redis等选择；在系统分层层面，又需要考虑多级缓存；在系统可用性层面，又要考虑到缓存雪崩，缓存穿透，缓存失效等常见的缓存问题…缓存的使用与优化值得我们花费一定的精力去深入理解。《Spring Data Redis》这个系列打算围绕spring-data-redis来进行分析，从hello world到源码分析，夹杂">
 <meta property="og:locale" content="zh-CN">
-<meta property="og:updated_time" content="2017-08-22T07:50:12.532Z">
+<meta property="og:updated_time" content="2017-10-27T11:14:54.656Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="聊聊IT行业应届生求职">
-<meta name="twitter:description" content="前言回首大三下的暑假，那时候刚开始出来找实习，如今已经即将进入大四下学期，恍惚间，已经过去了8，9个月。写这篇文章的初衷就是想结合自己的经验给即将要出来找工作的应届生一些建议，想当初自己刚出来时，也得到过热心学长的教导，权当一种传递吧。 个人经历坐标上海，目前在一家IT软件公司从事电子商务，金融保险类的网站开发，主要使用的语言是JAVA。从任职的3-4个月起，开始担任项目小组长协同项目经理进行开发">
+<meta name="twitter:title" content="Spring Data Redis（一）--解析RedisTemplate">
+<meta name="twitter:description" content="谈及系统优化，缓存一直是不可或缺的一点。在缓存中间件层面，我们有MemCache，Redis等选择；在系统分层层面，又需要考虑多级缓存；在系统可用性层面，又要考虑到缓存雪崩，缓存穿透，缓存失效等常见的缓存问题…缓存的使用与优化值得我们花费一定的精力去深入理解。《Spring Data Redis》这个系列打算围绕spring-data-redis来进行分析，从hello world到源码分析，夹杂">
     
 
     
@@ -186,7 +186,7 @@
 </aside>
 
             
-            <section id="main"><article id="post-聊聊IT行业应届生求职" class="article article-type-post" itemscope itemprop="blogPost">
+            <section id="main"><article id="post-spring-data-redis-1" class="article article-type-post" itemscope itemprop="blogPost">
     <div class="article-inner">
         
         
@@ -194,7 +194,7 @@
                 
     
         <h1 class="article-title" itemprop="name">
-            聊聊IT行业应届生求职
+            Spring Data Redis（一）--解析RedisTemplate
         </h1>
     
 
@@ -203,8 +203,8 @@
                         
     <div class="article-date">
         <i class="fa fa-calendar"></i>
-        <a href="/2017/02/20/聊聊IT行业应届生求职/">
-            <time datetime="2017-02-19T16:57:52.000Z" itemprop="datePublished">2017-02-20</time>
+        <a href="/2017/10/27/spring-data-redis-1/">
+            <time datetime="2017-10-27T08:10:55.000Z" itemprop="datePublished">2017-10-27</time>
         </a>
     </div>
 
@@ -212,14 +212,14 @@
                         
     <div class="article-category">
     	<i class="fa fa-folder"></i>
-        <a class="article-category-link" href="/categories/技术杂谈/">技术杂谈</a>
+        <a class="article-category-link" href="/categories/Spring-Data-Redis/">Spring Data Redis</a>
     </div>
 
                         <!-- 不显示标签 -->
                         <!-- 
     <div class="article-tag">
         <i class="fa fa-tag"></i>
-        <a class="tag-link" href="/tags/技术杂谈/">技术杂谈</a>, <a class="tag-link" href="/tags/求职/">求职</a>
+        <a class="tag-link" href="/tags/Spring-Data-Redis/">Spring Data Redis</a>
     </div>
  -->
                     </div>
@@ -230,44 +230,94 @@
         <div class="article-entry" itemprop="articleBody">
         
             
-             <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>回首大三下的暑假，那时候刚开始出来找实习，如今已经即将进入大四下学期，恍惚间，已经过去了8，9个月。写这篇文章的初衷就是想结合自己的经验给即将要出来找工作的应届生一些建议，想当初自己刚出来时，也得到过热心学长的教导，权当一种传递吧。</p>
-<h2 id="个人经历"><a href="#个人经历" class="headerlink" title="个人经历"></a>个人经历</h2><p>坐标上海，目前在一家IT软件公司从事电子商务，金融保险类的网站开发，主要使用的语言是JAVA。从任职的3-4个月起，开始担任项目小组长协同项目经理进行开发。期间由于技术总监常驻广州的原因，我兼任了上海分部这一块的面试工作，主要负责技术部分的面试（TMD工资却没涨T__T）。所以对广大来面试者的水平，以及公司想要的人才都有了更深的了解；有了面试经验后，一些观念也有了转变。</p>
-<h2 id="面试杂谈"><a href="#面试杂谈" class="headerlink" title="面试杂谈"></a>面试杂谈</h2><p>大四肯定很多人想出来找实习，但是又完全没有任何经验，这就很尴尬了，我先来说一些一定要注意的点。</p>
-<ul>
-<li>不要乱投简历，现在互联网上有很多培训机构，中介机构，打着招聘的牌子，背后却干着培训的勾当。通常是对一些基础不太好的同学进行技术面试，对他们的信心造成碾压，而后，提出培训后入职的建议。通常这类公司就是通过这种手段去拉人培训，招人根本不是初衷。所以，要问清楚公司的情况，有必要面试之前先去百度搜一搜公司的基本情况和评价。</li>
-<li>紧接着上面那点，可以通过一些业界信誉比较高的app或者网站去筛选公司。如BOSS直聘，拉钩，51job，前程无忧…特别是前面两个，是专门给程序员招聘使用的，针对性很强，对自己能力有了解的同学也可以量力而行，挑选适合自己的岗位。</li>
-<li>投简历之前搞清楚公司的性质。IT行业目前大方向就分为两类：软件公司，互联网公司。我当初刚进公司的时候甲方乙方都搞不清楚，大家可能一下子也不知道这两种公司性质有什么区别。可以参照知乎这个问题的讨论<a href="https://www.zhihu.com/question/20274106/answer/40996303，简单来说同样的能力：软件公司轻松，钱少；互联网公司累，钱多。软件公司中又有外企，民营，国资等划分，工作性质又分为外包，自营...外包又分为人力外包和项目外包...互联网公司一说，大家肯定都知道BAT，京东，谷歌...还有一个层面的划分就是，软件公司大多提供的是服务，互联网公司通常都有自己的产品，不过这么说不够严谨，权当个参考吧。" target="_blank" rel="external">https://www.zhihu.com/question/20274106/answer/40996303，简单来说同样的能力：软件公司轻松，钱少；互联网公司累，钱多。软件公司中又有外企，民营，国资等划分，工作性质又分为外包，自营...外包又分为人力外包和项目外包...互联网公司一说，大家肯定都知道BAT，京东，谷歌...还有一个层面的划分就是，软件公司大多提供的是服务，互联网公司通常都有自己的产品，不过这么说不够严谨，权当个参考吧。</a></li>
-</ul>
-<a id="more"></a>
-<p>下面说一说这么多公司，怎么挑选适合自己的岗位。有很多的参考项，个人的能力，期望的工作地点以及地域的工资水准，未来的职业规划，房价，<del>对象</del>，水土气候，人脉等等诸多因素。本人是干java的，所以就以java求职来做例子，其他职业，专业请结合自己的专业知识做好对比即可。全部以上海为准，上海的起薪大概是2.8K左右，这叫基本工资，其他城市，例如无锡，苏州，大概在2.3k左右，视经济发展程度而定，先有个大概了解。</p>
-<p>下面来看看具体招聘需求<br>A类：</p>
-<blockquote>
-<p>Java 6K-12K<br>职位描述</p>
-<p>人品过硬。<br>愿意追随项目长期发展。<br>有能力。 有阅历。 有学历。<br>符合PSD原则，即出身贫寒、渴望成功、聪明机智。 </p>
-</blockquote>
-<p>不需要我吐槽了吧，这种明明是招技术岗，却对技术没有要求的，估计能骗一些小白去面试，只有技术一无所知，才会退而去要求人品，试想一下，你啥都不会，也只能要求你人品过关了。</p>
-<p>B类：</p>
-<p>职位描述</p>
-<blockquote>
-<p>任职要求：<br>1) 大专或以上学历，计算机相关专业，1-3年以上软件开发经验；<br>2) 熟练掌握Java开发技术，j2ee平台的核心技术的原理：jsp、ajax、servlet，jdbc等；<br>3) 熟练掌握一种主流数据库：MySQL/sql,server/oracle/DB2，熟悉一种应用服务器的配置：tomcat/jboss/weblogic/websphere；<br>4) 熟悉和理解Java开发各层次框架，如struts、spring、hiberate等，掌握基本Web前台技术；<br>5) 热爱开发工作，具备良好的程序开发驾驭能力，需求分析把握能力；<br>6)  好的沟通和解能力，善于团队合作，逻辑思维强，能够独立思考。</p>
-</blockquote>
-<p>此文我是想写给应届生的，1-3年的工作经验没那么恐怖，大多数情况下，你的能力够了，公司不会跟你较真，用年限压你，所以看到自己技术水平能够达到，资历却不符合的岗位，也可以尝试着投一投。<br>这类公司其实已经算是对技术有了要求了，而且技术细节都明确了出来，但是，看到只对jsp，servlet这些技术有所要求，明眼人都知道，这是在招初级开发，了解一点框架，懂计算机基础，这样的新手，公司还是可以接受的，上海这边针对可以独立开发的应届生，或者培训班出来可以直接上手的非科班生：软件公司，实习开价大概在4-5k，转正开价大概在7-8k；互联网公司实习大概在5-6k，转正开价9-10k起步。985/211或者能力不错能够入职的高校生，在互联网名企的开价，就以阿里为例，我了解到的情况大概是12k<em>14 or 12</em>16。这里都是说一个上海地区价格，不适用与全国。北京的情况是IT非常发达，很多互联网公司都在北京，而上海，深圳，广州其次，注意，上海是金融之都，并非IT之都。</p>
-<p>C类 ：</p>
-<blockquote>
-<p>Java工程师 13K-21K<br>任职资格</p>
-<p>1)大学本科或以上学历，计算机相关专业；<br>2)熟练掌握core java以及主流java框架，<br>3)熟悉HTML5、CSS3、JAVASCRIPT、JQUERY等前端技术；<br>4)熟练掌握面向对象的设计原则，熟悉JAVA设计模式，具备一定的系统架构设计能力；<br>5)熟悉常用的互联网相关技术产品和中间件，例如redis，elasticSearch，activeMq，Dubbo等；<br>6)能够带领开发小组独立完成产品功能的模块设计和研发；<br>7)熟悉面向服务的开发，有大型互联网项目的开发/设计经验优先；<br>8)较强的上进心和求知欲，善于学习和运用新知识，善于沟通和逻辑表达，有强烈的团队意识和执行力。</p>
-</blockquote>
-<p>没找到特别适合本科生的描述，简单概括下这类公司，按照招聘要求来说吧。<br>对计算机专业做要求，说明希望应聘者的专业素质有所保障，懂得基本的操作系统原理，数据结构，编译原理…因为这些都是本科期间必学的。<br>对core java有掌握，说明是要招java岗位，基础必须牢固。<br>前端知识有所了解，说明要懂得如果跟前端人员交互，不是完全的服务端开发<br>设计模式和架构，说明不是要招只能够写增删改查的业务人员，更希望是那种能驱动团队的人才<br>一系列中间件的要求说明企业比较正规，跟的上互联网的步伐，通常这类公司的技术总监是比较厉害的，发展前景不错<br>dubbo一出来，说明该公司还是搞得分布式框架，微服务架构，对程序员的要求更上了一个档次</p>
-<p>综合来看，具备以上素质的人当然配得上高一点的工资。</p>
-<h2 id="简历"><a href="#简历" class="headerlink" title="简历"></a>简历</h2><p>简历不要弄虚作假，什么东西是自己做的，什么东西不是自己做的，面试官一句话就能问出来。我面试过的很多人把自己的项目技能写的天花乱坠，随便问一个东西，都不能说个所以然出来，你还写了干嘛，徒增尴尬。</p>
-<p>简历不要写与应聘岗位相差太大的描述，如果写了，也要能自圆其说，为什么体现出了自己的才能。我看过一个应聘JAVA后端的“人才”写着有普通话证书，来，我现场让你说一段绕口令？还有诸如“参加XXX比赛，虽然没得奖，但是自己得到了锻炼”之类的话，真的有必要写在简历上面吗？</p>
-<p>真是没得写的，可以说一说自己大学里面参加的活动体现出怎么样的能力，自己的优异表现，学分绩点，专业课程知识等等。要是实在一无可写…算了，那还是写普通话证书吧。</p>
-<p>有项目经验，比赛经历，专业技能证书，英语考级证书的务必要写上（排名分先后）。都是应届生吗，注意一些技巧，如果你其他方面很突出，但是英语不行，只过了4级，那就别写英语4级了，因为会暴露你没有过6级。用其他证书掩盖过去。这不是欺骗，而是扬长避短。</p>
-<p>简历得体大方，模板到处有，关于应届生求职简历的事，可以到知乎好好看看。</p>
-<h2 id="公司的诉求"><a href="#公司的诉求" class="headerlink" title="公司的诉求"></a>公司的诉求</h2><p>普通公司找人，一是看人的基础水平符不符合岗位需求，二是看人的素质符不符合团队的理念，再者就是追求一个性价比。</p>
-<p>不是说你能力够了我就要招你，有些时候，公司就是要招基础的业务人员，你技术太厉害，要价太高，完全没必要招你。一个公司的垂直分层，必然是金字塔结构。所以讲究一个对号入座，搞清楚自己的能力，搞清楚自己想要什么样的一份岗位，投简历之前好好看看岗位的描述，公司的诉求。</p>
-<p>我面了前前后后也快30多个人了，有很多培训班出来的非科班生，很多应届或者一年经验的人，985/211也有，工作了12年的人也有，说实话，能力也就这样，能力很强的人要么出国了，要么内推进了名企，我就只能从我接触到的这些人，说出一些看法。资历在我看来不是很重要，仅仅作为一个参考的位面，好几个工作了3-4年的人我感觉好不如咱们应届生，不追求技术的突破，一直干着增删改查操作，问一些JAVA基础性的知识又一无所知，要价有得太低，体现出对自己的不自信，有得太高，不清楚自己的定位，入职率很低。再加上现在公司都是对分布式架构的开发，需要的从业者的素质越来越高。整个互联网的趋势也是如此，没有什么人是突然就变得很厉害的，我司技术总监拥有着这么厉害的技术，在我所知也是靠着毕业后依旧数年如一日的对技术的热忱追求。所以，特别是IT互联网行业，更希望找到的，是有一颗学习的心，具备终身学习能力的人，以应对日新月异的互联网技术变更。</p>
-<h2 id="最后"><a href="#最后" class="headerlink" title="最后"></a>最后</h2><p>大多数人还是需要有自己的思考，此文谨代表个人看法供大家参考。</p>
+             <p>谈及系统优化，缓存一直是不可或缺的一点。在缓存中间件层面，我们有MemCache，Redis等选择；在系统分层层面，又需要考虑多级缓存；在系统可用性层面，又要考虑到缓存雪崩，缓存穿透，缓存失效等常见的缓存问题…缓存的使用与优化值得我们花费一定的精力去深入理解。《Spring Data Redis》这个系列打算围绕spring-data-redis来进行分析，从hello world到源码分析，夹杂一些不多实战经验（经验有限），不止限于spring-data-redis本身，也会扩展谈及缓存这个大的知识点。</p>
+<p>至于为何选择redis，相信不用我赘述，redis如今非常流行，几乎成了项目必备的组件之一。而spring-boot-starter-data-redis模块又为我们在spring集成的项目中提供了开箱即用的功能，更加便捷了我们开发。系列的第一篇便是简单介绍下整个组件最常用的一个工具类：RedisTemplate。</p>
+<h2 id="1-引入依赖"><a href="#1-引入依赖" class="headerlink" title="1 引入依赖"></a>1 引入依赖</h2><figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="name">parent</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>org.springframework.boot<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>spring-boot-starter-parent<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">version</span>&gt;</span>1.5.7.RELEASE<span class="tag">&lt;/<span class="name">version</span>&gt;</span></div><div class="line"><span class="tag">&lt;/<span class="name">parent</span>&gt;</span></div><div class="line"></div><div class="line"><span class="tag">&lt;<span class="name">dependencies</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">dependency</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>org.springframework.boot<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>spring-boot-starter-data-redis<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></div><div class="line">    <span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">dependency</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>org.springframework.boot<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>spring-boot-starter-test<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">scope</span>&gt;</span>test<span class="tag">&lt;/<span class="name">scope</span>&gt;</span></div><div class="line">    <span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></div><div class="line"><span class="tag">&lt;/<span class="name">dependencies</span>&gt;</span></div></pre></td></tr></table></figure>
+<p>springboot的老用户会发现redis依赖名称发生了一点小的变化，在springboot1.4之前，redis依赖的名称为：spring-boot-starter-redis，而在之后较新的版本中，使用spring-boot-starter-redis依赖，则会在项目启动时得到一个过期警告。意味着，我们应该彻底放弃旧的依赖。spring-data这个项目定位为spring提供一个统一的数据仓库接口，如（spring-boot-starter-data-jpa,spring-boot-starter-data-mongo,spring-boot-starter-data-rest），将redis纳入后，改名为了spring-boot-starter-data-redis。</p>
+<h2 id="2-配置redis连接"><a href="#2-配置redis连接" class="headerlink" title="2 配置redis连接"></a>2 配置redis连接</h2><p><code>resources/application.yml</code></p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div></pre></td><td class="code"><pre><div class="line"><span class="attr">spring:</span></div><div class="line"><span class="attr">  redis:</span></div><div class="line"><span class="attr">    host:</span> <span class="number">127.0</span><span class="number">.0</span><span class="number">.1</span></div><div class="line"><span class="attr">    database:</span> <span class="number">0</span></div><div class="line"><span class="attr">    port:</span> <span class="number">6379</span></div><div class="line"><span class="attr">    password:</span></div></pre></td></tr></table></figure>
+<p>本机启动一个单点的redis即可，使用redis的0号库作为默认库（默认有16个库），在生产项目中一般会配置redis集群和哨兵保证redis的高可用，同样可以在application.yml中修改，非常方便。</p>
+<h2 id="3-编写测试类"><a href="#3-编写测试类" class="headerlink" title="3 编写测试类"></a>3 编写测试类</h2><figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">import</span> org.assertj.core.api.Assertions;</div><div class="line"><span class="keyword">import</span> org.junit.Test;</div><div class="line"><span class="keyword">import</span> org.junit.runner.RunWith;</div><div class="line"><span class="keyword">import</span> org.springframework.beans.factory.annotation.Autowired;</div><div class="line"><span class="keyword">import</span> org.springframework.boot.test.context.SpringBootTest;</div><div class="line"><span class="keyword">import</span> org.springframework.data.redis.core.RedisTemplate;</div><div class="line"><span class="keyword">import</span> org.springframework.test.context.junit4.SpringRunner;</div><div class="line"></div><div class="line"><span class="meta">@RunWith</span>(SpringRunner.class)</div><div class="line"><span class="meta">@SpringBootTest</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ApplicationTests</span> </span>&#123;</div><div class="line">   <span class="meta">@Autowired</span></div><div class="line">   <span class="keyword">private</span> RedisTemplate redisTemplate;<span class="comment">// &lt;1&gt;</span></div><div class="line"></div><div class="line">   <span class="meta">@Test</span></div><div class="line">   <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">test</span><span class="params">()</span> <span class="keyword">throws</span> Exception </span>&#123;</div><div class="line">     redisTemplate.opsForValue().set(<span class="string">"student:1"</span>, <span class="string">"kirito"</span>); <span class="comment">// &lt;2&gt;</span></div><div class="line">     Assertions.assertThat(redisTemplate.opsForValue().get(<span class="string">"student:1"</span>)).isEqualTo(<span class="string">"kirito"</span>);</div><div class="line">   &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p><1> 引入了RedisTemplate，这个类是spring-starter-data-redis提供给应用直接访问redis的入口。从其命名就可以看出，其是模板模式在spring中的体现，与restTemplate，jdbcTemplate类似，而springboot为我们做了自动的配置，具体会在下文详解。</1></p>
+<p><2> redisTemplate通常不直接操作键值，而是通过opsForXxx()访问，在本例中，key和value均为字符串类型。绑定字符串在实际开发中也是最为常用的操作类型。</2></p>
+<h2 id="4-详解RedisTemplate的API"><a href="#4-详解RedisTemplate的API" class="headerlink" title="4 详解RedisTemplate的API"></a>4 详解RedisTemplate的API</h2><p>RedisTemplate为我们操作Redis提供了丰富的API，可以将他们简单进行下归类。</p>
+<h3 id="4-1-常用数据操作"><a href="#4-1-常用数据操作" class="headerlink" title="4.1 常用数据操作"></a>4.1 常用数据操作</h3><p>这一类API也是我们最常用的一类。</p>
+<p>众所周知，redis存在5种数据类型：</p>
+<p>字符串类型（string），散列类型（hash），列表类型（list），集合类型（set），有序集合类型（zset）</p>
+<p>而redisTemplate实现了RedisOperations接口，在其中，定义了一系列与redis相关的基础数据操作接口，数据类型分别于下来API对应：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div></pre></td><td class="code"><pre><div class="line"><span class="comment">//非绑定key操作</span></div><div class="line"><span class="function">ValueOperations&lt;K, V&gt; <span class="title">opsForValue</span><span class="params">()</span></span>;</div><div class="line">&lt;HK, HV&gt; <span class="function">HashOperations&lt;K, HK, HV&gt; <span class="title">opsForHash</span><span class="params">()</span></span>;</div><div class="line"><span class="function">ListOperations&lt;K, V&gt; <span class="title">opsForList</span><span class="params">()</span></span>;</div><div class="line"><span class="function">SetOperations&lt;K, V&gt; <span class="title">opsForSet</span><span class="params">()</span></span>;</div><div class="line"><span class="function">ZSetOperations&lt;K, V&gt; <span class="title">opsForZSet</span><span class="params">()</span></span>;</div><div class="line"><span class="comment">//绑定key操作</span></div><div class="line"><span class="function">BoundValueOperations&lt;K, V&gt; <span class="title">boundValueOps</span><span class="params">(K key)</span></span>;</div><div class="line">&lt;HK, HV&gt; <span class="function">BoundHashOperations&lt;K, HK, HV&gt; <span class="title">boundHashOps</span><span class="params">(K key)</span></span>;</div><div class="line"><span class="function">BoundListOperations&lt;K, V&gt; <span class="title">boundListOps</span><span class="params">(K key)</span></span>;</div><div class="line"><span class="function">BoundSetOperations&lt;K, V&gt; <span class="title">boundSetOps</span><span class="params">(K key)</span></span>;</div><div class="line"><span class="function">BoundZSetOperations&lt;K, V&gt; <span class="title">boundZSetOps</span><span class="params">(K key)</span></span>;</div></pre></td></tr></table></figure>
+<p>若以bound开头，则意味着在操作之初就会绑定一个key，后续的所有操作便默认认为是对该key的操作，算是一个小优化。</p>
+<h3 id="4-2-对原生Redis指令的支持"><a href="#4-2-对原生Redis指令的支持" class="headerlink" title="4.2 对原生Redis指令的支持"></a>4.2 对原生Redis指令的支持</h3><p>Redis原生指令中便提供了一些很有用的操作，如设置key的过期时间，判断key是否存在等等…</p>
+<p>常用的API列举：</p>
+<table>
+<thead>
+<tr>
+<th>RedisTemplate API</th>
+<th>原生Redis指令</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>public void delete(K key)</td>
+<td>DEL key [key …]</td>
+<td>删除给定的一个或多个 <code>key</code></td>
+</tr>
+<tr>
+<td>public Boolean hasKey(K key)</td>
+<td>EXISTS key</td>
+<td>检查给定 <code>key</code> 是否存在</td>
+</tr>
+<tr>
+<td>public Boolean expire/expireAt(…)</td>
+<td>EXPIRE key seconds</td>
+<td>为给定 <code>key</code> 设置生存时间，当 <code>key</code> 过期时(生存时间为 <code>0</code> )，它会被自动删除。</td>
+</tr>
+<tr>
+<td>public Long getExpire(K key)</td>
+<td>TTL key</td>
+<td>以秒为单位，返回给定 <code>key</code> 的剩余生存时间(TTL, time to live)。</td>
+</tr>
+</tbody>
+</table>
+<p>更多的原生Redis指令支持可以参考javadoc</p>
+<h3 id="4-3-CAS操作"><a href="#4-3-CAS操作" class="headerlink" title="4.3 CAS操作"></a>4.3 CAS操作</h3><p>CAS（Compare and Swap）通常有3个操作数，内存值V，旧的预期值A，要修改的新值B。当且仅当预期值A和内存值V相同时，将内存值V修改为B，否则什么都不做。CAS也通常与并发，乐观锁，非阻塞，机器指令等关键词放到一起讲解。可能会有很多朋友在秒杀场景的架构设计中见到了Redis，本质上便是利用了Redis分布式共享内存的特性以及一系列的CAS指令。还记得在4.1中通过redisTemplate.opsForValue()或者redisTemplate.boundValueOps()可以得到一个ValueOperations或BoundValueOperations接口(以值为字符串的操作接口为例)，这些接口除了提供了基础操作外，还提供了一系列CAS操作，也可以放到RedisTemplate中一起理解。</p>
+<p>常用的API列举：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">ValueOperations API</th>
+<th style="text-align:left">原生Redis指令</th>
+<th style="text-align:left">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">Boolean setIfAbsent(K key, V value)</td>
+<td style="text-align:left">SETNX key value</td>
+<td style="text-align:left">将 <code>key</code> 的值设为 <code>value</code> ，当且仅当 <code>key</code> 不存在。设置成功，返回 <code>1</code> ， 设置失败，返回 <code>0</code> 。</td>
+</tr>
+<tr>
+<td style="text-align:left">V getAndSet(K key, V value)</td>
+<td style="text-align:left">GETSET key value</td>
+<td style="text-align:left">将给定 <code>key</code> 的值设为 <code>value</code> ，并返回 <code>key</code> 的旧值(old value)。</td>
+</tr>
+<tr>
+<td style="text-align:left">Long increment(K key, long delta)/Double increment(K key, double delta)</td>
+<td style="text-align:left">INCR/INCRBY/INCRBYFLOAT</td>
+<td style="text-align:left">将 <code>key</code> 所储存的值加上增量 <code>increment</code> 。 如果 <code>key</code> 不存在，那么 <code>key</code> 的值会先被初始化为 <code>0</code> ，然后再执行INCR/INCRBY/INCRBYFLOAT命令。线程安全的+</td>
+</tr>
+</tbody>
+</table>
+<p>关于CAS的理解可以参考我之前的文章<a href="https://www.cnkirito.moe/2017/03/12/java%E5%B9%B6%E5%8F%91%E5%AE%9E%E8%B7%B5--ConcurrentHashMap%E4%B8%8ECAS/" target="_blank" rel="external">java并发实践–CAS</a>或者其他博文。</p>
+<h3 id="4-4-发布订阅"><a href="#4-4-发布订阅" class="headerlink" title="4.4 发布订阅"></a>4.4 发布订阅</h3><p>redis之所以被冠以银弹，万金油的称号，关键在于其实现的功能真是太多了，甚至实现了一部分中间件队列的功能，其内置的channel机制，可以用于实现分布式的队列和广播。</p>
+<p>RedisTemplate提供了convertAndSend()功能，用于发送消息，与RedisMessageListenerContainer 配合接收，便实现了一个简易的发布订阅。如果想要使用Redis实现发布订阅，可以参考我之前的文章。<a href="https://www.cnkirito.moe/2017/09/13/event-2/" target="_blank" rel="external">浅析分布式下的事件驱动机制</a></p>
+<h3 id="4-5-Lua脚本"><a href="#4-5-Lua脚本" class="headerlink" title="4.5 Lua脚本"></a>4.5 Lua脚本</h3><p>RedisTemplate中包含了这样一个Lua执行器，意味着我们可以使用RedisTemplate执行Lua脚本。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">private</span> ScriptExecutor&lt;K&gt; scriptExecutor;</div></pre></td></tr></table></figure>
+<p>Lua这门语言也非常有意思，小巧而精悍，有兴趣的朋友可以去了解一下nginx+lua开发，使用openResty框架。而Redis内置了Lua的解析器，由于Redis单线程的特性（不严谨），可以使用Lua脚本，完成一些线程安全的符合操作（CAS操作仅仅只能保证单个操作的线程安全，无法保证复合操作，如果你有这样的需求，可以考虑使用Redis+Lua脚本）。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> &lt;T&gt; <span class="function">T <span class="title">execute</span><span class="params">(RedisScript&lt;T&gt; script, List&lt;K&gt; keys, Object... args)</span> </span>&#123;</div><div class="line">   <span class="keyword">return</span> scriptExecutor.execute(script, keys, args);</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>上述操作便可以完成对Lua脚本的调用。这儿有一个简单的示例，使用Redis+Lua脚本实现分布式的应用限流。<a href="https://www.cnkirito.moe/2017/03/18/%E5%88%86%E5%B8%83%E5%BC%8F%E9%99%90%E6%B5%81/" target="_blank" rel="external">分布式限流</a></p>
+<h3 id="5-总结"><a href="#5-总结" class="headerlink" title="5 总结"></a>5 总结</h3><p>Spring Data Redis系列的第一篇，介绍了spring-data对redis操作的封装，顺带了解redis具备的一系列特性，如果你对redis的理解还仅仅停留在它是一个分布式的key-value数据库，那么相信现在你一定会感叹其竟然如此强大。后续将会对缓存在项目中的应用以及spring-boot-starter-data-redis进一步解析。</p>
 
            
         
@@ -279,7 +329,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/02/20/聊聊IT行业应届生求职/" data-id="cj99syrmy004djgud0wp17ul5" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/10/27/spring-data-redis-1/" data-id="cj99syrkw001jjgud2sm9pvic" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -347,7 +397,7 @@
 
             
     
-        <a href="http://lexburner.github.io/2017/02/20/聊聊IT行业应届生求职/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/02/20/聊聊IT行业应届生求职/">评论</a>
+        <a href="http://lexburner.github.io/2017/10/27/spring-data-redis-1/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/10/27/spring-data-redis-1/">评论</a>
     
 
         </footer>
@@ -390,19 +440,10 @@
         
 <nav id="article-nav">
     
-        <a href="/2017/02/22/浅析项目中的并发/" id="article-nav-newer" class="article-nav-link-wrap">
-            <strong class="article-nav-caption">上一篇</strong>
-            <div class="article-nav-title">
-                
-                    浅析项目中的并发
-                
-            </div>
-        </a>
     
-    
-        <a href="/2017/02/19/《微服务》九大特性笔记/" id="article-nav-older" class="article-nav-link-wrap">
+        <a href="/2017/10/25/java-skill-1/" id="article-nav-older" class="article-nav-link-wrap">
             <strong class="article-nav-caption">下一篇</strong>
-            <div class="article-nav-title">《微服务》九大特性笔记</div>
+            <div class="article-nav-title">java小技巧(一)--远程debug</div>
         </a>
     
 </nav>
@@ -595,9 +636,9 @@
     <script>
     var disqus_config = function () {
         
-            this.page.url = 'http://lexburner.github.io/2017/02/20/聊聊IT行业应届生求职/';
+            this.page.url = 'http://lexburner.github.io/2017/10/27/spring-data-redis-1/';
         
-        this.page.identifier = '聊聊IT行业应届生求职';
+        this.page.identifier = 'spring-data-redis-1';
     };
     (function() { 
         var d = document, s = d.createElement('script');  
