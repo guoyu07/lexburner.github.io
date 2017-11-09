@@ -618,6 +618,20 @@ code {
 #main-nav-mobile .menu .search-form-input::-webkit-search-cancel-button {
   -webkit-appearance: none;
 }
+.label {
+  display: inline;
+  margin: 5px;
+  padding: 0.2em 0.6em 0.3em 0em;
+  line-height: 1;
+  color: #fff;
+  text-align: center;
+  white-space: nowrap;
+  vertical-align: baseline;
+  border-radius: 0.25em;
+}
+.label-success {
+  background-color: #5cb85c;
+}
 .bio {
   text-align: center;
 }

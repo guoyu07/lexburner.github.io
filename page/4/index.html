@@ -147,7 +147,7 @@
         </div>
         <div class="article-info profile-block">
             <div class="article-info-block">
-                51
+                55
                 <span>文章</span>
             </div>
             <div class="article-info-block">
@@ -182,6 +182,633 @@
 
             
             <section id="main">
+    <article id="post-spring中的懒加载与事务--排坑记录" class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        
+            <header class="article-header">
+                
+    
+        <h1 itemprop="name">
+            <a class="article-title" href="/2017/06/23/spring中的懒加载与事务--排坑记录/">spring中的懒加载与事务--排坑记录</a>
+        </h1>
+    
+
+                
+                    <div class="article-meta">
+                    	
+	
+		<div class="article-type">
+		    <span class="label label-success" style="float: left;padding: 3px 5px 3px 5px;margin-right: 15px;margin-top: 2px;">原创</span>
+		</div>
+	
+		
+
+
+                        
+    <div class="article-date">
+        <i class="fa fa-calendar"></i>
+        <a href="/2017/06/23/spring中的懒加载与事务--排坑记录/">
+            <time datetime="2017-06-23T05:37:41.000Z" itemprop="datePublished">2017-06-23</time>
+        </a>
+    </div>
+
+
+                        
+    <div class="article-category">
+    	<i class="fa fa-folder"></i>
+        <a class="article-category-link" href="/categories/Spring/">Spring</a>
+    </div>
+
+                        <!-- 不显示标签 -->
+                        <!-- 
+    <div class="article-tag">
+        <i class="fa fa-tag"></i>
+        <a class="tag-link" href="/tags/Spring/">Spring</a>, <a class="tag-link" href="/tags/事务/">事务</a>
+    </div>
+ -->
+                    </div>
+                
+            </header>
+        
+        
+        <div class="article-entry" itemprop="articleBody">
+        
+            <p><h2 id="案例描述"><a href="#案例描述" class="headerlink" title="案例描述"></a>案例描述</h2><p>本文主要描述了开发中常见的几个与spring懒加载和事务相关的案例，描述常见的使用场景，以及如何规避他们，给出具体的代码。</p>
+<ol>
+<li>在新的线程中，访问某个持久化对象的懒加载属性。</li>
+<li>在quartz定时任务中，访问某个持久化对象的懒加载属性。</li>
+<li>在dubbo，motan一类rpc框架中，远程调用时服务端session关闭的问题。</li>
+</ol>
+<p>上面三个案例，其实核心都是一个问题，就是牵扯到spring对事务的管理，而懒加载这个技术，只是比较容易体现出事务出错的一个实践，主要用它来引发问题，进而对问题进行思考。</p></p>
+            <p class="article-more-link">
+                <a href="/2017/06/23/spring中的懒加载与事务--排坑记录/#more">查看更多</a>
+            </p>
+        
+        </div>
+        <footer class="article-footer">
+            <div class="share-container">
+
+
+
+</div>
+
+    <a data-url="http://lexburner.github.io/2017/06/23/spring中的懒加载与事务--排坑记录/" data-id="cj9rsgdu9003n0sud1z3e028s" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+<script>
+    (function ($) {
+        // Prevent duplicate binding
+        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
+            __SHARE_BUTTON_BINDED__ = true;
+        } else {
+            return;
+        }
+        $('body').on('click', function() {
+            $('.article-share-box.on').removeClass('on');
+        }).on('click', '.article-share-link', function(e) {
+            e.stopPropagation();
+
+            var $this = $(this),
+                url = $this.attr('data-url'),
+                encodedUrl = encodeURIComponent(url),
+                id = 'article-share-box-' + $this.attr('data-id'),
+                offset = $this.offset(),
+                box;
+
+            if ($('#' + id).length) {
+                box = $('#' + id);
+
+                if (box.hasClass('on')){
+                    box.removeClass('on');
+                    return;
+                }
+            } else {
+                var html = [
+                    '<div id="' + id + '" class="article-share-box">',
+                        '<input class="article-share-input" value="' + url + '">',
+                        '<div class="article-share-links">',
+                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
+                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
+                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
+                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
+                        '</div>',
+                    '</div>'
+                ].join('');
+
+              box = $(html);
+
+              $('body').append(box);
+            }
+
+            $('.article-share-box.on').hide();
+
+            box.css({
+                top: offset.top + 25,
+                left: offset.left
+            }).addClass('on');
+
+        }).on('click', '.article-share-box', function (e) {
+            e.stopPropagation();
+        }).on('click', '.article-share-box-input', function () {
+            $(this).select();
+        }).on('click', '.article-share-box-link', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
+        });
+    })(jQuery);
+</script>
+
+            
+    
+        <a href="http://lexburner.github.io/2017/06/23/spring中的懒加载与事务--排坑记录/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/06/23/spring中的懒加载与事务--排坑记录/">评论</a>
+    
+
+        </footer>
+    </div>
+	
+    
+	
+</article>
+
+
+
+    <article id="post-使用zipkin做分布式链路监控" class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        
+            <header class="article-header">
+                
+    
+        <h1 itemprop="name">
+            <a class="article-title" href="/2017/06/12/使用zipkin做分布式链路监控/">使用zipkin做分布式链路监控</a>
+        </h1>
+    
+
+                
+                    <div class="article-meta">
+                    	
+	
+		<div class="article-type">
+		    <span class="label label-success" style="float: left;padding: 3px 5px 3px 5px;margin-right: 15px;margin-top: 2px;">原创</span>
+		</div>
+	
+		
+
+
+                        
+    <div class="article-date">
+        <i class="fa fa-calendar"></i>
+        <a href="/2017/06/12/使用zipkin做分布式链路监控/">
+            <time datetime="2017-06-11T18:51:51.000Z" itemprop="datePublished">2017-06-12</time>
+        </a>
+    </div>
+
+
+                        
+    <div class="article-category">
+    	<i class="fa fa-folder"></i>
+        <a class="article-category-link" href="/categories/DevOps/">DevOps</a>
+    </div>
+
+                        <!-- 不显示标签 -->
+                        <!-- 
+    <div class="article-tag">
+        <i class="fa fa-tag"></i>
+        <a class="tag-link" href="/tags/DevOps/">DevOps</a>, <a class="tag-link" href="/tags/Zipkin/">Zipkin</a>
+    </div>
+ -->
+                    </div>
+                
+            </header>
+        
+        
+        <div class="article-entry" itemprop="articleBody">
+        
+            <p><h1 id="介绍"><a href="#介绍" class="headerlink" title="介绍"></a>介绍</h1><ul>
+<li>Zipkin 为一个分布式的调用链跟踪系统( distributed tracing system ) ,设计来源于 <a href="http://research.google.com/pubs/pub36356.html" target="_blank" rel="external">google dapper paper</a></li>
+<li><a href="http://zipkin.io/" target="_blank" rel="external">官方网站</a></li>
+</ul>
+<h1 id="快速入门"><a href="#快速入门" class="headerlink" title="快速入门"></a>快速入门</h1><ul>
+<li><p>安装方式一：使用zipkin官方提供的jar启动服务<br>zipkin官方提供了一个现成的使用springboot写的zipkin服务端，客户端的链路监控报告可以通过多种方式（下文会讲解具体的方式）向服务端发送报告。</p>
+<ul>
+<li>系统需要安装java8 </li>
+<li><a href="https://search.maven.org/remote_content?g=io.zipkin.java&amp;a=zipkin-server&amp;v=LATEST&amp;c=exec" target="_blank" rel="external">下载地址</a></li>
+</ul>
+<p>配置详解<br><img src="http://img.blog.csdn.net/20170612021516652?watermark/2/text/aHR0cDovL2Jsb2cuY3Nkbi5uZXQvdTAxMzgxNTU0Ng==/font/5a6L5L2T/fontsize/400/fill/I0JBQkFCMA==/dissolve/70/gravity/SouthEast" alt="存储方式"><br>查看源码可知其有4种持久化方式，本文选择使用最熟悉的mysql持久化链路调用信息。</p>
+</li>
+</ul>
+<p>首先建立数据库：<br>默认情况下 zipkin 运行时数据保存在内存中，重启数据会丢失<br><a href="https://github.com/openzipkin/zipkin/blob/master/zipkin-storage/mysql/src/main/resources/mysql.sql" target="_blank" rel="external">数据库脚本下载</a></p>
+<p>查看与mysql storage相关的配置<br><figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@ConfigurationProperties</span>(<span class="string">"zipkin.storage.mysql"</span>)</div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ZipkinMySQLStorageProperties</span> <span class="keyword">implements</span> <span class="title">Serializable</span> </span>&#123; <span class="comment">// for Spark jobs</span></div><div class="line">  <span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="keyword">long</span> serialVersionUID = <span class="number">0L</span>;</div><div class="line"></div><div class="line">  <span class="keyword">private</span> String host = <span class="string">"localhost"</span>;</div><div class="line">  <span class="keyword">private</span> <span class="keyword">int</span> port = <span class="number">3306</span>;</div><div class="line">  <span class="keyword">private</span> String username;</div><div class="line">  <span class="keyword">private</span> String password;</div><div class="line">  <span class="keyword">private</span> String db = <span class="string">"zipkin"</span>;</div><div class="line">  <span class="keyword">private</span> <span class="keyword">int</span> maxActive = <span class="number">10</span>;</div><div class="line">  <span class="keyword">private</span> <span class="keyword">boolean</span> useSsl;</div><div class="line">	...</div><div class="line">&#125;</div></pre></td></tr></table></figure></p>
+<p>所以，我们使用mysql作为持久化策略，启动服务端的脚本也就有了<br><figure class="highlight shell"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">java -server -jar zipkin-server-1.26.0-exec.jar --zipkin.storage.type=mysql --zipkin.storage.mysql.host=localhost --zipkin.storage.mysql.port=3306 --zipkin.storage.mysql.username=root --zipkin.storage.mysql.password=root --zipkin.storage.mysql.db=zipkin</div></pre></td></tr></table></figure></p>
+<ul>
+<li>安装方式二<br>springcloud官方按照传输方式分成了三种启动服务端的方式：Sleuth with Zipkin via HTTP，Sleuth with Zipkin via Spring Cloud Stream，Spring Cloud Sleuth Stream Zipkin Collector。只需要添加相应的依赖，之后配置相应的注解，如<code>@EnableZipkinStreamServer</code>即可。具体配置参考<a href="http://cloud.spring.io/spring-cloud-static/spring-cloud-sleuth/1.2.1.RELEASE/#_adding_to_the_project" target="_blank" rel="external">Spring Cloud官方文档</a></li>
+</ul>
+<p>项目中，我们使用第一种作为服务端的启动方式，使用mysql作为持久化方案</p></p>
+            <p class="article-more-link">
+                <a href="/2017/06/12/使用zipkin做分布式链路监控/#more">查看更多</a>
+            </p>
+        
+        </div>
+        <footer class="article-footer">
+            <div class="share-container">
+
+
+
+</div>
+
+    <a data-url="http://lexburner.github.io/2017/06/12/使用zipkin做分布式链路监控/" data-id="cj9rsgdvu004k0sudf2p9qplo" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+<script>
+    (function ($) {
+        // Prevent duplicate binding
+        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
+            __SHARE_BUTTON_BINDED__ = true;
+        } else {
+            return;
+        }
+        $('body').on('click', function() {
+            $('.article-share-box.on').removeClass('on');
+        }).on('click', '.article-share-link', function(e) {
+            e.stopPropagation();
+
+            var $this = $(this),
+                url = $this.attr('data-url'),
+                encodedUrl = encodeURIComponent(url),
+                id = 'article-share-box-' + $this.attr('data-id'),
+                offset = $this.offset(),
+                box;
+
+            if ($('#' + id).length) {
+                box = $('#' + id);
+
+                if (box.hasClass('on')){
+                    box.removeClass('on');
+                    return;
+                }
+            } else {
+                var html = [
+                    '<div id="' + id + '" class="article-share-box">',
+                        '<input class="article-share-input" value="' + url + '">',
+                        '<div class="article-share-links">',
+                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
+                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
+                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
+                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
+                        '</div>',
+                    '</div>'
+                ].join('');
+
+              box = $(html);
+
+              $('body').append(box);
+            }
+
+            $('.article-share-box.on').hide();
+
+            box.css({
+                top: offset.top + 25,
+                left: offset.left
+            }).addClass('on');
+
+        }).on('click', '.article-share-box', function (e) {
+            e.stopPropagation();
+        }).on('click', '.article-share-box-input', function () {
+            $(this).select();
+        }).on('click', '.article-share-box-link', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
+        });
+    })(jQuery);
+</script>
+
+            
+    
+        <a href="http://lexburner.github.io/2017/06/12/使用zipkin做分布式链路监控/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/06/12/使用zipkin做分布式链路监控/">评论</a>
+    
+
+        </footer>
+    </div>
+	
+    
+	
+</article>
+
+
+
+    <article id="post-JAVA程序员分级，你属于哪一级" class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        
+            <header class="article-header">
+                
+    
+        <h1 itemprop="name">
+            <a class="article-title" href="/2017/05/02/JAVA程序员分级，你属于哪一级/">JAVA程序员分级，你属于哪一种？</a>
+        </h1>
+    
+
+                
+                    <div class="article-meta">
+                    	
+	
+		<div class="article-type">
+		    <span class="label label-success" style="float: left;padding: 3px 5px 3px 5px;margin-right: 15px;margin-top: 2px;">原创</span>
+		</div>
+	
+		
+
+
+                        
+    <div class="article-date">
+        <i class="fa fa-calendar"></i>
+        <a href="/2017/05/02/JAVA程序员分级，你属于哪一级/">
+            <time datetime="2017-05-02T11:21:03.000Z" itemprop="datePublished">2017-05-02</time>
+        </a>
+    </div>
+
+
+                        
+    <div class="article-category">
+    	<i class="fa fa-folder"></i>
+        <a class="article-category-link" href="/categories/技术杂谈/">技术杂谈</a>
+    </div>
+
+                        <!-- 不显示标签 -->
+                        <!-- 
+    <div class="article-tag">
+        <i class="fa fa-tag"></i>
+        <a class="tag-link" href="/tags/JAVA/">JAVA</a>, <a class="tag-link" href="/tags/杂谈/">杂谈</a>
+    </div>
+ -->
+                    </div>
+                
+            </header>
+        
+        
+        <div class="article-entry" itemprop="articleBody">
+        
+            
+             <ul>
+<li><p>初级—初</p>
+<p>掌握java基础，熟悉常用类库。理解java web中的servlet，jsp，并了解常用的框架对java web的封装原理，能够借助框架完成增删改查功能。理解数据库在web开发中的地位。</p>
+</li>
+<li><p>初级—中</p>
+<p> 理解java中较为高级的特性，如反射，动态代理，JVM，内存模型，多线程等等。熟练使用框架，对框架中遇到的bug，能够借助日志和搜索引擎分析出问题的原因。在团队中，能够独立完成普通后台业务功能的开发。了解数据库的高级特性，如索引，存储引擎等等。</p>
+</li>
+<li><p>初级—高</p>
+<p>理解java分布式架构，微服务架构，了解其与集中式架构的区别，并能保证分布式代码质量。熟练使用各个中间件如redis，mq，zookeeper等等，并了解其工作原理和使用场景。能够在中级或高级程序员的带领之下，完成非核心功能的研发。能够关注开源，并且具有阅读源码的能力。</p>
+</li>
+<li><p>中级</p>
+<p>具备一定的项目开发经验（3年之上一线互联网产品研发经验），拥有线上bug的处理能力，JVM调优能力，以及完成核心业务功能的开发。并且带领团队的新人，能够按能力分配任务。</p>
+</li>
+<li><p>高级</p>
+<p>团队的核心人物，把控整个项目的质量，包括代码漏洞和规范问题。具有5年以上项目开发经验，2年以上架构搭建的经验，能够根据业务选择不同的架构类型；根据团队组成，分配不同的任务。具有将自己的知识分享出去的能力，带领初级程序员走向中级，中级程序员走向高级的能力。</p>
+</li>
+</ul>
+
+           
+        
+        </div>
+        <footer class="article-footer">
+            <div class="share-container">
+
+
+
+</div>
+
+    <a data-url="http://lexburner.github.io/2017/05/02/JAVA程序员分级，你属于哪一级/" data-id="cj9rsgdms00020sudlzdc3hjl" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+<script>
+    (function ($) {
+        // Prevent duplicate binding
+        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
+            __SHARE_BUTTON_BINDED__ = true;
+        } else {
+            return;
+        }
+        $('body').on('click', function() {
+            $('.article-share-box.on').removeClass('on');
+        }).on('click', '.article-share-link', function(e) {
+            e.stopPropagation();
+
+            var $this = $(this),
+                url = $this.attr('data-url'),
+                encodedUrl = encodeURIComponent(url),
+                id = 'article-share-box-' + $this.attr('data-id'),
+                offset = $this.offset(),
+                box;
+
+            if ($('#' + id).length) {
+                box = $('#' + id);
+
+                if (box.hasClass('on')){
+                    box.removeClass('on');
+                    return;
+                }
+            } else {
+                var html = [
+                    '<div id="' + id + '" class="article-share-box">',
+                        '<input class="article-share-input" value="' + url + '">',
+                        '<div class="article-share-links">',
+                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
+                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
+                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
+                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
+                        '</div>',
+                    '</div>'
+                ].join('');
+
+              box = $(html);
+
+              $('body').append(box);
+            }
+
+            $('.article-share-box.on').hide();
+
+            box.css({
+                top: offset.top + 25,
+                left: offset.left
+            }).addClass('on');
+
+        }).on('click', '.article-share-box', function (e) {
+            e.stopPropagation();
+        }).on('click', '.article-share-box-input', function () {
+            $(this).select();
+        }).on('click', '.article-share-box-link', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
+        });
+    })(jQuery);
+</script>
+
+            
+    
+        <a href="http://lexburner.github.io/2017/05/02/JAVA程序员分级，你属于哪一级/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/05/02/JAVA程序员分级，你属于哪一级/">评论</a>
+    
+
+        </footer>
+    </div>
+	
+    
+	
+</article>
+
+
+
+    <article id="post-drools-4" class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        
+            <header class="article-header">
+                
+    
+        <h1 itemprop="name">
+            <a class="article-title" href="/2017/04/11/drools-4/">drools用户指南----Cross Products</a>
+        </h1>
+    
+
+                
+                    <div class="article-meta">
+                    	
+	
+		<div class="article-type">
+		    <span class="label label-success" style="float: left;padding: 3px 5px 3px 5px;margin-right: 15px;margin-top: 2px;">原创</span>
+		</div>
+	
+		
+
+
+                        
+    <div class="article-date">
+        <i class="fa fa-calendar"></i>
+        <a href="/2017/04/11/drools-4/">
+            <time datetime="2017-04-11T05:44:54.000Z" itemprop="datePublished">2017-04-11</time>
+        </a>
+    </div>
+
+
+                        
+    <div class="article-category">
+    	<i class="fa fa-folder"></i>
+        <a class="article-category-link" href="/categories/规则引擎/">规则引擎</a>
+    </div>
+
+                        <!-- 不显示标签 -->
+                        <!-- 
+    <div class="article-tag">
+        <i class="fa fa-tag"></i>
+        <a class="tag-link" href="/tags/drools/">drools</a>, <a class="tag-link" href="/tags/规则引擎/">规则引擎</a>
+    </div>
+ -->
+                    </div>
+                
+            </header>
+        
+        
+        <div class="article-entry" itemprop="articleBody">
+        
+            
+             <h2 id="Cross-Products"><a href="#Cross-Products" class="headerlink" title="Cross Products"></a>Cross Products</h2><p>之前提到“Cross Products”一词，其实就是一个join操作（译者注：可以理解为笛卡尔积）。想象一下，火灾报警示例的数据与以下规则结合使用，其中没有字段约束：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div></pre></td><td class="code"><pre><div class="line">rule <span class="string">"Show Sprinklers"</span> when</div><div class="line">    $room : Room()</div><div class="line">    $sprinkler : Sprinkler()</div><div class="line">then</div><div class="line">    System.out.println( <span class="string">"room:"</span> + $room.getName() +</div><div class="line">                        <span class="string">" sprinkler:"</span> + $sprinkler.getRoom().getName() );</div><div class="line">end</div></pre></td></tr></table></figure>
+<p>在SQL术语中，这就像是执行了select * from Room, Sprinkler，Sprinkler 表中的每一行将与Room表中的每一行相连接，从而产生以下输出：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div></pre></td><td class="code"><pre><div class="line">room:office sprinkler:office</div><div class="line">room:office sprinkler:kitchen</div><div class="line">room:office sprinkler:livingroom</div><div class="line">room:office sprinkler:bedroom</div><div class="line">room:kitchen sprinkler:office</div><div class="line">room:kitchen sprinkler:kitchen</div><div class="line">room:kitchen sprinkler:livingroom</div><div class="line">room:kitchen sprinkler:bedroom</div><div class="line">room:livingroom sprinkler:office</div><div class="line">room:livingroom sprinkler:kitchen</div><div class="line">room:livingroom sprinkler:livingroom</div><div class="line">room:livingroom sprinkler:bedroom</div><div class="line">room:bedroom sprinkler:office</div><div class="line">room:bedroom sprinkler:kitchen</div><div class="line">room:bedroom sprinkler:livingroom</div><div class="line">room:bedroom sprinkler:bedroom</div></pre></td></tr></table></figure>
+<p>这些连接结果显然会变得巨大，它们必然包含冗余数据。 cross products的大小通常是新规则引擎产品性能问题的根源。 从这可以看出，我们希望约束cross products，这便是用可变约束（the variable constraint）完成的。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line">rule</div><div class="line">when</div><div class="line">    $room : Room()</div><div class="line">    $sprinkler : Sprinkler( room == $room )</div><div class="line">then</div><div class="line">    System.out.println( <span class="string">"room:"</span> + $room.getName() +</div><div class="line">                        <span class="string">" sprinkler:"</span> + $sprinkler.getRoom().getName() );</div><div class="line">end</div></pre></td></tr></table></figure>
+<p>这就使得筛选结果只有寥寥几行, 这就为每一个Room筛选出了正确的Sprinkler. 在sql中(实际上是HQL) 这样的查询约等于<code>select * from Room, Sprinkler where Room == Sprinkler.room</code>.</p>
+
+           
+        
+        </div>
+        <footer class="article-footer">
+            <div class="share-container">
+
+
+
+</div>
+
+    <a data-url="http://lexburner.github.io/2017/04/11/drools-4/" data-id="cj9rsgdq600140sudi2yt4dc3" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+<script>
+    (function ($) {
+        // Prevent duplicate binding
+        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
+            __SHARE_BUTTON_BINDED__ = true;
+        } else {
+            return;
+        }
+        $('body').on('click', function() {
+            $('.article-share-box.on').removeClass('on');
+        }).on('click', '.article-share-link', function(e) {
+            e.stopPropagation();
+
+            var $this = $(this),
+                url = $this.attr('data-url'),
+                encodedUrl = encodeURIComponent(url),
+                id = 'article-share-box-' + $this.attr('data-id'),
+                offset = $this.offset(),
+                box;
+
+            if ($('#' + id).length) {
+                box = $('#' + id);
+
+                if (box.hasClass('on')){
+                    box.removeClass('on');
+                    return;
+                }
+            } else {
+                var html = [
+                    '<div id="' + id + '" class="article-share-box">',
+                        '<input class="article-share-input" value="' + url + '">',
+                        '<div class="article-share-links">',
+                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
+                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
+                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
+                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
+                        '</div>',
+                    '</div>'
+                ].join('');
+
+              box = $(html);
+
+              $('body').append(box);
+            }
+
+            $('.article-share-box.on').hide();
+
+            box.css({
+                top: offset.top + 25,
+                left: offset.left
+            }).addClass('on');
+
+        }).on('click', '.article-share-box', function (e) {
+            e.stopPropagation();
+        }).on('click', '.article-share-box-input', function () {
+            $(this).select();
+        }).on('click', '.article-share-box-link', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
+        });
+    })(jQuery);
+</script>
+
+            
+    
+        <a href="http://lexburner.github.io/2017/04/11/drools-4/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/04/11/drools-4/">评论</a>
+    
+
+        </footer>
+    </div>
+	
+    
+	
+</article>
+
+
+
     <article id="post-drools-3" class="article article-type-post" itemscope itemprop="blogPost">
     <div class="article-inner">
         
@@ -196,6 +823,15 @@
 
                 
                     <div class="article-meta">
+                    	
+	
+		<div class="article-type">
+		    <span class="label label-success" style="float: left;padding: 3px 5px 3px 5px;margin-right: 15px;margin-top: 2px;">原创</span>
+		</div>
+	
+		
+
+
                         
     <div class="article-date">
         <i class="fa fa-calendar"></i>
@@ -251,7 +887,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/04/11/drools-3/" data-id="cj9qvjonk000x80ud4fu5834z" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/04/11/drools-3/" data-id="cj9rsgdpz00100sudg237n64f" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -345,6 +981,15 @@
 
                 
                     <div class="article-meta">
+                    	
+	
+		<div class="article-type">
+		    <span class="label label-success" style="float: left;padding: 3px 5px 3px 5px;margin-right: 15px;margin-top: 2px;">原创</span>
+		</div>
+	
+		
+
+
                         
     <div class="article-date">
         <i class="fa fa-calendar"></i>
@@ -397,7 +1042,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/04/11/drools-1/" data-id="cj9qvjonf000s80udo6oiqf5a" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/04/11/drools-1/" data-id="cj9rsgdp5000s0sud92wes92j" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -491,6 +1136,15 @@
 
                 
                     <div class="article-meta">
+                    	
+	
+		<div class="article-type">
+		    <span class="label label-success" style="float: left;padding: 3px 5px 3px 5px;margin-right: 15px;margin-top: 2px;">原创</span>
+		</div>
+	
+		
+
+
                         
     <div class="article-date">
         <i class="fa fa-calendar"></i>
@@ -543,7 +1197,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/04/11/drools-2/" data-id="cj9qvjonj000w80ud5gumarj0" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/04/11/drools-2/" data-id="cj9rsgdpl000y0sud23jf5wsd" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -637,6 +1291,15 @@
 
                 
                     <div class="article-meta">
+                    	
+	
+		<div class="article-type">
+		    <span class="label label-success" style="float: left;padding: 3px 5px 3px 5px;margin-right: 15px;margin-top: 2px;">原创</span>
+		</div>
+	
+		
+
+
                         
     <div class="article-date">
         <i class="fa fa-calendar"></i>
@@ -682,7 +1345,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/04/08/Zuul性能测试/" data-id="cj9qvjon8000m80udvswu0tg1" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/04/08/Zuul性能测试/" data-id="cj9rsgdzb007k0sudfg7dpmlp" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -776,6 +1439,15 @@
 
                 
                     <div class="article-meta">
+                    	
+	
+		<div class="article-type">
+		    <span class="label label-success" style="float: left;padding: 3px 5px 3px 5px;margin-right: 15px;margin-top: 2px;">原创</span>
+		</div>
+	
+		
+
+
                         
     <div class="article-date">
         <i class="fa fa-calendar"></i>
@@ -824,7 +1496,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/04/01/springcloud----Zuul动态路由/" data-id="cj9qvjopf002r80udbot4kyqf" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/04/01/springcloud----Zuul动态路由/" data-id="cj9rsgdtt00370sudh0hopiq6" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -918,6 +1590,15 @@
 
                 
                     <div class="article-meta">
+                    	
+	
+		<div class="article-type">
+		    <span class="label label-success" style="float: left;padding: 3px 5px 3px 5px;margin-right: 15px;margin-top: 2px;">原创</span>
+		</div>
+	
+		
+
+
                         
     <div class="article-date">
         <i class="fa fa-calendar"></i>
@@ -994,7 +1675,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/03/18/分布式限流/" data-id="cj9qvjor6003x80udlgmxtd0g" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/03/18/分布式限流/" data-id="cj9rsgdun003q0sud64woq4vh" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1074,801 +1755,6 @@
 
 
 
-    <article id="post-DevOps的八荣八耻" class="article article-type-post" itemscope itemprop="blogPost">
-    <div class="article-inner">
-        
-        
-            <header class="article-header">
-                
-    
-        <h1 itemprop="name">
-            <a class="article-title" href="/2017/03/14/DevOps的八荣八耻/">DevOps的八荣八耻</a>
-        </h1>
-    
-
-                
-                    <div class="article-meta">
-                        
-    <div class="article-date">
-        <i class="fa fa-calendar"></i>
-        <a href="/2017/03/14/DevOps的八荣八耻/">
-            <time datetime="2017-03-13T16:43:52.000Z" itemprop="datePublished">2017-03-14</time>
-        </a>
-    </div>
-
-
-                        
-    <div class="article-category">
-    	<i class="fa fa-folder"></i>
-        <a class="article-category-link" href="/categories/DevOps/">DevOps</a>
-    </div>
-
-                        <!-- 不显示标签 -->
-                        <!-- 
-    <div class="article-tag">
-        <i class="fa fa-tag"></i>
-        <a class="tag-link" href="/tags/DevOps/">DevOps</a>
-    </div>
- -->
-                    </div>
-                
-            </header>
-        
-        
-        <div class="article-entry" itemprop="articleBody">
-        
-            
-             <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>被群里的好友安利了一发，周日跑去参加了一个技术讲座《云上开发与运维最佳实践》，听完两个人的演讲之后才发现主题竟然是讲运维，好在有一个人干货不少，在此记录下所得。简单追溯了一下这个DevOps才发现并不是一个新的概念，早在2010年就能看到有相关的人在追捧这个概念了。DevOps 就是开发（Development）和运维（Operations）这两个领域的合并。（如果没错的话，DevOps还包括产品管理、QA、<em>winces</em> 甚至销售等领域）。这种理念和现如今流行的微服务架构以及分布式特性的相关理念不谋而合。这篇文章主要就是转载记录了当时又拍云运维总监的演讲稿。</p>
-<h2 id="DevOps的八荣八耻"><a href="#DevOps的八荣八耻" class="headerlink" title="DevOps的八荣八耻"></a>DevOps的八荣八耻</h2><p>DevOps这个思想提出来已经五六年了，一直都是呼声很高，落地很难，为什么呢？这可能与各个公司的业务情况和技术发展路线有或多或少的关系，比如说创业的最早技术合伙人是运维出身或者技术出身，但是水平不高，为了公司持续发展，引入新鲜血液时，就会存在技术的先进性跟解决遗留烂摊子的矛盾。又或者业务本身偏向于用户，导致技术被边缘化，产品又没有好的架构，限制了快速发展等；所以，DevOps的推进一定要自上而下，凭借挑战自我，颠覆传统的勇气才能去落实。</p>
-<h2 id="以可配置为荣，以硬编码为耻"><a href="#以可配置为荣，以硬编码为耻" class="headerlink" title="以可配置为荣，以硬编码为耻"></a>以可配置为荣，以硬编码为耻</h2><p>　　<img src="http://img.mp.itc.cn/upload/20161101/442859059ca8412b9ccc86005922f1e5_th.jpeg" alt="img"></p>
-<p>△ 以可配置为荣，以硬编码为耻</p>
-<p>hardcoding一时爽，真正要做改动时，需要定位代码，做出调整，甚至可能会破坏功能。以下可以说是配置的一个进化史</p>
-<p>• 本地配置,程序⽣生成 (txt/ini/cfg)<br>• 集中配置, 动态⽣生成(Yaml/Json)<br>• 环境变量量(代码⽆无侵⼊入&amp;语⾔言⽆无关性)<br>• 服务⾃自动发现,⾃自动注册(zookeeper/consul)</p>
-<h2 id="以互备为荣，以单点为耻"><a href="#以互备为荣，以单点为耻" class="headerlink" title="以互备为荣，以单点为耻"></a>以互备为荣，以单点为耻</h2><p>　　<img src="http://img.mp.itc.cn/upload/20161101/e1ff6885b5184119965586baf841fee4_th.jpeg" alt="img"></p>
-<p>　　△ 以互备为荣，以单点为耻</p>
-<p>互容互备一直是优良架构的设计重点。</p>
-<p>又拍云早期做架构设计，使用了LVS+Keeplived+VRRP做转换，这样可以方便负载均衡，动态升级，隔离故障。现在的又拍云第二代，已经在部分大节点使用OSPF和Quagga做等价路由的负载均衡和冗余保障。</p>
-<p>Nginx可以加Haproxy或LVS做负载均衡。MySQL可以做主从切换，或者是MMM的高可用成熟解决方案。我们的消息队列之前用rabbitmq做，现在主要是redis和kafka集群化，其中kafka已经迁到了Mesos容器平台里。</p>
-<p>服务的自动发现、注册，我们可以使用consul、etcd、doozer（Heroku公司产品），还有zookeeper。主要区别是算法不一样，zookeeper用的是paxos算法，而consul用的是raft算法。目前看来consul比较流行，因为consul的自动发现和自动注册更加容易使用。etcd主要是CoreOS在主推，CoreOS本身就是一个滚动发布的针对分布式部署的操作系统，大家可以去关注一下它。还有一个是hadoop和elk，大数据平台的可扩展性是标配，很容易互备。</p>
-<p>上面是举了一些常见互备的软件组件的造型，那我们如何是设计一个无单点的架构呢？主要掌握以下几点：</p>
-<p>1.无状态</p>
-<p>无状态意味着没有竞争，很容易做负载均衡，负载均衡的方式有很多种，F5，LVS，Haproxy，总能找到一种适合你的方式。</p>
-<p>2.无共享</p>
-<p>以前我们很喜欢用内存来保持临时信息，如进程间的交换，这种方式虽然效率很高，但是对程序的扩展性没什么好处，尤其是现在的互联网体量，光靠单机或者高性能机器是明显玩不转的。所以我们现在就需要使用类似消息队列的组件，把数据共享出去，利用多台机器把负载给承担下来。</p>
-<p>3.松耦合/异步处理</p>
-<p>以前我们用Gearman这样的任务框架。大家可以把任务丢进任务池里，生成多个消费者去取任务。当我的消费不够用时，可以平滑增加我的work资源，让他从更快的去拿任务。运维平台这边以python/celery的组合使用更多。</p>
-<p>4.分布式/集群协作</p>
-<p>像Hadoop这样的天生大数据/数据仓库解决方案，由于先前设计比较成熟，一般都是通过很多台机器扩容来实现map/reduce的扩展计算能力。</p>
-<h2 id="以随时重启为荣，以不能迁移为耻"><a href="#以随时重启为荣，以不能迁移为耻" class="headerlink" title="以随时重启为荣，以不能迁移为耻"></a>以随时重启为荣，以不能迁移为耻</h2><p><img src="http://img.mp.itc.cn/upload/20161101/f74832b01e78472e8507cbf089e3aa8d_th.jpeg" alt="img"></p>
-<p>△ 以随时重启为荣，以不能迁移为耻</p>
-<p>关于这个点，我们讲三个方面：</p>
-<p>1.Pet到Cow观念的转变</p>
-<p>以前我们说机器是pet，也就是宠物模式，然后花了几万块钱去买的服务器，当宝一般供奉。但事实上却并不是这样，任何电子设备、服务器只要一上线，便开始了一个衰老的过程，你根本不知道在运行过程中会发生什么事，比如说质量差的电容会老化爆浆，电子元器件在机房的恶劣环境里会加速损坏，这些变化都是我们无法参与控制的，所以无论我们怎么努力，都无法保障机器有多么的牢靠。</p>
-<p>谷歌指出的Cow模式就是指农场模式。就是要把机器发生故障当做常态，打个比方，比如说这头牛死了，那我就不要了，因为我有很多这样的牛，或者是再拉一头新的牛。这就是我们软件开发和运维需要做的转变，去适应这种变化。</p>
-<p>2.OpenStack虚拟机的编排</p>
-<p>虚拟化是个好东西，通过OpenStack我们很容易就可以做出一些存储或者迁移的操作，但是在实施的过程中，也是一波三折的。</p>
-<p>又拍云从2014年开始在内部推动OpenStack，当然我们也踩过OpenStack网络的坑，那时候我们用双千兆的卡做内网通讯，因为使用OpenStack实现虚拟化后，一切都变成了文件，在网络上传输的话，对网络的压力会非常大，结果就导致部分服务响应缓慢（因为本身就是实验性质，所以在硬件上没有足够投入，内测时也没有推广，所以影响不大）。</p>
-<p>2015年又拍云再上的OpenStack，全部都用双万兆的网卡做bonding，交换机也是做了端口聚合和堆叠。目前来说，只有云存储没有上线，其它云处理，云网络的使用还是能够满足要求。</p>
-<p>3.Docker的导入导出</p>
-<p>Docker是更轻量级的资源隔离和复用技术，从2016年开始，又拍云同时也在尝试使用Mesos/Docker来实现云处理的业务迁移。</p>
-<h2 id="以整体交付为荣，以部分交付为耻"><a href="#以整体交付为荣，以部分交付为耻" class="headerlink" title="以整体交付为荣，以部分交付为耻"></a>以整体交付为荣，以部分交付为耻</h2><p>　　<img src="http://img.mp.itc.cn/upload/20161101/64c1749dcf464204bf80d5e8024aad7f_th.jpeg" alt="img"></p>
-<p>　　△ 以整体交付为荣，以部分交付为耻</p>
-<p>以往开发运维要安装一个机器，首先要去申请采购，购买完了还要等待运输，在运输中要花去一天的时间，之后还需要配交换机和网络。在这个过程中你会发现，简单的给开发配台机器，光上架就涉及到运维的很多环节，更不要说系统安装，优化，软件配置等剩余工作了，所以大多数情况下你只能做到部分交付。</p>
-<p>要如何解决这些问题？通过OpenStack可以做到云计算、云网络、云存储这三块搭建完成之后，进行整体交付。</p>
-<p>根据一些经验总结，在整个云平台当中，云存储的坑最多，云计算、云网络相对来说比较成熟。现在云计算的硬件基本上是基于英特尔CPU的虚拟化技术来硬件指令穿透的，损耗大概2%～5%，这是可以接受的。至于云网络，刚才胡凯（B站运维总监）提到内网包转发效率，我做过一个测试，在OpenStack的内网中，如果MTU默认是1500，万兆网卡的转发率大概为6.7xxGbps。后来我在优化的过程中，也翻查一些文档，看到的数据是可以达到9.5xxGbps，通过不断的摸索，对比测试后发现，如果把内网的MTU搞成大包，如9000时，万兆网卡的存储量直接达到了9.72Gbps左右的。不过，这个MTU需要提前在宿主机上调整好，需要重启生效。所以，这个问题发现得越早越好，这样就可以做到统一调度，分配资源。</p>
-<p>Docker的好处是可以做到Build、Shipand Run，一气呵成。无论是对开发，测试，还是运维来说，Docker都是同一份Dockerfile清单，所以使用Docker在公司里的推动就很顺畅。虽然OpenStack也可以一站式交付，整体交付，使用时非常方便。但是对开发来说，他还是拿到一台机器，还是需要去安装软件环境，配置，上线，运行，除了得到机器快一些，对上线服务没有什么大的帮助，所以又拍云现在的Openstack集群一般对内申请开发测试用，外网生产环境还是以Docker容器化部署为主，这也是大家都喜闻乐见的方式，但前提是开发那边能够适应编写Dockerfile（目前是我在内部推动这种变革，如新的项目就强制要求用docker）。</p>
-<h2 id="以无状态为荣，以有状态为耻"><a href="#以无状态为荣，以有状态为耻" class="headerlink" title="以无状态为荣，以有状态为耻"></a>以无状态为荣，以有状态为耻</h2><p>　　<img src="http://img.mp.itc.cn/upload/20161101/687e9c56b5b742078e0c6b7b67ee0c06_th.jpeg" alt="img"></p>
-<p>　　△ 以无状态为荣，以有状态为耻</p>
-<p>有状态的服务真的很麻烦，无论是存在数据库、磁盘开销，还有各种锁等资源的竞争，横向扩展也很差，不能重启，也不能互备。所以，有姿态的服务对于扩展原则来说，就是一场恶梦。如果是说我们解决这个问题，那就要使用解耦和负载均衡的方法去解决问题。</p>
-<p>1.使用可靠的中间件</p>
-<p>中间件其实最早出现在金融公司、证券公司，后来随着互联网行业不断壮大以后，就用一些高可靠性的号称工业级的消息队列出现，如RabbitMQ，一出来以后，就把中间件拉下神坛。随着中间件民用化，互联网蓬勃发展，是可以把一些服务变成无状态，方便扩展。</p>
-<p>2.公共资源池</p>
-<p>我们可以通过各种云，容器云、弹性云，做计算单元的弹性扩展。</p>
-<p>3.能够被计算</p>
-<p>如果你不想存状态，那也可以被计算，比如说Ceph存储，它的创新在于每个数据块都是可计算出来的，这就类似无状态的，每次都算，反正现在的cpu都这么强悍了，所以，无状态是一个命题，在做架构的时候，你脑海里一定要有这个意念，然后再看你用什么样的方式开动脑筋，预先的跟开发，运维沟通好，把应用拆分成一种无状态的最佳组合。</p>
-<h2 id="以标准化为荣，以特殊化为耻"><a href="#以标准化为荣，以特殊化为耻" class="headerlink" title="以标准化为荣，以特殊化为耻"></a>以标准化为荣，以特殊化为耻</h2><p>　　<img src="http://img.mp.itc.cn/upload/20161101/99df354cd9514e6bb8da2f6a51bc5765_th.jpeg" alt="img"></p>
-<p>△ 以标准化为荣，以特殊化为耻</p>
-<p>在标准化方面，我们在这几个方面改良：</p>
-<p>1.统一输入输出</p>
-<p>统一入口是我加入又拍云后做的第一件事情，我们用一个统一的文本，到现在也在用，然后推送到所有的边缘，服务器上面的组件，要用到的参数，都能从配置里读出来。代码管理方面我们也使用git，git wiki，批量部署我们用ansible（早在2012年，我做了一些比较后，就在公司里推行ansible，看来还是很明智的决定）。</p>
-<p>2.统一的流程管理</p>
-<p>运维中使用python最多，所以我们使用了yaml和playbook。又拍云有自己的跳板机，通过VPN登陆，目前我们也在试用一个带有审计功能的堡垒机，可以把每个人的操作录制下来，然后再去回放观察，改进我们的工作流程。</p>
-<p>3.抽象底层设计和复用组件</p>
-<p>如果是开发者的话，就会写很多的复用函数，对于优秀的运维人员来说，也要有优秀的抽象业务的能力，也要去做一些重复工作的复用准备，如频繁的，繁琐易出错的手工操作抽象成若干运维的脚本化。</p>
-<p>最后是巧妙的利用虚拟化、容器服务、server-less微服务，这些服务是可以被备份，还原的，可以保持一个相对稳定的状态，我们要拒绝多的特殊管理操作。香农-信息熵理论里说，变量的不确定性越大，熵就越大，把它搞清楚所需要的信息量也就越大。理论上来说，如果是一个孤立的系统，他就会变得越来越乱。</p>
-<h2 id="以自动化工具为荣，以手动和人肉为耻"><a href="#以自动化工具为荣，以手动和人肉为耻" class="headerlink" title="以自动化工具为荣，以手动和人肉为耻"></a>以自动化工具为荣，以手动和人肉为耻</h2><p><img src="http://img.mp.itc.cn/upload/20161101/9f47211cf22444dbb17ca767872dfc61_th.jpeg" alt="img"></p>
-<p>　　△ 以自动化工具为荣，以手动和人肉为耻</p>
-<p>又拍云早期，用的是bash、sed、awk，因为我之前有搞嵌入式的背景和经验，对一个十几兆的嵌入式系统来说，上面是不可能有python/perl/nodejs等环境。所以我们把服务器批量安装，部署，上线，做成了嵌入式的系统后，只要点亮以后，运行一个硬件检测的程序，会把机器的CPU、内存、硬盘大小等都打印出来，供货商截图给我看，这个机器是否合格。合格的机器可以直接发到机房去，在机器到了机房通上网线以后会有一个ansibleplaybook的推动。</p>
-<p>自从用了这种方法以后，我们在公司里面基本上没有见到服务器，一般直接产线上检测通过后发到机房。然后又拍云的运维人员就可以连上去远程管理，在过去的三年里我们服务器平均每年翻了三倍，节点翻了六倍多，但是人手并没有增加。</p>
-<p>关于tgz、rpm、pkg的打包部署，我们用的是tgz的打包及docker镜像。优势在于，又拍云自有CDN网络，软件通过推动到CDN网络下可以加速下发。</p>
-<p>关于集成测试、自动测试的发布，像ELK集中日志的分析、大数据的分析，我们现在使用ELK以后，只要有基础的运维技术知识便可看懂，不需要高深的运维知识和脚本编辑知识，大多数人都可以完成这份工作，好处就是你多了好多眼睛帮你一起来发现问题，定位问题。</p>
-<p>最后是不要图形，不要交互，不要终端。一旦有了图形以后，很难实现自动化。原则就是，不要手工hack，最好是用程序生成程序的方式去完成这个步骤。</p>
-<h2 id="以无人值守为荣，以人工介入为耻"><a href="#以无人值守为荣，以人工介入为耻" class="headerlink" title="以无人值守为荣，以人工介入为耻"></a>以无人值守为荣，以人工介入为耻</h2><p>　　<img src="http://img.mp.itc.cn/upload/20161101/ecb1a9bc0f1e478dbfcd81f2b79d5c7e_th.jpeg" alt="img"></p>
-<p>　　△ 以无人值守为荣，以人工介入为耻</p>
-<p>运维部门要做的事情有三件：</p>
-<p>1.运维自动化</p>
-<p>要有一定的业务抽象能力，要有标准化的流程。没有好的自动化，就很难把运维的工作效率提升了，只要做好这些，就可以节省时间，从容应对业务增长。而且运维自动化的另一个好处就是运维不会因为人的喜怒哀乐而受到影响稳定性，比如说我今天心情不好，你让我装一台机器我还可以忍，你让我装十台一百台就不行了。但如果公司有了运维自动化的流程，这个事情就可以避免，因为谁做都一样。</p>
-<p>2.监控要常态</p>
-<p>2016年年初，又拍云特别成立大数据分析部门，我们把日志做了采样收集和过滤，通过大数据平台做日志的同构数据分析，重点关注4xx/5xx/2xx比例，响应时间分析如100毫秒、200毫秒、500毫秒，还有区域性的速率分布，讲真，这真是一个好东西。</p>
-<p>3.性能可视化</p>
-<p>数据的有效展示。现在ELK对我们的帮助很大，从监控图上来看相关的数据指标，一目了然。这里就不反复赘述了。</p>
-<h2 id="DevOps的本质"><a href="#DevOps的本质" class="headerlink" title="DevOps的本质"></a>DevOps的本质</h2><p>最后，我们谈一谈DevOps的本质。</p>
-<ol>
-<li><p>弹性</p>
-<p>像亚马逊推云时，那个单词叫elastic，意思是，你要能够扩展，如横向扩展；你要能负载均衡，如果你是基于openstack/docker资源池，你的资源就可以复用，可以编排回滚。比如说OpenStack有模板，我打一个镜像包，稍微重了一点，Docker的就轻一点，Docker可以做一个滚动发布，可以保留原来的程序、原来的容器，你可以做快速切换，这也是一种变化的弹性。</p>
-</li>
-<li><p>无关性</p>
-<p>如果是虚拟化资源，一切都可以在模板里面设置，可以把底层的硬件、系统、网络抚平差异，比如说不管物理磁盘是1T(市面上缺货)/4T/6T的盘，都可以划分100G容量，所以当把一切变成按需申请的服务，无论是开发还是运维，工作都会比较简单，因为它的无关性。</p>
-</li>
-<li><p>不可变的基础设施</p>
-<p>这个对传统运维可能是一种打击，因为基础镜像可能已经做的足够安全，足够完美，足够精干，不需要基础运维过多的人工参与。但我认为恰恰能帮助传统运维减轻工作量，反而有更多的精力去迎接虚拟化、容器化，SDN的挑战，掌握了新技能后，就可以随取随用。</p>
-</li>
-</ol>
-
-           
-        
-        </div>
-        <footer class="article-footer">
-            <div class="share-container">
-
-
-
-</div>
-
-    <a data-url="http://lexburner.github.io/2017/03/14/DevOps的八荣八耻/" data-id="cj9qvjom3000380udt9m94i2d" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
-<script>
-    (function ($) {
-        // Prevent duplicate binding
-        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
-            __SHARE_BUTTON_BINDED__ = true;
-        } else {
-            return;
-        }
-        $('body').on('click', function() {
-            $('.article-share-box.on').removeClass('on');
-        }).on('click', '.article-share-link', function(e) {
-            e.stopPropagation();
-
-            var $this = $(this),
-                url = $this.attr('data-url'),
-                encodedUrl = encodeURIComponent(url),
-                id = 'article-share-box-' + $this.attr('data-id'),
-                offset = $this.offset(),
-                box;
-
-            if ($('#' + id).length) {
-                box = $('#' + id);
-
-                if (box.hasClass('on')){
-                    box.removeClass('on');
-                    return;
-                }
-            } else {
-                var html = [
-                    '<div id="' + id + '" class="article-share-box">',
-                        '<input class="article-share-input" value="' + url + '">',
-                        '<div class="article-share-links">',
-                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
-                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
-                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
-                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
-                        '</div>',
-                    '</div>'
-                ].join('');
-
-              box = $(html);
-
-              $('body').append(box);
-            }
-
-            $('.article-share-box.on').hide();
-
-            box.css({
-                top: offset.top + 25,
-                left: offset.left
-            }).addClass('on');
-
-        }).on('click', '.article-share-box', function (e) {
-            e.stopPropagation();
-        }).on('click', '.article-share-box-input', function () {
-            $(this).select();
-        }).on('click', '.article-share-box-link', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-
-            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
-        });
-    })(jQuery);
-</script>
-
-            
-    
-        <a href="http://lexburner.github.io/2017/03/14/DevOps的八荣八耻/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/03/14/DevOps的八荣八耻/">评论</a>
-    
-
-        </footer>
-    </div>
-	
-    
-	
-</article>
-
-
-
-    <article id="post-java并发实践--ConcurrentHashMap与CAS" class="article article-type-post" itemscope itemprop="blogPost">
-    <div class="article-inner">
-        
-        
-            <header class="article-header">
-                
-    
-        <h1 itemprop="name">
-            <a class="article-title" href="/2017/03/12/java并发实践--ConcurrentHashMap与CAS/">java并发实践--ConcurrentHashMap与CAS</a>
-        </h1>
-    
-
-                
-                    <div class="article-meta">
-                        
-    <div class="article-date">
-        <i class="fa fa-calendar"></i>
-        <a href="/2017/03/12/java并发实践--ConcurrentHashMap与CAS/">
-            <time datetime="2017-03-11T16:02:00.000Z" itemprop="datePublished">2017-03-12</time>
-        </a>
-    </div>
-
-
-                        
-    <div class="article-category">
-    	<i class="fa fa-folder"></i>
-        <a class="article-category-link" href="/categories/JAVA/">JAVA</a>
-    </div>
-
-                        <!-- 不显示标签 -->
-                        <!-- 
-    <div class="article-tag">
-        <i class="fa fa-tag"></i>
-        <a class="tag-link" href="/tags/JAVA/">JAVA</a>, <a class="tag-link" href="/tags/多线程/">多线程</a>
-    </div>
- -->
-                    </div>
-                
-            </header>
-        
-        
-        <div class="article-entry" itemprop="articleBody">
-        
-            <p><h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>最近在做接口限流时涉及到了一个有意思问题，牵扯出了关于concurrentHashMap的一些用法，以及CAS的一些概念。限流算法很多，我主要就以最简单的计数器法来做引。先抽象化一下需求：统计每个接口访问的次数。一个接口对应一个url，也就是一个字符串，每调用一次对其进行加一处理。可能出现的问题主要有三个：</p>
-<ol>
-<li>多线程访问，需要选择合适的并发容器</li>
-<li>分布式下多个实例统计接口流量需要共享内存</li>
-<li>流量统计应该尽可能不损耗服务器性能</li>
-</ol>
-<p>但这次的博客并不是想描述怎么去实现接口限流，而是主要想描述一下遇到的问题，所以，第二点暂时不考虑，即不使用redis。</p>
-<p>说到并发的字符串统计，立即让人联想到的数据结构便是<code>ConcurrentHashpMap&lt;String,Long&gt; urlCounter;</code></p></p>
-            <p class="article-more-link">
-                <a href="/2017/03/12/java并发实践--ConcurrentHashMap与CAS/#more">查看更多</a>
-            </p>
-        
-        </div>
-        <footer class="article-footer">
-            <div class="share-container">
-
-
-
-</div>
-
-    <a data-url="http://lexburner.github.io/2017/03/12/java并发实践--ConcurrentHashMap与CAS/" data-id="cj9qvjop0002a80udb8a4hnvu" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
-<script>
-    (function ($) {
-        // Prevent duplicate binding
-        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
-            __SHARE_BUTTON_BINDED__ = true;
-        } else {
-            return;
-        }
-        $('body').on('click', function() {
-            $('.article-share-box.on').removeClass('on');
-        }).on('click', '.article-share-link', function(e) {
-            e.stopPropagation();
-
-            var $this = $(this),
-                url = $this.attr('data-url'),
-                encodedUrl = encodeURIComponent(url),
-                id = 'article-share-box-' + $this.attr('data-id'),
-                offset = $this.offset(),
-                box;
-
-            if ($('#' + id).length) {
-                box = $('#' + id);
-
-                if (box.hasClass('on')){
-                    box.removeClass('on');
-                    return;
-                }
-            } else {
-                var html = [
-                    '<div id="' + id + '" class="article-share-box">',
-                        '<input class="article-share-input" value="' + url + '">',
-                        '<div class="article-share-links">',
-                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
-                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
-                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
-                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
-                        '</div>',
-                    '</div>'
-                ].join('');
-
-              box = $(html);
-
-              $('body').append(box);
-            }
-
-            $('.article-share-box.on').hide();
-
-            box.css({
-                top: offset.top + 25,
-                left: offset.left
-            }).addClass('on');
-
-        }).on('click', '.article-share-box', function (e) {
-            e.stopPropagation();
-        }).on('click', '.article-share-box-input', function () {
-            $(this).select();
-        }).on('click', '.article-share-box-link', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-
-            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
-        });
-    })(jQuery);
-</script>
-
-            
-    
-        <a href="http://lexburner.github.io/2017/03/12/java并发实践--ConcurrentHashMap与CAS/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/03/12/java并发实践--ConcurrentHashMap与CAS/">评论</a>
-    
-
-        </footer>
-    </div>
-	
-    
-	
-</article>
-
-
-
-    <article id="post-volatile疑问记录" class="article article-type-post" itemscope itemprop="blogPost">
-    <div class="article-inner">
-        
-        
-            <header class="article-header">
-                
-    
-        <h1 itemprop="name">
-            <a class="article-title" href="/2017/03/07/volatile疑问记录/">volatile疑问记录</a>
-        </h1>
-    
-
-                
-                    <div class="article-meta">
-                        
-    <div class="article-date">
-        <i class="fa fa-calendar"></i>
-        <a href="/2017/03/07/volatile疑问记录/">
-            <time datetime="2017-03-07T11:26:52.000Z" itemprop="datePublished">2017-03-07</time>
-        </a>
-    </div>
-
-
-                        
-    <div class="article-category">
-    	<i class="fa fa-folder"></i>
-        <a class="article-category-link" href="/categories/JAVA/">JAVA</a>
-    </div>
-
-                        <!-- 不显示标签 -->
-                        <!-- 
-    <div class="article-tag">
-        <i class="fa fa-tag"></i>
-        <a class="tag-link" href="/tags/JAVA/">JAVA</a>, <a class="tag-link" href="/tags/多线程/">多线程</a>
-    </div>
- -->
-                    </div>
-                
-            </header>
-        
-        
-        <div class="article-entry" itemprop="articleBody">
-        
-            
-             <p>对java中volatile关键字的描述，主要是<strong>可见性</strong>和<strong>有序性</strong>两方面。</p>
-<p>一个很广泛的应用就是使得多个线程对共享资源的改动变得互相可见，如下：</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">TestVolatile</span> <span class="keyword">extends</span> <span class="title">Thread</span> </span>&#123;</div><div class="line">    <span class="comment">/*A*/</span></div><div class="line"><span class="comment">//    public volatile boolean runFlag = true;</span></div><div class="line">    <span class="keyword">public</span> <span class="keyword">boolean</span> runFlag = <span class="keyword">true</span>;</div><div class="line"></div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">boolean</span> <span class="title">isRunFlag</span><span class="params">()</span> </span>&#123;</div><div class="line">        <span class="keyword">return</span> runFlag;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">setRunFlag</span><span class="params">(<span class="keyword">boolean</span> runFlag)</span> </span>&#123;</div><div class="line">        <span class="keyword">this</span>.runFlag = runFlag;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    <span class="meta">@Override</span></div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">run</span><span class="params">()</span> </span>&#123;</div><div class="line">        System.out.println(<span class="string">"进入run"</span>);</div><div class="line">        <span class="keyword">while</span> (isRunFlag()) &#123;</div><div class="line">            <span class="comment">/*B*/</span></div><div class="line"><span class="comment">//            System.out.println("running");</span></div><div class="line">        &#125;</div><div class="line">        System.out.println(<span class="string">"退出run"</span>);</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span><span class="params">(String[] args)</span> <span class="keyword">throws</span> InterruptedException </span>&#123;</div><div class="line">        TestVolatile testVolatile = <span class="keyword">new</span> TestVolatile();</div><div class="line">        testVolatile.start();</div><div class="line">        <span class="keyword">try</span> &#123;</div><div class="line">            Thread.sleep(<span class="number">500</span>);</div><div class="line">        &#125; <span class="keyword">catch</span> (InterruptedException e) &#123;</div><div class="line">            e.printStackTrace();</div><div class="line">        &#125;</div><div class="line">        testVolatile.setRunFlag(<span class="keyword">false</span>);</div><div class="line">        System.out.println(<span class="string">"main already set runflag to false"</span>);</div><div class="line">        <span class="keyword">new</span> CountDownLatch(<span class="number">1</span>).await();</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>在A处如果不将运行标记（runflag）设置成volatile，那么main线程对runflag的修改对于testVolatile线程将不可见。导致其一直不打印“退出run”这句。</p>
-<p>但是如果在testVolatile线程的while()增加一句：B处打印语句，程序却达到了不使用volatile，修改也变得可见，不知道到底是什么原理。</p>
-<p>只能大概估计是while()的执行过程中线程上下文进行了切换，使得重新去主存获取了runflag的最新值，从而退出了循环，暂时记录…</p>
-<p>2017/3/8日更新<br>和群里面的朋友讨论了一下，发现同一份代码，不同的机器运行出了不一样的效果。又仔细翻阅了一下《effective java》，依稀记得当时好像遇到过这个问题，果然，在并发的第一张就对这个现象做出了解释。<br>关键就在于HotSpot Server VM对编译进行了优化，这种优化称之为<em>提升</em>(hoisting)，结果导致了<em>活性失败</em>（liveness failure）</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">while</span> (isRunFlag()) &#123;&#125;</div></pre></td></tr></table></figure>
-<p>会被优化成</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">if</span>(isRunFlag())&#123;</div><div class="line">	<span class="keyword">while</span>(<span class="keyword">true</span>)...</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>引用effective java这一节的原话：</p>
-<blockquote>
-<p>简而言之，当多个线程共享可变数据的时候，每个读或者写数据的线程都必须执行同步<br>如果没有同步，就无法保证一个线程所做的修改可以被另一个线程获知。未能同步共享可变数据会造成程序的活性失败和安全性失败。这样的失败是难以调式的。他们可能是间歇性的，且与时间相关，程序的行为在不同的VM上可能根本不同，如果只需要线程之间的交互通信，而不需要互斥，volatile修饰符就是一种可以接受的同步形式，但是正确的使用它可能需要一些技巧。</p>
-</blockquote>
-
-           
-        
-        </div>
-        <footer class="article-footer">
-            <div class="share-container">
-
-
-
-</div>
-
-    <a data-url="http://lexburner.github.io/2017/03/07/volatile疑问记录/" data-id="cj9qvjopv003480udv04eozwg" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
-<script>
-    (function ($) {
-        // Prevent duplicate binding
-        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
-            __SHARE_BUTTON_BINDED__ = true;
-        } else {
-            return;
-        }
-        $('body').on('click', function() {
-            $('.article-share-box.on').removeClass('on');
-        }).on('click', '.article-share-link', function(e) {
-            e.stopPropagation();
-
-            var $this = $(this),
-                url = $this.attr('data-url'),
-                encodedUrl = encodeURIComponent(url),
-                id = 'article-share-box-' + $this.attr('data-id'),
-                offset = $this.offset(),
-                box;
-
-            if ($('#' + id).length) {
-                box = $('#' + id);
-
-                if (box.hasClass('on')){
-                    box.removeClass('on');
-                    return;
-                }
-            } else {
-                var html = [
-                    '<div id="' + id + '" class="article-share-box">',
-                        '<input class="article-share-input" value="' + url + '">',
-                        '<div class="article-share-links">',
-                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
-                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
-                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
-                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
-                        '</div>',
-                    '</div>'
-                ].join('');
-
-              box = $(html);
-
-              $('body').append(box);
-            }
-
-            $('.article-share-box.on').hide();
-
-            box.css({
-                top: offset.top + 25,
-                left: offset.left
-            }).addClass('on');
-
-        }).on('click', '.article-share-box', function (e) {
-            e.stopPropagation();
-        }).on('click', '.article-share-box-input', function () {
-            $(this).select();
-        }).on('click', '.article-share-box-link', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-
-            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
-        });
-    })(jQuery);
-</script>
-
-            
-    
-        <a href="http://lexburner.github.io/2017/03/07/volatile疑问记录/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/03/07/volatile疑问记录/">评论</a>
-    
-
-        </footer>
-    </div>
-	
-    
-	
-</article>
-
-
-
-    <article id="post-浅析java内存模型（JMM）" class="article article-type-post" itemscope itemprop="blogPost">
-    <div class="article-inner">
-        
-        
-            <header class="article-header">
-                
-    
-        <h1 itemprop="name">
-            <a class="article-title" href="/2017/02/24/浅析java内存模型（JMM）/">浅析java内存模型（JMM）</a>
-        </h1>
-    
-
-                
-                    <div class="article-meta">
-                        
-    <div class="article-date">
-        <i class="fa fa-calendar"></i>
-        <a href="/2017/02/24/浅析java内存模型（JMM）/">
-            <time datetime="2017-02-24T05:07:52.000Z" itemprop="datePublished">2017-02-24</time>
-        </a>
-    </div>
-
-
-                        
-    <div class="article-category">
-    	<i class="fa fa-folder"></i>
-        <a class="article-category-link" href="/categories/JAVA/">JAVA</a>
-    </div>
-
-                        <!-- 不显示标签 -->
-                        <!-- 
-    <div class="article-tag">
-        <i class="fa fa-tag"></i>
-        <a class="tag-link" href="/tags/JAVA/">JAVA</a>, <a class="tag-link" href="/tags/JMM/">JMM</a>
-    </div>
- -->
-                    </div>
-                
-            </header>
-        
-        
-        <div class="article-entry" itemprop="articleBody">
-        
-            
-             <h2 id="并发编程模型的分类"><a href="#并发编程模型的分类" class="headerlink" title="并发编程模型的分类"></a>并发编程模型的分类</h2><p>在并发编程中，我们需要处理两个关键问题：线程之间如何通信及线程之间如何同步（这里的线程是指并发执行的活动实体）。通信是指线程之间以何种机制来交换信息。在命令式编程中，线程之间的通信机制有两种：共享内存和消息传递。</p>
-<p>在共享内存的并发模型里，线程之间共享程序的公共状态，线程之间通过写-读内存中的公共状态来隐式进行通信。在消息传递的并发模型里，线程之间没有公共状态，线程之间必须通过明确的发送消息来显式进行通信。</p>
-<p>同步是指程序用于控制不同线程之间操作发生相对顺序的机制。在共享内存并发模型里，同步是显式进行的。程序员必须显式指定某个方法或某段代码需要在线程之间互斥执行。在消息传递的并发模型里，由于消息的发送必须在消息的接收之前，因此同步是隐式进行的。</p>
-<p>Java的并发采用的是共享内存模型，Java线程之间的通信总是隐式进行，整个通信过程对程序员完全透明。如果编写多线程程序的Java程序员不理解隐式进行的线程之间通信的工作机制，很可能会遇到各种奇怪的内存可见性问题。</p>
-<h2 id="Java内存模型的抽象"><a href="#Java内存模型的抽象" class="headerlink" title="Java内存模型的抽象"></a>Java内存模型的抽象</h2><p>在java中，所有实例域、静态域和数组元素存储在堆内存中，堆内存在线程之间共享（本文使用“共享变量”这个术语代指实例域，静态域和数组元素）。局部变量（Local variables），方法定义参数（java语言规范称之为formal method parameters）和异常处理器参数（exception handler parameters）不会在线程之间共享，它们不会有内存可见性问题，也不受内存模型的影响。</p>
-<p>Java线程之间的通信由Java内存模型（本文简称为JMM）控制，JMM决定一个线程对共享变量的写入何时对另一个线程可见。从抽象的角度来看，JMM定义了线程和主内存之间的抽象关系：线程之间的共享变量存储在主内存（main memory）中，每个线程都有一个私有的本地内存（local memory），本地内存中存储了该线程以读/写共享变量的副本。本地内存是JMM的一个抽象概念，并不真实存在。它涵盖了缓存，写缓冲区，寄存器以及其他的硬件和编译器优化。Java内存模型的抽象示意图如下：</p>
-<p><img src="http://cdn4.infoqstatic.com/statics_s2_20170221-0307u1/resource/articles/java-memory-model-1/zh/resources/11.png" alt="img"></p>
-<p>从上图来看，线程A与线程B之间如要通信的话，必须要经历下面2个步骤：</p>
-<ol>
-<li>首先，线程A把本地内存A中更新过的共享变量刷新到主内存中去。</li>
-<li>然后，线程B到主内存中去读取线程A之前已更新过的共享变量。</li>
-</ol>
-<p>下面通过示意图来说明这两个步骤：</p>
-<p><img src="http://cdn4.infoqstatic.com/statics_s2_20170221-0307u1/resource/articles/java-memory-model-1/zh/resources/22.png" alt="img"></p>
-<p>如上图所示，本地内存A和B有主内存中共享变量x的副本。假设初始时，这三个内存中的x值都为0。线程A在执行时，把更新后的x值（假设值为1）临时存放在自己的本地内存A中。当线程A和线程B需要通信时，线程A首先会把自己本地内存中修改后的x值刷新到主内存中，此时主内存中的x值变为了1。随后，线程B到主内存中去读取线程A更新后的x值，此时线程B的本地内存的x值也变为了1。</p>
-<p>从整体来看，这两个步骤实质上是线程A在向线程B发送消息，而且这个通信过程必须要经过主内存。JMM通过控制主内存与每个线程的本地内存之间的交互，来为java程序员提供内存可见性保证。</p>
-<h2 id="重排序"><a href="#重排序" class="headerlink" title="重排序"></a>重排序</h2><p>在执行程序时为了提高性能，编译器和处理器常常会对指令做重排序。重排序分三种类型：</p>
-<ol>
-<li>编译器优化的重排序。编译器在不改变单线程程序语义的前提下，可以重新安排语句的执行顺序。</li>
-<li>指令级并行的重排序。现代处理器采用了指令级并行技术（Instruction-Level Parallelism， ILP）来将多条指令重叠执行。如果不存在数据依赖性，处理器可以改变语句对应机器指令的执行顺序。</li>
-<li>内存系统的重排序。由于处理器使用缓存和读/写缓冲区，这使得加载和存储操作看上去可能是在乱序执行。</li>
-</ol>
-<p>从java源代码到最终实际执行的指令序列，会分别经历下面三种重排序：</p>
-<p><img src="http://cdn4.infoqstatic.com/statics_s2_20170221-0307u1/resource/articles/java-memory-model-1/zh/resources/33.png" alt="img"></p>
-<p>上述的1属于编译器重排序，2和3属于处理器重排序。这些重排序都可能会导致多线程程序出现内存可见性问题。对于编译器，JMM的编译器重排序规则会禁止特定类型的编译器重排序（不是所有的编译器重排序都要禁止）。对于处理器重排序，JMM的处理器重排序规则会要求java编译器在生成指令序列时，插入特定类型的内存屏障（memory barriers，intel称之为memory fence）指令，通过内存屏障指令来禁止特定类型的处理器重排序（不是所有的处理器重排序都要禁止）。</p>
-<p>JMM属于语言级的内存模型，它确保在不同的编译器和不同的处理器平台之上，通过禁止特定类型的编译器重排序和处理器重排序，为程序员提供一致的内存可见性保证。</p>
-<h2 id="处理器重排序与内存屏障指令"><a href="#处理器重排序与内存屏障指令" class="headerlink" title="处理器重排序与内存屏障指令"></a>处理器重排序与内存屏障指令</h2><p>现代的处理器使用写缓冲区来临时保存向内存写入的数据。写缓冲区可以保证指令流水线持续运行，它可以避免由于处理器停顿下来等待向内存写入数据而产生的延迟。同时，通过以批处理的方式刷新写缓冲区，以及合并写缓冲区中对同一内存地址的多次写，可以减少对内存总线的占用。虽然写缓冲区有这么多好处，但每个处理器上的写缓冲区，仅仅对它所在的处理器可见。这个特性会对内存操作的执行顺序产生重要的影响：处理器对内存的读/写操作的执行顺序，不一定与内存实际发生的读/写操作顺序一致！为了具体说明，请看下面示例：</p>
-<table>
-<thead>
-<tr>
-<th>Processor A</th>
-<th>Processor B</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>a = 1; //A1x = b; //A2</td>
-<td>b = 2; //B1y = a; //B2</td>
-</tr>
-<tr>
-<td>初始状态：a = b = 0处理器允许执行后得到结果：x = y = 0</td>
-</tr>
-</tbody>
-</table>
-<p>假设处理器A和处理器B按程序的顺序并行执行内存访问，最终却可能得到x = y = 0的结果。具体的原因如下图所示：</p>
-<p><img src="http://cdn4.infoqstatic.com/statics_s2_20170221-0307u1/resource/articles/java-memory-model-1/zh/resources/44.png" alt="img"></p>
-<p>这里处理器A和处理器B可以同时把共享变量写入自己的写缓冲区（A1，B1），然后从内存中读取另一个共享变量（A2，B2），最后才把自己写缓存区中保存的脏数据刷新到内存中（A3，B3）。当以这种时序执行时，程序就可以得到x = y = 0的结果。</p>
-<p>从内存操作实际发生的顺序来看，直到处理器A执行A3来刷新自己的写缓存区，写操作A1才算真正执行了。虽然处理器A执行内存操作的顺序为：A1-&gt;A2，但内存操作实际发生的顺序却是：A2-&gt;A1。此时，处理器A的内存操作顺序被重排序了（处理器B的情况和处理器A一样，这里就不赘述了）。</p>
-<p>这里的关键是，由于写缓冲区仅对自己的处理器可见，它会导致处理器执行内存操作的顺序可能会与内存实际的操作执行顺序不一致。由于现代的处理器都会使用写缓冲区，因此现代的处理器都会允许对写-读操做重排序。</p>
-<p>下面是常见处理器允许的重排序类型的列表：</p>
-<table>
-<thead>
-<tr>
-<th></th>
-<th>Load-Load</th>
-<th>Load-Store</th>
-<th>Store-Store</th>
-<th>Store-Load</th>
-<th>数据依赖</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>sparc-TSO</td>
-<td>N</td>
-<td>N</td>
-<td>N</td>
-<td>Y</td>
-<td>N</td>
-</tr>
-<tr>
-<td>x86</td>
-<td>N</td>
-<td>N</td>
-<td>N</td>
-<td>Y</td>
-<td>N</td>
-</tr>
-<tr>
-<td>ia64</td>
-<td>Y</td>
-<td>Y</td>
-<td>Y</td>
-<td>Y</td>
-<td>N</td>
-</tr>
-<tr>
-<td>PowerPC</td>
-<td>Y</td>
-<td>Y</td>
-<td>Y</td>
-<td>Y</td>
-<td>N</td>
-</tr>
-</tbody>
-</table>
-<p>上表单元格中的“N”表示处理器不允许两个操作重排序，“Y”表示允许重排序。</p>
-<p>从上表我们可以看出：常见的处理器都允许Store-Load重排序；常见的处理器都不允许对存在数据依赖的操作做重排序。sparc-TSO和x86拥有相对较强的处理器内存模型，它们仅允许对写-读操作做重排序（因为它们都使用了写缓冲区）。</p>
-<p>※注1：sparc-TSO是指以TSO(Total Store Order)内存模型运行时，sparc处理器的特性。</p>
-<p>※注2：上表中的x86包括x64及AMD64。</p>
-<p>※注3：由于ARM处理器的内存模型与PowerPC处理器的内存模型非常类似，本文将忽略它。</p>
-<p>※注4：数据依赖性后文会专门说明。</p>
-<p>为了保证内存可见性，java编译器在生成指令序列的适当位置会插入内存屏障指令来禁止特定类型的处理器重排序。JMM把内存屏障指令分为下列四类：</p>
-<table>
-<thead>
-<tr>
-<th>屏障类型</th>
-<th>指令示例</th>
-<th>说明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>LoadLoad Barriers</td>
-<td>Load1; LoadLoad; Load2</td>
-<td>确保Load1数据的装载，之前于Load2及所有后续装载指令的装载。</td>
-</tr>
-<tr>
-<td>StoreStore Barriers</td>
-<td>Store1; StoreStore; Store2</td>
-<td>确保Store1数据对其他处理器可见（刷新到内存），之前于Store2及所有后续存储指令的存储。</td>
-</tr>
-<tr>
-<td>LoadStore Barriers</td>
-<td>Load1; LoadStore; Store2</td>
-<td>确保Load1数据装载，之前于Store2及所有后续的存储指令刷新到内存。</td>
-</tr>
-<tr>
-<td>StoreLoad Barriers</td>
-<td>Store1; StoreLoad; Load2</td>
-<td>确保Store1数据对其他处理器变得可见（指刷新到内存），之前于Load2及所有后续装载指令的装载。StoreLoad Barriers会使该屏障之前的所有内存访问指令（存储和装载指令）完成之后，才执行该屏障之后的内存访问指令。</td>
-</tr>
-</tbody>
-</table>
-<p>StoreLoad Barriers是一个“全能型”的屏障，它同时具有其他三个屏障的效果。现代的多处理器大都支持该屏障（其他类型的屏障不一定被所有处理器支持）。执行该屏障开销会很昂贵，因为当前处理器通常要把写缓冲区中的数据全部刷新到内存中（buffer fully flush）。</p>
-<h2 id="happens-before"><a href="#happens-before" class="headerlink" title="happens-before"></a>happens-before</h2><p>从JDK5开始，java使用新的JSR -133内存模型（本文除非特别说明，针对的都是JSR- 133内存模型）。JSR-133提出了happens-before的概念，通过这个概念来阐述操作之间的内存可见性。如果一个操作执行的结果需要对另一个操作可见，那么这两个操作之间必须存在happens-before关系。这里提到的两个操作既可以是在一个线程之内，也可以是在不同线程之间。 与程序员密切相关的happens-before规则如下：</p>
-<ul>
-<li>程序顺序规则：一个线程中的每个操作，happens- before 于该线程中的任意后续操作。</li>
-<li>监视器锁规则：对一个监视器锁的解锁，happens- before 于随后对这个监视器锁的加锁。</li>
-<li>volatile变量规则：对一个volatile域的写，happens- before 于任意后续对这个volatile域的读。</li>
-<li>传递性：如果A happens- before B，且B happens- before C，那么A happens- before C。</li>
-</ul>
-<p>注意，两个操作之间具有happens-before关系，并不意味着前一个操作必须要在后一个操作之前执行！happens-before仅仅要求前一个操作（执行的结果）对后一个操作可见，且前一个操作按顺序排在第二个操作之前（the first is visible to and ordered before the second）。happens- before的定义很微妙，后文会具体说明happens-before为什么要这么定义。</p>
-<p>happens-before与JMM的关系如下图所示：</p>
-<p><img src="http://cdn4.infoqstatic.com/statics_s2_20170221-0307u1/resource/articles/java-memory-model-1/zh/resources/55.png" alt="img"></p>
-<p>如上图所示，一个happens-before规则通常对应于多个编译器重排序规则和处理器重排序规则。对于java程序员来说，happens-before规则简单易懂，它避免程序员为了理解JMM提供的内存可见性保证而去学习复杂的重排序规则以及这些规则的具体实现。</p>
-<p><a href="http://www.infoq.com/cn/articles/java-memory-model-1?utm_source=infoq&amp;utm_medium=related_content_link&amp;utm_campaign=relatedContent_articles_clk" target="_blank" rel="external">原文地址</a></p>
-
-           
-        
-        </div>
-        <footer class="article-footer">
-            <div class="share-container">
-
-
-
-</div>
-
-    <a data-url="http://lexburner.github.io/2017/02/24/浅析java内存模型（JMM）/" data-id="cj9qvjord004480udnk31giv4" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
-<script>
-    (function ($) {
-        // Prevent duplicate binding
-        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
-            __SHARE_BUTTON_BINDED__ = true;
-        } else {
-            return;
-        }
-        $('body').on('click', function() {
-            $('.article-share-box.on').removeClass('on');
-        }).on('click', '.article-share-link', function(e) {
-            e.stopPropagation();
-
-            var $this = $(this),
-                url = $this.attr('data-url'),
-                encodedUrl = encodeURIComponent(url),
-                id = 'article-share-box-' + $this.attr('data-id'),
-                offset = $this.offset(),
-                box;
-
-            if ($('#' + id).length) {
-                box = $('#' + id);
-
-                if (box.hasClass('on')){
-                    box.removeClass('on');
-                    return;
-                }
-            } else {
-                var html = [
-                    '<div id="' + id + '" class="article-share-box">',
-                        '<input class="article-share-input" value="' + url + '">',
-                        '<div class="article-share-links">',
-                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
-                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
-                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
-                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
-                        '</div>',
-                    '</div>'
-                ].join('');
-
-              box = $(html);
-
-              $('body').append(box);
-            }
-
-            $('.article-share-box.on').hide();
-
-            box.css({
-                top: offset.top + 25,
-                left: offset.left
-            }).addClass('on');
-
-        }).on('click', '.article-share-box', function (e) {
-            e.stopPropagation();
-        }).on('click', '.article-share-box-input', function () {
-            $(this).select();
-        }).on('click', '.article-share-box-link', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-
-            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
-        });
-    })(jQuery);
-</script>
-
-            
-    
-        <a href="http://lexburner.github.io/2017/02/24/浅析java内存模型（JMM）/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/02/24/浅析java内存模型（JMM）/">评论</a>
-    
-
-        </footer>
-    </div>
-	
-    
-	
-</article>
-
-
-
     <nav id="page-nav">
         <a class="extend prev" rel="prev" href="/page/3/">&laquo; 上一页</a><a class="page-number" href="/">1</a><a class="page-number" href="/page/2/">2</a><a class="page-number" href="/page/3/">3</a><span class="page-number current">4</span><a class="page-number" href="/page/5/">5</a><a class="page-number" href="/page/6/">6</a><a class="extend next" rel="next" href="/page/5/">下一页 &raquo;</a>
     </nav>
@@ -1899,6 +1785,26 @@
                             <p class="item-category"><a class="article-category-link" href="/categories/Spring-Cloud/">Spring Cloud</a></p>
                             <p class="item-title"><a href="/2017/11/07/spring-cloud-sleuth/" class="title">使用Spring Cloud Sleuth实现链路监控</a></p>
                             <p class="item-date"><time datetime="2017-11-07T08:58:01.000Z" itemprop="datePublished">2017-11-07</time></p>
+                        </div>
+                    </li>
+                
+                    <li>
+                        
+                        <!-- 去除图片 -->
+                        <!-- <div class="item-thumbnail">
+                            <a href="/2017/10/28/spring-data-redis-2/" class="thumbnail">
+    
+    
+        <span class="thumbnail-image thumbnail-none"></span>
+    
+</a>
+
+                        </div> -->
+                        
+                        <div class="item-inner">
+                            <p class="item-category"><a class="article-category-link" href="/categories/Spring-Data-Redis/">Spring Data Redis</a></p>
+                            <p class="item-title"><a href="/2017/10/28/spring-data-redis-2/" class="title">Spring Data Redis（二）--序列化</a></p>
+                            <p class="item-date"><time datetime="2017-10-28T08:10:55.000Z" itemprop="datePublished">2017-10-28</time></p>
                         </div>
                     </li>
                 
@@ -1946,7 +1852,7 @@
                         
                         <!-- 去除图片 -->
                         <!-- <div class="item-thumbnail">
-                            <a href="/2017/09/30/spring-security-4/" class="thumbnail">
+                            <a href="/2017/10/15/concurrent-2/" class="thumbnail">
     
     
         <span class="thumbnail-image thumbnail-none"></span>
@@ -1956,29 +1862,9 @@
                         </div> -->
                         
                         <div class="item-inner">
-                            <p class="item-category"><a class="article-category-link" href="/categories/Spring-Security/">Spring Security</a></p>
-                            <p class="item-title"><a href="/2017/09/30/spring-security-4/" class="title">Spring Security(四)--核心过滤器源码分析</a></p>
-                            <p class="item-date"><time datetime="2017-09-30T15:25:34.000Z" itemprop="datePublished">2017-09-30</time></p>
-                        </div>
-                    </li>
-                
-                    <li>
-                        
-                        <!-- 去除图片 -->
-                        <!-- <div class="item-thumbnail">
-                            <a href="/2017/09/23/project-rules-2/" class="thumbnail">
-    
-    
-        <span class="thumbnail-image thumbnail-none"></span>
-    
-</a>
-
-                        </div> -->
-                        
-                        <div class="item-inner">
-                            <p class="item-category"><a class="article-category-link" href="/categories/技术杂谈/">技术杂谈</a></p>
-                            <p class="item-title"><a href="/2017/09/23/project-rules-2/" class="title">警惕不规范的变量命名</a></p>
-                            <p class="item-date"><time datetime="2017-09-23T05:45:56.000Z" itemprop="datePublished">2017-09-23</time></p>
+                            <p class="item-category"><a class="article-category-link" href="/categories/架构设计/">架构设计</a></p>
+                            <p class="item-title"><a href="/2017/10/15/concurrent-2/" class="title">浅析项目中的并发(二)</a></p>
+                            <p class="item-date"><time datetime="2017-10-15T03:11:11.000Z" itemprop="datePublished">2017-10-15</time></p>
                         </div>
                     </li>
                 
@@ -1991,7 +1877,7 @@
     <div class="widget-wrap">
         <h3 class="widget-title">分类</h3>
         <div class="widget">
-            <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/DevOps/">DevOps</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/JAVA/">JAVA</a><span class="category-list-count">11</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring/">Spring</a><span class="category-list-count">6</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Cloud/">Spring Cloud</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Data-Redis/">Spring Data Redis</a><span class="category-list-count">1</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security/">Spring Security</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security-OAuth2/">Spring Security OAuth2</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Session/">Spring Session</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/技术杂谈/">技术杂谈</a><span class="category-list-count">6</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/架构设计/">架构设计</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/规则引擎/">规则引擎</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/领域驱动设计/">领域驱动设计</a><span class="category-list-count">2</span></li></ul>
+            <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/DevOps/">DevOps</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/JAVA/">JAVA</a><span class="category-list-count">11</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring/">Spring</a><span class="category-list-count">6</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Cloud/">Spring Cloud</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Data-Redis/">Spring Data Redis</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security/">Spring Security</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security-OAuth2/">Spring Security OAuth2</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Session/">Spring Session</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/技术杂谈/">技术杂谈</a><span class="category-list-count">6</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/架构设计/">架构设计</a><span class="category-list-count">6</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/规则引擎/">规则引擎</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/领域驱动设计/">领域驱动设计</a><span class="category-list-count">2</span></li></ul>
         </div>
     </div>
 
@@ -2000,7 +1886,7 @@
     <div class="widget-wrap">
         <h3 class="widget-title">归档</h3>
         <div class="widget">
-            <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/11/">十一月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/10/">十月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a><span class="archive-list-count">12</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a><span class="archive-list-count">10</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/02/">二月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/11/">十一月 2016</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/08/">八月 2016</a><span class="archive-list-count">3</span></li></ul>
+            <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/11/">十一月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/10/">十月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a><span class="archive-list-count">12</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a><span class="archive-list-count">10</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/02/">二月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/11/">十一月 2016</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/08/">八月 2016</a><span class="archive-list-count">3</span></li></ul>
         </div>
     </div>
 
@@ -2009,7 +1895,7 @@
     <div class="widget-wrap">
         <h3 class="widget-title">标签云</h3>
         <div class="widget tagcloud">
-            <a href="/tags/DevOps/" style="font-size: 11.67px;">DevOps</a> <a href="/tags/JAVA/" style="font-size: 20px;">JAVA</a> <a href="/tags/JMM/" style="font-size: 10px;">JMM</a> <a href="/tags/RPC/" style="font-size: 10px;">RPC</a> <a href="/tags/Spring/" style="font-size: 18.33px;">Spring</a> <a href="/tags/Spring-Cloud/" style="font-size: 13.33px;">Spring Cloud</a> <a href="/tags/Spring-Cloud-Zuul/" style="font-size: 11.67px;">Spring Cloud Zuul</a> <a href="/tags/Spring-Data-Redis/" style="font-size: 10px;">Spring Data Redis</a> <a href="/tags/Spring-Security/" style="font-size: 15px;">Spring Security</a> <a href="/tags/Spring-Security-OAuth2/" style="font-size: 13.33px;">Spring Security OAuth2</a> <a href="/tags/Spring-Session/" style="font-size: 13.33px;">Spring Session</a> <a href="/tags/Validation/" style="font-size: 11.67px;">Validation</a> <a href="/tags/XML/" style="font-size: 10px;">XML</a> <a href="/tags/Zipkin/" style="font-size: 10px;">Zipkin</a> <a href="/tags/drools/" style="font-size: 15px;">drools</a> <a href="/tags/lua/" style="font-size: 10px;">lua</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/zookeeper/" style="font-size: 10px;">zookeeper</a> <a href="/tags/事务/" style="font-size: 10px;">事务</a> <a href="/tags/代码规范/" style="font-size: 10px;">代码规范</a> <a href="/tags/多线程/" style="font-size: 16.67px;">多线程</a> <a href="/tags/微服务/" style="font-size: 10px;">微服务</a> <a href="/tags/技术杂谈/" style="font-size: 15px;">技术杂谈</a> <a href="/tags/数据库/" style="font-size: 10px;">数据库</a> <a href="/tags/杂谈/" style="font-size: 10px;">杂谈</a> <a href="/tags/架构设计/" style="font-size: 11.67px;">架构设计</a> <a href="/tags/求职/" style="font-size: 10px;">求职</a> <a href="/tags/规则引擎/" style="font-size: 15px;">规则引擎</a> <a href="/tags/领域驱动设计/" style="font-size: 11.67px;">领域驱动设计</a>
+            <a href="/tags/DevOps/" style="font-size: 11.67px;">DevOps</a> <a href="/tags/JAVA/" style="font-size: 20px;">JAVA</a> <a href="/tags/JMM/" style="font-size: 10px;">JMM</a> <a href="/tags/RPC/" style="font-size: 10px;">RPC</a> <a href="/tags/Spring/" style="font-size: 18.33px;">Spring</a> <a href="/tags/Spring-Cloud/" style="font-size: 13.33px;">Spring Cloud</a> <a href="/tags/Spring-Cloud-Zuul/" style="font-size: 11.67px;">Spring Cloud Zuul</a> <a href="/tags/Spring-Data-Redis/" style="font-size: 11.67px;">Spring Data Redis</a> <a href="/tags/Spring-Security/" style="font-size: 16.67px;">Spring Security</a> <a href="/tags/Spring-Security-OAuth2/" style="font-size: 13.33px;">Spring Security OAuth2</a> <a href="/tags/Spring-Session/" style="font-size: 13.33px;">Spring Session</a> <a href="/tags/Validation/" style="font-size: 11.67px;">Validation</a> <a href="/tags/XML/" style="font-size: 10px;">XML</a> <a href="/tags/Zipkin/" style="font-size: 10px;">Zipkin</a> <a href="/tags/drools/" style="font-size: 15px;">drools</a> <a href="/tags/lua/" style="font-size: 10px;">lua</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/zookeeper/" style="font-size: 10px;">zookeeper</a> <a href="/tags/事务/" style="font-size: 10px;">事务</a> <a href="/tags/代码规范/" style="font-size: 10px;">代码规范</a> <a href="/tags/多线程/" style="font-size: 16.67px;">多线程</a> <a href="/tags/微服务/" style="font-size: 10px;">微服务</a> <a href="/tags/技术杂谈/" style="font-size: 15px;">技术杂谈</a> <a href="/tags/数据库/" style="font-size: 10px;">数据库</a> <a href="/tags/杂谈/" style="font-size: 10px;">杂谈</a> <a href="/tags/架构设计/" style="font-size: 15px;">架构设计</a> <a href="/tags/求职/" style="font-size: 10px;">求职</a> <a href="/tags/规则引擎/" style="font-size: 15px;">规则引擎</a> <a href="/tags/领域驱动设计/" style="font-size: 11.67px;">领域驱动设计</a>
         </div>
     </div>
 
@@ -2030,6 +1916,10 @@
                 
                     <li>
                         <a href="http://blog.didispace.com/">程序猿DD|博客</a>
+                    </li>
+                
+                    <li>
+                        <a href="http://vip.iocoder.cn">芋道源码</a>
                     </li>
                 
             </ul>
