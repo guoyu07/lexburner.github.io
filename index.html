@@ -147,7 +147,7 @@
         </div>
         <div class="article-info profile-block">
             <div class="article-info-block">
-                55
+                56
                 <span>文章</span>
             </div>
             <div class="article-info-block">
@@ -182,6 +182,223 @@
 
             
             <section id="main">
+    <article id="post-spi" class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        
+            <header class="article-header">
+                
+    
+        <h1 itemprop="name">
+            <a class="article-title" href="/2017/11/09/spi/">JAVA拾遗--关于SPI机制</a>
+        </h1>
+    
+
+                
+                    <div class="article-meta">
+                    	
+	
+		<div class="article-type">
+		    <span class="label label-success" style="float: left;padding: 3px 5px 3px 5px;margin-right: 15px;margin-top: 2px;">原创</span>
+		</div>
+	
+		
+
+
+                        
+    <div class="article-date">
+        <i class="fa fa-calendar"></i>
+        <a href="/2017/11/09/spi/">
+            <time datetime="2017-11-09T08:18:51.000Z" itemprop="datePublished">2017-11-09</time>
+        </a>
+    </div>
+
+
+                        
+    <div class="article-category">
+    	<i class="fa fa-folder"></i>
+        <a class="article-category-link" href="/categories/JAVA/">JAVA</a>
+    </div>
+
+                        <!-- 不显示标签 -->
+                        <!-- 
+    <div class="article-tag">
+        <i class="fa fa-tag"></i>
+        <a class="tag-link" href="/tags/JAVA/">JAVA</a>
+    </div>
+ -->
+                    </div>
+                
+            </header>
+        
+        
+        <div class="article-entry" itemprop="articleBody">
+        
+            
+             <p>JDK提供的SPI(Service Provider Interface)机制，可能很多人不太熟悉，因为这个机制是针对厂商或者插件的，也可以在一些框架的扩展中看到。其核心类<code>java.util.ServiceLoader</code>可以在<a href="https://docs.oracle.com/javase/8/docs/api/java/util/ServiceLoader.html" target="_blank" rel="external">jdk1.8</a>的文档中看到详细的介绍。虽然不太常见，但并不代表它不常用，恰恰相反，你无时无刻不在用它。玄乎了，莫急，思考一下你的项目中是否有用到第三方日志包，是否有用到数据库驱动？其实这些都和SPI有关。再来思考一下，现代的框架是如何加载日志依赖，加载数据库驱动的，你可能会对class.forName(“com.mysql.jdbc.Driver”)这段代码不陌生，这是每个java初学者必定遇到过的，但如今的数据库驱动仍然是这样加载的吗？你还能找到这段代码吗？这一切的疑问，将在本篇文章结束后得到解答。</p>
+<p>首先介绍SPI机制是个什么东西</p>
+<h2 id="实现一个自定义的SPI"><a href="#实现一个自定义的SPI" class="headerlink" title="实现一个自定义的SPI"></a>实现一个自定义的SPI</h2><h3 id="1-项目结构"><a href="#1-项目结构" class="headerlink" title="1 项目结构"></a>1 项目结构</h3><p><img src="http://ov0zuistv.bkt.clouddn.com/spi_%E9%A1%B9%E7%9B%AE%E7%BB%93%E6%9E%84.png" alt="SPI项目结构"></p>
+<ol>
+<li>invoker是我们的用来测试的主项目。</li>
+<li>interface是针对厂商和插件商定义的接口项目，只提供接口，不提供实现。</li>
+<li>good-printer,bad-printer分别是两个厂商对interface的不同实现，所以他们会依赖于interface项目。</li>
+</ol>
+<p>这个简单的demo就是让大家体验，在不改变invoker代码，只更改依赖的前提下，切换interface的实现厂商。</p>
+<h3 id="2-interface模块"><a href="#2-interface模块" class="headerlink" title="2 interface模块"></a>2 interface模块</h3><p><strong>2.1 moe.cnkirito.spi.api.Printer</strong></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">Printer</span> </span>&#123;</div><div class="line">    <span class="function"><span class="keyword">void</span> <span class="title">print</span><span class="params">()</span></span>;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>interface只定义一个接口，不提供实现。规范的制定方一般都是比较牛叉的存在，这些接口通常位于java，javax前缀的包中。这里的Printer就是模拟一个规范接口。</p>
+<h3 id="3-good-printer模块"><a href="#3-good-printer模块" class="headerlink" title="3 good-printer模块"></a>3 good-printer模块</h3><p><strong>3.1 good-printer\pom.xml</strong></p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="name">dependencies</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">dependency</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>moe.cnkirito<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>interface<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">version</span>&gt;</span>1.0-SNAPSHOT<span class="tag">&lt;/<span class="name">version</span>&gt;</span></div><div class="line">    <span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></div><div class="line"><span class="tag">&lt;/<span class="name">dependencies</span>&gt;</span></div></pre></td></tr></table></figure>
+<p>规范的具体实现类必然要依赖规范接口</p>
+<p><strong>3.2 moe.cnkirito.spi.api.GoodPrinter</strong></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">GoodPrinter</span> <span class="keyword">implements</span> <span class="title">Printer</span> </span>&#123;</div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">print</span><span class="params">()</span> </span>&#123;</div><div class="line">        System.out.println(<span class="string">"你是个好人~"</span>);</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>作为Printer规范接口的实现一</p>
+<p><strong>3.3 resources\META-INF\services\moe.cnkirito.spi.api.Printer</strong></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">moe.cnkirito.spi.api.GoodPrinter</div></pre></td></tr></table></figure>
+<p>这里需要重点说明，每一个SPI接口都需要在自己项目的静态资源目录中声明一个services文件，文件名为实现规范接口的类名全路径，在此例中便是<code>moe.cnkirito.spi.api.Printer</code>，在文件中，则写上一行具体实现类的全路径，在此例中便是<code>moe.cnkirito.spi.api.GoodPrinter</code>。</p>
+<p>这样一个厂商的实现便完成了。</p>
+<h3 id="4-bad-printer模块"><a href="#4-bad-printer模块" class="headerlink" title="4 bad-printer模块"></a>4 bad-printer模块</h3><p>我们在按照和good-printer模块中定义的一样的方式，完成另一个厂商对Printer规范的实现。</p>
+<p><strong>4.1 bad-printer\pom.xml</strong><br><figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="name">dependencies</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">dependency</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>moe.cnkirito<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>interface<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">version</span>&gt;</span>1.0-SNAPSHOT<span class="tag">&lt;/<span class="name">version</span>&gt;</span></div><div class="line">    <span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></div><div class="line"><span class="tag">&lt;/<span class="name">dependencies</span>&gt;</span></div></pre></td></tr></table></figure></p>
+<p><strong>4.2 moe.cnkirito.spi.api.BadPrinter</strong></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">BadPrinter</span> <span class="keyword">implements</span> <span class="title">Printer</span> </span>&#123;</div><div class="line"></div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">print</span><span class="params">()</span> </span>&#123;</div><div class="line">        System.out.println(<span class="string">"我抽烟，喝酒，蹦迪，但我知道我是好女孩~"</span>);</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p><strong>4.3 resources\META-INF\services\moe.cnkirito.spi.api.Printer</strong></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">moe.cnkirito.spi.api.BadPrinter</div></pre></td></tr></table></figure>
+<p>这样，另一个厂商的实现便完成了。</p>
+<p><strong>5 invoker模块</strong></p>
+<p>这里的invoker便是我们自己的项目了。如果一开始我们想使用厂商good-printer的Printer实现，是需要将其的依赖引入。</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="name">dependencies</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">dependency</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>moe.cnkirito<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>interface<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">version</span>&gt;</span>1.0-SNAPSHOT<span class="tag">&lt;/<span class="name">version</span>&gt;</span></div><div class="line">    <span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">dependency</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>moe.cnkirito<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>good-printer<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">version</span>&gt;</span>1.0-SNAPSHOT<span class="tag">&lt;/<span class="name">version</span>&gt;</span></div><div class="line">    <span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></div><div class="line"><span class="tag">&lt;/<span class="name">dependencies</span>&gt;</span></div></pre></td></tr></table></figure>
+<p><strong>5.1 编写调用主类</strong></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">MainApp</span> </span>&#123;</div><div class="line"></div><div class="line"></div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span><span class="params">(String[] args)</span> </span>&#123;</div><div class="line">        ServiceLoader&lt;Printer&gt; printerLoader = ServiceLoader.load(Printer.class);</div><div class="line">        <span class="keyword">for</span> (Printer printer : printerLoader) &#123;</div><div class="line">            printer.print();</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>ServiceLoader是<code>java.util</code>提供的用于加载固定类路径下文件的一个加载器，正是它加载了对应接口声明的实现类。</p>
+<p><strong>5.2 打印结果1</strong></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">你是个好人~</div></pre></td></tr></table></figure>
+<p>如果在后续的方案中，想替换厂商的Printer实现，只需要将依赖更换</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="name">dependencies</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">dependency</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>moe.cnkirito<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>interface<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">version</span>&gt;</span>1.0-SNAPSHOT<span class="tag">&lt;/<span class="name">version</span>&gt;</span></div><div class="line">    <span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">dependency</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>moe.cnkirito<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>bad-printer<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">version</span>&gt;</span>1.0-SNAPSHOT<span class="tag">&lt;/<span class="name">version</span>&gt;</span></div><div class="line">    <span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></div><div class="line"><span class="tag">&lt;/<span class="name">dependencies</span>&gt;</span></div></pre></td></tr></table></figure>
+<p>调用主类无需变更代码，这符合开闭原则</p>
+<p><strong>5.3 打印结果2</strong></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">我抽烟，喝酒，蹦迪，但我知道我是好女孩~</div></pre></td></tr></table></figure>
+<p>是不是很神奇呢？这一切对于调用者来说都是透明的，只需要切换依赖即可！</p>
+<h2 id="SPI在实际项目中的应用"><a href="#SPI在实际项目中的应用" class="headerlink" title="SPI在实际项目中的应用"></a>SPI在实际项目中的应用</h2><p>先总结下有什么新知识，resources/META-INF/services下的文件似乎我们之前没怎么接触过，ServiceLoader也没怎么接触过。那么现在我们打开自己项目的依赖，看看有什么发现。</p>
+<ol>
+<li><p>在mysql-connector-java-xxx.jar中发现了META-INF\services\java.sql.Driver文件，里面只有两行记录：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line">com.mysql.jdbc.Driver</div><div class="line">com.mysql.fabric.jdbc.FabricMySQLDriver</div></pre></td></tr></table></figure>
+<p>我们可以分析出，<code>java.sql.Driver</code>是一个规范接口，<code>com.mysql.jdbc.Driver</code><br><code>com.mysql.fabric.jdbc.FabricMySQLDriver</code>则是mysql-connector-java-xxx.jar对这个规范的实现接口。</p>
+</li>
+<li><p>在jcl-over-slf4j-xxxx.jar中发现了META-INF\services\org.apache.commons.logging.LogFactory文件，里面只有一行记录：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">org.apache.commons.logging.impl.SLF4JLogFactory</div></pre></td></tr></table></figure>
+<p>相信不用我赘述，大家都能理解这是什么含义了</p>
+</li>
+<li><p>更多的还有很多，有兴趣可以自己翻一翻项目路径下的那些jar包</p>
+</li>
+</ol>
+<p>既然说到了数据库驱动，索性再多说一点，还记得一道经典的面试题：class.forName(“com.mysql.jdbc.Driver”)到底做了什么事？</p>
+<p>先思考下：自己会怎么回答？</p>
+<p>都知道class.forName与类加载机制有关，会触发执行com.mysql.jdbc.Driver类中的静态方法，从而使主类加载数据库驱动。如果再追问，为什么它的静态块没有自动触发？可答：因为数据库驱动类的特殊性质，JDBC规范中明确要求Driver类必须向DriverManager注册自己，导致其必须由class.forName手动触发，这可以在java.sql.Driver中得到解释。完美了吗？还没，来到最新的DriverManager源码中，可以看到这样的注释,翻译如下：</p>
+<blockquote>
+<p><code>DriverManager</code> 类的方法 <code>getConnection</code> 和 <code>getDrivers</code> 已经得到提高以支持 Java Standard Edition <a href="http://tool.oschina.net/uploads/apidocs/technotes/guides/jar/jar.html#Service%20Provider" target="_blank" rel="external">Service Provider</a> 机制。 JDBC 4.0 Drivers 必须包括 <code>META-INF/services/java.sql.Driver</code> 文件。此文件包含 <code>java.sql.Driver</code> 的 JDBC 驱动程序实现的名称。例如，要加载 <code>my.sql.Driver</code> 类，<code>META-INF/services/java.sql.Driver</code> 文件需要包含下面的条目：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line">&gt;  my.sql.Driver</div><div class="line">&gt;</div></pre></td></tr></table></figure>
+</blockquote>
+<p>&gt;</p>
+<blockquote>
+<p>应用程序不再需要使用 <code>Class.forName()</code> 显式地加载 JDBC 驱动程序。当前使用 <code>Class.forName()</code> 加载 JDBC 驱动程序的现有程序将在不作修改的情况下继续工作。</p>
+</blockquote>
+<p>可以发现，Class.forName已经被弃用了，所以，这道题目的最佳回答，应当是和面试官牵扯到JAVA中的SPI机制，进而聊聊加载驱动的演变历史。</p>
+<p><strong>java.sql.DriverManager</strong></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div></pre></td><td class="code"><pre><div class="line"><span class="function"><span class="keyword">public</span> Void <span class="title">run</span><span class="params">()</span> </span>&#123;</div><div class="line"></div><div class="line">    ServiceLoader&lt;Driver&gt; loadedDrivers = ServiceLoader.load(Driver.class);</div><div class="line">    Iterator&lt;Driver&gt; driversIterator = loadedDrivers.iterator();</div><div class="line"></div><div class="line">    <span class="keyword">try</span>&#123;</div><div class="line">        <span class="keyword">while</span>(driversIterator.hasNext()) &#123;</div><div class="line">            driversIterator.next();</div><div class="line">        &#125;</div><div class="line">    &#125; <span class="keyword">catch</span>(Throwable t) &#123;</div><div class="line">    <span class="comment">// Do nothing</span></div><div class="line">    &#125;</div><div class="line">    <span class="keyword">return</span> <span class="keyword">null</span>;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>当然那，本节的内容还是主要介绍SPI，驱动这一块这是引申而出，如果不太理解，可以多去翻一翻jdk1.8中Driver和DriverManager的源码，相信会有不小的收获。</p>
+<h2 id="SPI在扩展方面的应用"><a href="#SPI在扩展方面的应用" class="headerlink" title="SPI在扩展方面的应用"></a>SPI在扩展方面的应用</h2><p>SPI不仅仅是为厂商指定的标准，同样也为框架扩展提供了一个思路。框架可以预留出SPI接口，这样可以在不侵入代码的前提下，通过增删依赖来扩展框架。前提是，框架得预留出核心接口，也就是本例中interface模块中类似的接口，剩下的适配工作便留给了开发者。</p>
+<p>例如我的上一篇文章中介绍的motan中Filter的扩展，便是采用了SPI机制，熟悉这个设定之后再回头去了解一些框架的SPI扩展就不会太陌生了。</p>
+
+           
+        
+        </div>
+        <footer class="article-footer">
+            <div class="share-container">
+
+
+
+</div>
+
+    <a data-url="http://lexburner.github.io/2017/11/09/spi/" data-id="cj9saq8fc001yuwudz65ke7wy" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+<script>
+    (function ($) {
+        // Prevent duplicate binding
+        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
+            __SHARE_BUTTON_BINDED__ = true;
+        } else {
+            return;
+        }
+        $('body').on('click', function() {
+            $('.article-share-box.on').removeClass('on');
+        }).on('click', '.article-share-link', function(e) {
+            e.stopPropagation();
+
+            var $this = $(this),
+                url = $this.attr('data-url'),
+                encodedUrl = encodeURIComponent(url),
+                id = 'article-share-box-' + $this.attr('data-id'),
+                offset = $this.offset(),
+                box;
+
+            if ($('#' + id).length) {
+                box = $('#' + id);
+
+                if (box.hasClass('on')){
+                    box.removeClass('on');
+                    return;
+                }
+            } else {
+                var html = [
+                    '<div id="' + id + '" class="article-share-box">',
+                        '<input class="article-share-input" value="' + url + '">',
+                        '<div class="article-share-links">',
+                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
+                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
+                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
+                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
+                        '</div>',
+                    '</div>'
+                ].join('');
+
+              box = $(html);
+
+              $('body').append(box);
+            }
+
+            $('.article-share-box.on').hide();
+
+            box.css({
+                top: offset.top + 25,
+                left: offset.left
+            }).addClass('on');
+
+        }).on('click', '.article-share-box', function (e) {
+            e.stopPropagation();
+        }).on('click', '.article-share-box-input', function () {
+            $(this).select();
+        }).on('click', '.article-share-box-link', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
+        });
+    })(jQuery);
+</script>
+
+            
+    
+        <a href="http://lexburner.github.io/2017/11/09/spi/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/11/09/spi/">评论</a>
+    
+
+        </footer>
+    </div>
+	
+    
+	
+</article>
+
+
+
     <article id="post-spring-cloud-sleuth" class="article article-type-post" itemscope itemprop="blogPost">
     <div class="article-inner">
         
@@ -323,7 +540,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/11/07/spring-cloud-sleuth/" data-id="cj9rsgdru00230sudluho3fj3" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/11/07/spring-cloud-sleuth/" data-id="cj9saq8fr002euwudaygqnc33" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -525,7 +742,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/10/28/spring-data-redis-2/" data-id="cj9rsgdsa002b0sud9ih4b1jf" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/10/28/spring-data-redis-2/" data-id="cj9saq8g4002tuwud7qbgtfua" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -757,7 +974,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/10/27/spring-data-redis-1/" data-id="cj9rsgds000260sud2dg890sj" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/10/27/spring-data-redis-1/" data-id="cj9saq8fu002huwud4u2qutcn" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -927,7 +1144,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/10/25/java-skill-1/" data-id="cj9rsgdr5001n0sudbrayt8vl" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/10/25/java-skill-1/" data-id="cj9saq8f4001quwudjpp4pzpd" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1115,7 +1332,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/10/15/concurrent-2/" data-id="cj9rsgdpd000u0sudqt86ufw1" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/10/15/concurrent-2/" data-id="cj9saq8ef000wuwuduzg82t2f" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1308,7 +1525,7 @@ public String test(){
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/10/11/concurrent-1/" data-id="cj9rsgdov000n0suddiwnl776" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/10/11/concurrent-1/" data-id="cj9saq8e4000ouwud7jv4n0qr" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1459,7 +1676,7 @@ public String test(){
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/10/01/spring-security-5/" data-id="cj9rsgdtj00310sudv8cg4u18" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/10/01/spring-security-5/" data-id="cj9saq8gg0036uwudjbdb374b" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1661,7 +1878,7 @@ public String test(){
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/09/30/spring-security-4/" data-id="cj9rsgdt7002u0sudhbgnztth" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/09/30/spring-security-4/" data-id="cj9saq8gb0030uwudse55kcmu" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1846,7 +2063,7 @@ public String test(){
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/09/23/project-rules-2/" data-id="cj9rsgdrm001y0sud2eqllj5x" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/09/23/project-rules-2/" data-id="cj9saq8f8001vuwudarde3thn" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1926,219 +2143,6 @@ public String test(){
 
 
 
-    <article id="post-spring-security-3" class="article article-type-post" itemscope itemprop="blogPost">
-    <div class="article-inner">
-        
-        
-            <header class="article-header">
-                
-    
-        <h1 itemprop="name">
-            <a class="article-title" href="/2017/09/20/spring-security-3/">Spring Security(三)--核心配置解读</a>
-        </h1>
-    
-
-                
-                    <div class="article-meta">
-                    	
-	
-		<div class="article-type">
-		    <span class="label label-success" style="float: left;padding: 3px 5px 3px 5px;margin-right: 15px;margin-top: 2px;">原创</span>
-		</div>
-	
-		
-
-
-                        
-    <div class="article-date">
-        <i class="fa fa-calendar"></i>
-        <a href="/2017/09/20/spring-security-3/">
-            <time datetime="2017-09-20T15:25:34.000Z" itemprop="datePublished">2017-09-20</time>
-        </a>
-    </div>
-
-
-                        
-    <div class="article-category">
-    	<i class="fa fa-folder"></i>
-        <a class="article-category-link" href="/categories/Spring-Security/">Spring Security</a>
-    </div>
-
-                        <!-- 不显示标签 -->
-                        <!-- 
-    <div class="article-tag">
-        <i class="fa fa-tag"></i>
-        <a class="tag-link" href="/tags/Spring-Security/">Spring Security</a>
-    </div>
- -->
-                    </div>
-                
-            </header>
-        
-        
-        <div class="article-entry" itemprop="articleBody">
-        
-            
-             <p>上一篇文章《Spring Security(二)–Guides》，通过Spring Security的配置项了解了Spring Security是如何保护我们的应用的，本篇文章对上一次的配置做一个分析。</p>
-<p>[TOC]</p>
-<h2 id="3-核心配置解读"><a href="#3-核心配置解读" class="headerlink" title="3 核心配置解读"></a>3 核心配置解读</h2><h3 id="3-1-功能介绍"><a href="#3-1-功能介绍" class="headerlink" title="3.1 功能介绍"></a>3.1 功能介绍</h3><p>这是Spring Security入门指南中的配置项：</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Configuration</span></div><div class="line"><span class="meta">@EnableWebSecurity</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">WebSecurityConfig</span> <span class="keyword">extends</span> <span class="title">WebSecurityConfigurerAdapter</span> </span>&#123;</div><div class="line"></div><div class="line">  <span class="meta">@Override</span></div><div class="line">  <span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">configure</span><span class="params">(HttpSecurity http)</span> <span class="keyword">throws</span> Exception </span>&#123;</div><div class="line">      http</div><div class="line">          .authorizeRequests()</div><div class="line">              .antMatchers(<span class="string">"/"</span>, <span class="string">"/home"</span>).permitAll()</div><div class="line">              .anyRequest().authenticated()</div><div class="line">              .and()</div><div class="line">          .formLogin()</div><div class="line">              .loginPage(<span class="string">"/login"</span>)</div><div class="line">              .permitAll()</div><div class="line">              .and()</div><div class="line">          .logout()</div><div class="line">              .permitAll();</div><div class="line">  &#125;</div><div class="line"></div><div class="line">  <span class="meta">@Autowired</span></div><div class="line">  <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">configureGlobal</span><span class="params">(AuthenticationManagerBuilder auth)</span> <span class="keyword">throws</span> Exception </span>&#123;</div><div class="line">      auth</div><div class="line">          .inMemoryAuthentication()</div><div class="line">              .withUser(<span class="string">"admin"</span>).password(<span class="string">"admin"</span>).roles(<span class="string">"USER"</span>);</div><div class="line">  &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>当配置了上述的javaconfig之后，我们的应用便具备了如下的功能：</p>
-<ul>
-<li>除了“/”,”/home”(首页),”/login”(登录),”/logout”(注销),之外，其他路径都需要认证。</li>
-<li>指定“/login”该路径为登录页面，当未认证的用户尝试访问任何受保护的资源时，都会跳转到“/login”。</li>
-<li>默认指定“/logout”为注销页面</li>
-<li>配置一个内存中的用户认证器，使用admin/admin作为用户名和密码，具有USER角色</li>
-</ul>
-<ul>
-<li>防止CSRF攻击</li>
-<li><a href="https://en.wikipedia.org/wiki/Session_fixation" target="_blank" rel="external">Session Fixation</a> protection(可以参考我之前讲解Spring Session的文章，防止别人篡改sessionId)</li>
-<li>Security Header(添加一系列和Header相关的控制)<ul>
-<li><a href="https://en.wikipedia.org/wiki/HTTP_Strict_Transport_Security" target="_blank" rel="external">HTTP Strict Transport Security</a> for secure requests</li>
-<li>集成X-Content-Type-Options</li>
-<li>缓存控制</li>
-<li>集成<a href="https://msdn.microsoft.com/en-us/library/dd565647(v=vs.85" target="_blank" rel="external">X-XSS-Protection</a>.aspx) </li>
-<li>X-Frame-Options integration to help prevent <a href="https://en.wikipedia.org/wiki/Clickjacking" target="_blank" rel="external">Clickjacking</a>(iframe被默认禁止使用)</li>
-</ul>
-</li>
-<li>为Servlet API集成了如下的几个方法<ul>
-<li><a href="https://docs.oracle.com/javaee/6/api/javax/servlet/http/HttpServletRequest.html#getRemoteUser(" target="_blank" rel="external">HttpServletRequest#getRemoteUser()</a>)</li>
-<li><a href="https://docs.oracle.com/javaee/6/api/javax/servlet/http/HttpServletRequest.html#getUserPrincipal(" target="_blank" rel="external">HttpServletRequest.html#getUserPrincipal()</a>)</li>
-<li><a href="https://docs.oracle.com/javaee/6/api/javax/servlet/http/HttpServletRequest.html#isUserInRole(java.lang.String" target="_blank" rel="external">HttpServletRequest.html#isUserInRole(java.lang.String)</a>)</li>
-<li><a href="https://docs.oracle.com/javaee/6/api/javax/servlet/http/HttpServletRequest.html#login(java.lang.String,%20java.lang.String" target="_blank" rel="external">HttpServletRequest.html#login(java.lang.String, java.lang.String)</a>)</li>
-<li><a href="https://docs.oracle.com/javaee/6/api/javax/servlet/http/HttpServletRequest.html#logout(" target="_blank" rel="external">HttpServletRequest.html#logout()</a>)</li>
-</ul>
-</li>
-</ul>
-<h3 id="3-2-EnableWebSecurity"><a href="#3-2-EnableWebSecurity" class="headerlink" title="3.2 @EnableWebSecurity"></a>3.2 @EnableWebSecurity</h3><p>我们自己定义的配置类WebSecurityConfig加上了@EnableWebSecurity注解，同时继承了WebSecurityConfigurerAdapter。你可能会在想谁的作用大一点，毫无疑问@EnableWebSecurity起到决定性的配置作用，它其实是个组合注解。</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Import</span>(&#123; WebSecurityConfiguration.class, <span class="comment">// &lt;2&gt;</span></div><div class="line">      SpringWebMvcImportSelector.class &#125;) <span class="comment">// &lt;1&gt;</span></div><div class="line"><span class="meta">@EnableGlobalAuthentication</span> <span class="comment">// &lt;3&gt;</span></div><div class="line"><span class="meta">@Configuration</span></div><div class="line"><span class="keyword">public</span> <span class="meta">@interface</span> EnableWebSecurity &#123;</div><div class="line">   <span class="function"><span class="keyword">boolean</span> <span class="title">debug</span><span class="params">()</span> <span class="keyword">default</span> <span class="keyword">false</span></span>;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>@Import是springboot提供的用于引入外部的配置的注解，可以理解为：@EnableWebSecurity注解激活了@Import注解中包含的配置类。</p>
-<p><1> <code>SpringWebMvcImportSelector</code>的作用是判断当前的环境是否包含springmvc，因为spring security可以在非spring环境下使用，为了避免DispatcherServlet的重复配置，所以使用了这个注解来区分。</1></p>
-<p><2> <code>WebSecurityConfiguration</code>顾名思义，是用来配置web安全的，下面的小节会详细介绍。</2></p>
-<p><3> <code>@EnableGlobalAuthentication</code>注解的源码如下：</3></p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Import</span>(AuthenticationConfiguration.class)</div><div class="line"><span class="meta">@Configuration</span></div><div class="line"><span class="keyword">public</span> <span class="meta">@interface</span> EnableGlobalAuthentication &#123;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>注意点同样在@Import之中，它实际上激活了AuthenticationConfiguration这样的一个配置类，用来配置认证相关的核心类。</p>
-<p>也就是说：@EnableWebSecurity完成的工作便是加载了WebSecurityConfiguration，AuthenticationConfiguration这两个核心配置类，也就此将spring security的职责划分为了配置安全信息，配置认证信息两部分。</p>
-<h4 id="WebSecurityConfiguration"><a href="#WebSecurityConfiguration" class="headerlink" title="WebSecurityConfiguration"></a>WebSecurityConfiguration</h4><p>在这个配置类中，有一个非常重要的Bean被注册了。</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Configuration</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">WebSecurityConfiguration</span> </span>&#123;</div><div class="line"></div><div class="line">	<span class="comment">//DEFAULT_FILTER_NAME = "springSecurityFilterChain"</span></div><div class="line">	<span class="meta">@Bean</span>(name = AbstractSecurityWebApplicationInitializer.DEFAULT_FILTER_NAME)</div><div class="line">    <span class="function"><span class="keyword">public</span> Filter <span class="title">springSecurityFilterChain</span><span class="params">()</span> <span class="keyword">throws</span> Exception </span>&#123;</div><div class="line">    	...</div><div class="line">    &#125;</div><div class="line">   </div><div class="line"> &#125;</div></pre></td></tr></table></figure>
-<p>在未使用springboot之前，大多数人都应该对“springSecurityFilterChain”这个名词不会陌生，他是spring security的核心过滤器，是整个认证的入口。在曾经的XML配置中，想要启用spring security，需要在web.xml中进行如下配置：</p>
-<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div></pre></td><td class="code"><pre><div class="line"><span class="comment">&lt;!-- Spring Security --&gt;</span></div><div class="line">   <span class="tag">&lt;<span class="name">filter</span>&gt;</span></div><div class="line">       <span class="tag">&lt;<span class="name">filter-name</span>&gt;</span>springSecurityFilterChain<span class="tag">&lt;/<span class="name">filter-name</span>&gt;</span></div><div class="line">       <span class="tag">&lt;<span class="name">filter-class</span>&gt;</span>org.springframework.web.filter.DelegatingFilterProxy<span class="tag">&lt;/<span class="name">filter-class</span>&gt;</span></div><div class="line">   <span class="tag">&lt;/<span class="name">filter</span>&gt;</span></div><div class="line"></div><div class="line">   <span class="tag">&lt;<span class="name">filter-mapping</span>&gt;</span></div><div class="line">       <span class="tag">&lt;<span class="name">filter-name</span>&gt;</span>springSecurityFilterChain<span class="tag">&lt;/<span class="name">filter-name</span>&gt;</span></div><div class="line">       <span class="tag">&lt;<span class="name">url-pattern</span>&gt;</span>/*<span class="tag">&lt;/<span class="name">url-pattern</span>&gt;</span></div><div class="line">   <span class="tag">&lt;/<span class="name">filter-mapping</span>&gt;</span></div></pre></td></tr></table></figure>
-<p>而在springboot集成之后，这样的XML被java配置取代。WebSecurityConfiguration中完成了声明springSecurityFilterChain的作用，并且最终交给DelegatingFilterProxy这个代理类，负责拦截请求（注意DelegatingFilterProxy这个类不是spring security包中的，而是存在于web包中，spring使用了代理模式来实现安全过滤的解耦）。</p>
-<h4 id="AuthenticationConfiguration"><a href="#AuthenticationConfiguration" class="headerlink" title="AuthenticationConfiguration"></a>AuthenticationConfiguration</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Configuration</span></div><div class="line"><span class="meta">@Import</span>(ObjectPostProcessorConfiguration.class)</div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">AuthenticationConfiguration</span> </span>&#123;</div><div class="line"></div><div class="line">  	<span class="meta">@Bean</span></div><div class="line">	<span class="function"><span class="keyword">public</span> AuthenticationManagerBuilder <span class="title">authenticationManagerBuilder</span><span class="params">(</span></span></div><div class="line"><span class="function"><span class="params">			ObjectPostProcessor&lt;Object&gt; objectPostProcessor)</span> </span>&#123;</div><div class="line">		<span class="keyword">return</span> <span class="keyword">new</span> AuthenticationManagerBuilder(objectPostProcessor);</div><div class="line">	&#125;</div><div class="line">  </div><div class="line">  	<span class="function"><span class="keyword">public</span> AuthenticationManager <span class="title">getAuthenticationManager</span><span class="params">()</span> <span class="keyword">throws</span> Exception </span>&#123;</div><div class="line">    	...</div><div class="line">    &#125;</div><div class="line"></div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>AuthenticationConfiguration的主要任务，便是负责生成全局的身份认证管理者AuthenticationManager。还记得在《Spring Security(一)–Architecture Overview》中，介绍了Spring Security的认证体系，AuthenticationManager便是最核心的身份认证管理器。</p>
-<h3 id="3-3-WebSecurityConfigurerAdapter"><a href="#3-3-WebSecurityConfigurerAdapter" class="headerlink" title="3.3 WebSecurityConfigurerAdapter"></a>3.3 WebSecurityConfigurerAdapter</h3><p>适配器模式在spring中被广泛的使用，在配置中使用Adapter的好处便是，我们可以选择性的配置想要修改的那一部分配置，而不用覆盖其他不相关的配置。WebSecurityConfigurerAdapter中我们可以选择自己想要修改的内容，来进行重写，而其提供了三个configure重载方法，是我们主要关心的：</p>
-<p><img src="http://ov0zuistv.bkt.clouddn.com/QQ%E5%9B%BE%E7%89%8720170924215436.png" alt="WebSecurityConfigurerAdapter中的configure"></p>
-<p>由参数就可以知道，分别是对AuthenticationManagerBuilder，WebSecurity，HttpSecurity进行个性化的配置。</p>
-<h4 id="HttpSecurity常用配置"><a href="#HttpSecurity常用配置" class="headerlink" title="HttpSecurity常用配置"></a>HttpSecurity常用配置</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Configuration</span></div><div class="line"><span class="meta">@EnableWebSecurity</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">CustomWebSecurityConfig</span> <span class="keyword">extends</span> <span class="title">WebSecurityConfigurerAdapter</span> </span>&#123;</div><div class="line">  </div><div class="line">    <span class="meta">@Override</span></div><div class="line">    <span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">configure</span><span class="params">(HttpSecurity http)</span> <span class="keyword">throws</span> Exception </span>&#123;</div><div class="line">        http</div><div class="line">            .authorizeRequests()</div><div class="line">                .antMatchers(<span class="string">"/resources/**"</span>, <span class="string">"/signup"</span>, <span class="string">"/about"</span>).permitAll()</div><div class="line">                .antMatchers(<span class="string">"/admin/**"</span>).hasRole(<span class="string">"ADMIN"</span>)</div><div class="line">                .antMatchers(<span class="string">"/db/**"</span>).access(<span class="string">"hasRole('ADMIN') and hasRole('DBA')"</span>)</div><div class="line">                .anyRequest().authenticated()</div><div class="line">                .and()</div><div class="line">            .formLogin()</div><div class="line">                .usernameParameter(<span class="string">"username"</span>)</div><div class="line">                .passwordParameter(<span class="string">"password"</span>)</div><div class="line">                .failureForwardUrl(<span class="string">"/login?error"</span>)</div><div class="line">                .loginPage(<span class="string">"/login"</span>)</div><div class="line">                .permitAll()</div><div class="line">                .and()</div><div class="line">            .logout()</div><div class="line">                .logoutUrl(<span class="string">"/logout"</span>)</div><div class="line">                .logoutSuccessUrl(<span class="string">"/index"</span>)</div><div class="line">                .permitAll()</div><div class="line">                .and()</div><div class="line">            .httpBasic()</div><div class="line">                .disable();</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>上述是一个使用Java Configuration配置HttpSecurity的典型配置，其中http作为根开始配置，每一个and()对应了一个模块的配置（等同于xml配置中的结束标签），并且and()返回了HttpSecurity本身，于是可以连续进行配置。他们配置的含义也非常容易通过变量本身来推测，</p>
-<ul>
-<li>authorizeRequests()配置路径拦截，表明路径访问所对应的权限，角色，认证信息。</li>
-<li>formLogin()对应表单认证相关的配置</li>
-<li>logout()对应了注销相关的配置</li>
-<li>httpBasic()可以配置basic登录</li>
-<li>etc</li>
-</ul>
-<p>他们分别代表了http请求相关的安全配置，这些配置项无一例外的返回了Configurer类，而所有的http相关配置可以通过查看HttpSecurity的主要方法得知：</p>
-<p><img src="http://ov0zuistv.bkt.clouddn.com/QQ%E5%9B%BE%E7%89%8720170924223252.png" alt="http://ov0zuistv.bkt.clouddn.com/QQ%E5%9B%BE%E7%89%8720170924223252.png"></p>
-<p>需要对http协议有一定的了解才能完全掌握所有的配置，不过，springboot和spring security的自动配置已经足够使用了。其中每一项Configurer（e.g.FormLoginConfigurer,CsrfConfigurer）都是HttpConfigurer的细化配置项。</p>
-<h4 id="WebSecurityBuilder"><a href="#WebSecurityBuilder" class="headerlink" title="WebSecurityBuilder"></a>WebSecurityBuilder</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Configuration</span></div><div class="line"><span class="meta">@EnableWebSecurity</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">WebSecurityConfig</span> <span class="keyword">extends</span> <span class="title">WebSecurityConfigurerAdapter</span> </span>&#123;</div><div class="line">    <span class="meta">@Override</span></div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">configure</span><span class="params">(WebSecurity web)</span> <span class="keyword">throws</span> Exception </span>&#123;</div><div class="line">        web</div><div class="line">            .ignoring()</div><div class="line">            .antMatchers(<span class="string">"/resources/**"</span>);</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>以笔者的经验，这个配置中并不会出现太多的配置信息。</p>
-<h4 id="AuthenticationManagerBuilder"><a href="#AuthenticationManagerBuilder" class="headerlink" title="AuthenticationManagerBuilder"></a>AuthenticationManagerBuilder</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Configuration</span></div><div class="line"><span class="meta">@EnableWebSecurity</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">WebSecurityConfig</span> <span class="keyword">extends</span> <span class="title">WebSecurityConfigurerAdapter</span> </span>&#123;</div><div class="line">    </div><div class="line">    <span class="meta">@Override</span></div><div class="line">    <span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">configure</span><span class="params">(AuthenticationManagerBuilder auth)</span> <span class="keyword">throws</span> Exception </span>&#123;</div><div class="line">        auth</div><div class="line">            .inMemoryAuthentication()</div><div class="line">            .withUser(<span class="string">"admin"</span>).password(<span class="string">"admin"</span>).roles(<span class="string">"USER"</span>);</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>想要在WebSecurityConfigurerAdapter中进行认证相关的配置，可以使用configure(AuthenticationManagerBuilder auth)暴露一个AuthenticationManager的建造器：AuthenticationManagerBuilder 。如上所示，我们便完成了内存中用户的配置。</p>
-<p>细心的朋友会发现，在前面的文章中我们配置内存中的用户时，似乎不是这么配置的，而是：</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Configuration</span></div><div class="line"><span class="meta">@EnableWebSecurity</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">WebSecurityConfig</span> <span class="keyword">extends</span> <span class="title">WebSecurityConfigurerAdapter</span> </span>&#123;</div><div class="line">    </div><div class="line">    <span class="meta">@Autowired</span></div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">configureGlobal</span><span class="params">(AuthenticationManagerBuilder auth)</span> <span class="keyword">throws</span> Exception </span>&#123;</div><div class="line">        auth</div><div class="line">            .inMemoryAuthentication()</div><div class="line">                .withUser(<span class="string">"admin"</span>).password(<span class="string">"admin"</span>).roles(<span class="string">"USER"</span>);</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>如果你的应用只有唯一一个WebSecurityConfigurerAdapter，那么他们之间的差距可以被忽略，从方法名可以看出两者的区别：使用@Autowired注入的AuthenticationManagerBuilder是全局的身份认证器，作用域可以跨越多个WebSecurityConfigurerAdapter，以及影响到基于Method的安全控制；而 <code>protected configure()</code>的方式则类似于一个匿名内部类，它的作用域局限于一个WebSecurityConfigurerAdapter内部。关于这一点的区别，可以参考我曾经提出的issue<a href="https://github.com/spring-projects/spring-security/issues/4571" target="_blank" rel="external">spring-security#issues4571</a>。官方文档中，也给出了配置多个WebSecurityConfigurerAdapter的场景以及demo，将在该系列的后续文章中解读。</p>
-
-           
-        
-        </div>
-        <footer class="article-footer">
-            <div class="share-container">
-
-
-
-</div>
-
-    <a data-url="http://lexburner.github.io/2017/09/20/spring-security-3/" data-id="cj9rsgdt1002r0sudpjzd6msb" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
-<script>
-    (function ($) {
-        // Prevent duplicate binding
-        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
-            __SHARE_BUTTON_BINDED__ = true;
-        } else {
-            return;
-        }
-        $('body').on('click', function() {
-            $('.article-share-box.on').removeClass('on');
-        }).on('click', '.article-share-link', function(e) {
-            e.stopPropagation();
-
-            var $this = $(this),
-                url = $this.attr('data-url'),
-                encodedUrl = encodeURIComponent(url),
-                id = 'article-share-box-' + $this.attr('data-id'),
-                offset = $this.offset(),
-                box;
-
-            if ($('#' + id).length) {
-                box = $('#' + id);
-
-                if (box.hasClass('on')){
-                    box.removeClass('on');
-                    return;
-                }
-            } else {
-                var html = [
-                    '<div id="' + id + '" class="article-share-box">',
-                        '<input class="article-share-input" value="' + url + '">',
-                        '<div class="article-share-links">',
-                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
-                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
-                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
-                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
-                        '</div>',
-                    '</div>'
-                ].join('');
-
-              box = $(html);
-
-              $('body').append(box);
-            }
-
-            $('.article-share-box.on').hide();
-
-            box.css({
-                top: offset.top + 25,
-                left: offset.left
-            }).addClass('on');
-
-        }).on('click', '.article-share-box', function (e) {
-            e.stopPropagation();
-        }).on('click', '.article-share-box-input', function () {
-            $(this).select();
-        }).on('click', '.article-share-box-link', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-
-            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
-        });
-    })(jQuery);
-</script>
-
-            
-    
-        <a href="http://lexburner.github.io/2017/09/20/spring-security-3/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/09/20/spring-security-3/">评论</a>
-    
-
-        </footer>
-    </div>
-	
-    
-	
-</article>
-
-
-
     <nav id="page-nav">
         <span class="page-number current">1</span><a class="page-number" href="/page/2/">2</a><a class="page-number" href="/page/3/">3</a><span class="space">&hellip;</span><a class="page-number" href="/page/6/">6</a><a class="extend next" rel="next" href="/page/2/">下一页 &raquo;</a>
     </nav>
@@ -2151,6 +2155,26 @@ public String test(){
         <h3 class="widget-title">最新文章</h3>
         <div class="widget">
             <ul id="recent-post" class="">
+                
+                    <li>
+                        
+                        <!-- 去除图片 -->
+                        <!-- <div class="item-thumbnail">
+                            <a href="/2017/11/09/spi/" class="thumbnail">
+    
+    
+        <span class="thumbnail-image thumbnail-none"></span>
+    
+</a>
+
+                        </div> -->
+                        
+                        <div class="item-inner">
+                            <p class="item-category"><a class="article-category-link" href="/categories/JAVA/">JAVA</a></p>
+                            <p class="item-title"><a href="/2017/11/09/spi/" class="title">JAVA拾遗--关于SPI机制</a></p>
+                            <p class="item-date"><time datetime="2017-11-09T08:18:51.000Z" itemprop="datePublished">2017-11-09</time></p>
+                        </div>
+                    </li>
                 
                     <li>
                         
@@ -2232,26 +2256,6 @@ public String test(){
                         </div>
                     </li>
                 
-                    <li>
-                        
-                        <!-- 去除图片 -->
-                        <!-- <div class="item-thumbnail">
-                            <a href="/2017/10/15/concurrent-2/" class="thumbnail">
-    
-    
-        <span class="thumbnail-image thumbnail-none"></span>
-    
-</a>
-
-                        </div> -->
-                        
-                        <div class="item-inner">
-                            <p class="item-category"><a class="article-category-link" href="/categories/架构设计/">架构设计</a></p>
-                            <p class="item-title"><a href="/2017/10/15/concurrent-2/" class="title">浅析项目中的并发(二)</a></p>
-                            <p class="item-date"><time datetime="2017-10-15T03:11:11.000Z" itemprop="datePublished">2017-10-15</time></p>
-                        </div>
-                    </li>
-                
             </ul>
         </div>
     </div>
@@ -2261,7 +2265,7 @@ public String test(){
     <div class="widget-wrap">
         <h3 class="widget-title">分类</h3>
         <div class="widget">
-            <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/DevOps/">DevOps</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/JAVA/">JAVA</a><span class="category-list-count">11</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring/">Spring</a><span class="category-list-count">6</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Cloud/">Spring Cloud</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Data-Redis/">Spring Data Redis</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security/">Spring Security</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security-OAuth2/">Spring Security OAuth2</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Session/">Spring Session</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/技术杂谈/">技术杂谈</a><span class="category-list-count">6</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/架构设计/">架构设计</a><span class="category-list-count">6</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/规则引擎/">规则引擎</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/领域驱动设计/">领域驱动设计</a><span class="category-list-count">2</span></li></ul>
+            <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/DevOps/">DevOps</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/JAVA/">JAVA</a><span class="category-list-count">12</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring/">Spring</a><span class="category-list-count">6</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Cloud/">Spring Cloud</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Data-Redis/">Spring Data Redis</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security/">Spring Security</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security-OAuth2/">Spring Security OAuth2</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Session/">Spring Session</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/技术杂谈/">技术杂谈</a><span class="category-list-count">6</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/架构设计/">架构设计</a><span class="category-list-count">6</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/规则引擎/">规则引擎</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/领域驱动设计/">领域驱动设计</a><span class="category-list-count">2</span></li></ul>
         </div>
     </div>
 
@@ -2270,7 +2274,7 @@ public String test(){
     <div class="widget-wrap">
         <h3 class="widget-title">归档</h3>
         <div class="widget">
-            <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/11/">十一月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/10/">十月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a><span class="archive-list-count">12</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a><span class="archive-list-count">10</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/02/">二月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/11/">十一月 2016</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/08/">八月 2016</a><span class="archive-list-count">3</span></li></ul>
+            <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/11/">十一月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/10/">十月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a><span class="archive-list-count">12</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a><span class="archive-list-count">10</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/02/">二月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/11/">十一月 2016</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/08/">八月 2016</a><span class="archive-list-count">3</span></li></ul>
         </div>
     </div>
 
