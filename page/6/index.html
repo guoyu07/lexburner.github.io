@@ -257,7 +257,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2016/11/07/java trick--String.intern()/" data-id="cj9saq8eu001euwudeiw5zava" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2016/11/07/java trick--String.intern()/" data-id="cj9tgwu22001ee0udgkaifk8p" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -412,7 +412,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2016/11/07/java trick--intergerCache/" data-id="cj9saq8f2001ouwudbvpylffu" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2016/11/07/java trick--intergerCache/" data-id="cj9tgwu24001ge0udii3y1hbv" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -560,7 +560,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2016/11/07/java trick--system.out.println/" data-id="cj9saq8ez001juwud6rwaapgb" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2016/11/07/java trick--system.out.println/" data-id="cj9tgwu3v003ne0udu6f3rxe1" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -640,7 +640,7 @@
 
 
 
-    <article id="post-使用JPA实现乐观锁" class="article article-type-post" itemscope itemprop="blogPost">
+    <article id="post-hello-world" class="article article-type-post" itemscope itemprop="blogPost">
     <div class="article-inner">
         
         
@@ -648,7 +648,7 @@
                 
     
         <h1 itemprop="name">
-            <a class="article-title" href="/2016/08/16/使用JPA实现乐观锁/">使用JPA实现乐观锁</a>
+            <a class="article-title" href="/2016/08/16/hello-world/">Hello World</a>
         </h1>
     
 
@@ -666,7 +666,7 @@
                         
     <div class="article-date">
         <i class="fa fa-calendar"></i>
-        <a href="/2016/08/16/使用JPA实现乐观锁/">
+        <a href="/2016/08/16/hello-world/">
             <time datetime="2016-08-16T07:52:52.000Z" itemprop="datePublished">2016-08-16</time>
         </a>
     </div>
@@ -675,14 +675,14 @@
                         
     <div class="article-category">
     	<i class="fa fa-folder"></i>
-        <a class="article-category-link" href="/categories/JAVA/">JAVA</a>
+        <a class="article-category-link" href="/categories/Spring/">Spring</a>
     </div>
 
                         <!-- 不显示标签 -->
                         <!-- 
     <div class="article-tag">
         <i class="fa fa-tag"></i>
-        <a class="tag-link" href="/tags/多线程/">多线程</a>, <a class="tag-link" href="/tags/数据库/">数据库</a>
+        <a class="tag-link" href="/tags/Spring/">Spring</a>, <a class="tag-link" href="/tags/Validation/">Validation</a>
     </div>
  -->
                     </div>
@@ -692,14 +692,9 @@
         
         <div class="article-entry" itemprop="articleBody">
         
-            <p><p>乐观锁的概念就不再赘述了，不了解的朋友请自行百度谷歌之，今天主要说的是在项目中如何使用乐观锁，做成一个小demo。</p>
-<p>持久层使用jpa时，默认提供了一个注解<code>@Version</code>先看看源码怎么描述这个注解的</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Target</span>(&#123; METHOD, FIELD &#125;)</div><div class="line"><span class="meta">@Retention</span>(RUNTIME)</div><div class="line"><span class="keyword">public</span> <span class="meta">@interface</span> Version &#123;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>简单来说就是用一个version字段来充当乐观锁的作用。<br>先来设计实体类</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div></pre></td><td class="code"><pre><div class="line"><span class="comment">/**</span></div><div class="line"><span class="comment"> * Created by xujingfeng on 2017/1/30.</span></div><div class="line"><span class="comment"> */</span></div><div class="line"><span class="meta">@Entity</span></div><div class="line"><span class="meta">@Table</span>(name = <span class="string">"t_student"</span>)</div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Student</span> </span>&#123;</div><div class="line"></div><div class="line">    <span class="meta">@Id</span></div><div class="line">    <span class="meta">@GenericGenerator</span>(name = <span class="string">"PKUUID"</span>, strategy = <span class="string">"uuid2"</span>)</div><div class="line">    <span class="meta">@GeneratedValue</span>(generator = <span class="string">"PKUUID"</span>)</div><div class="line">    <span class="meta">@Column</span>(length = <span class="number">36</span>)</div><div class="line">    <span class="keyword">private</span> String id;</div><div class="line"></div><div class="line">    <span class="meta">@Version</span></div><div class="line">    <span class="keyword">private</span> <span class="keyword">int</span> version;</div><div class="line"></div><div class="line">    <span class="keyword">private</span> String name;</div><div class="line"></div><div class="line">    <span class="comment">//getter()...</span></div><div class="line">    <span class="comment">//setter()...</span></div><div class="line">&#125;</div></pre></td></tr></table></figure></p>
-            <p class="article-more-link">
-                <a href="/2016/08/16/使用JPA实现乐观锁/#more">查看更多</a>
-            </p>
+            
+             
+           
         
         </div>
         <footer class="article-footer">
@@ -709,7 +704,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2016/08/16/使用JPA实现乐观锁/" data-id="cj9saq8jn005uuwudry37l2a9" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2016/08/16/hello-world/" data-id="cj9tgwu1z001be0udtvjyxrpk" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -777,7 +772,7 @@
 
             
     
-        <a href="http://lexburner.github.io/2016/08/16/使用JPA实现乐观锁/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2016/08/16/使用JPA实现乐观锁/">评论</a>
+        <a href="http://lexburner.github.io/2016/08/16/hello-world/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2016/08/16/hello-world/">评论</a>
     
 
         </footer>
@@ -863,7 +858,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2016/08/16/使用zkclient操作zookeeper的学习过程记录/" data-id="cj9saq8k6006auwudqwzb80ct" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2016/08/16/使用zkclient操作zookeeper的学习过程记录/" data-id="cj9tgwu4x0054e0udk3pvx5n1" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -943,7 +938,7 @@
 
 
 
-    <article id="post-hello-world" class="article article-type-post" itemscope itemprop="blogPost">
+    <article id="post-使用JPA实现乐观锁" class="article article-type-post" itemscope itemprop="blogPost">
     <div class="article-inner">
         
         
@@ -951,7 +946,7 @@
                 
     
         <h1 itemprop="name">
-            <a class="article-title" href="/2016/08/16/hello-world/">Hello World</a>
+            <a class="article-title" href="/2016/08/16/使用JPA实现乐观锁/">使用JPA实现乐观锁</a>
         </h1>
     
 
@@ -969,7 +964,7 @@
                         
     <div class="article-date">
         <i class="fa fa-calendar"></i>
-        <a href="/2016/08/16/hello-world/">
+        <a href="/2016/08/16/使用JPA实现乐观锁/">
             <time datetime="2016-08-16T07:52:52.000Z" itemprop="datePublished">2016-08-16</time>
         </a>
     </div>
@@ -978,14 +973,14 @@
                         
     <div class="article-category">
     	<i class="fa fa-folder"></i>
-        <a class="article-category-link" href="/categories/Spring/">Spring</a>
+        <a class="article-category-link" href="/categories/JAVA/">JAVA</a>
     </div>
 
                         <!-- 不显示标签 -->
                         <!-- 
     <div class="article-tag">
         <i class="fa fa-tag"></i>
-        <a class="tag-link" href="/tags/Spring/">Spring</a>, <a class="tag-link" href="/tags/Validation/">Validation</a>
+        <a class="tag-link" href="/tags/多线程/">多线程</a>, <a class="tag-link" href="/tags/数据库/">数据库</a>
     </div>
  -->
                     </div>
@@ -995,9 +990,14 @@
         
         <div class="article-entry" itemprop="articleBody">
         
-            
-             
-           
+            <p><p>乐观锁的概念就不再赘述了，不了解的朋友请自行百度谷歌之，今天主要说的是在项目中如何使用乐观锁，做成一个小demo。</p>
+<p>持久层使用jpa时，默认提供了一个注解<code>@Version</code>先看看源码怎么描述这个注解的</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Target</span>(&#123; METHOD, FIELD &#125;)</div><div class="line"><span class="meta">@Retention</span>(RUNTIME)</div><div class="line"><span class="keyword">public</span> <span class="meta">@interface</span> Version &#123;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>简单来说就是用一个version字段来充当乐观锁的作用。<br>先来设计实体类</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div></pre></td><td class="code"><pre><div class="line"><span class="comment">/**</span></div><div class="line"><span class="comment"> * Created by xujingfeng on 2017/1/30.</span></div><div class="line"><span class="comment"> */</span></div><div class="line"><span class="meta">@Entity</span></div><div class="line"><span class="meta">@Table</span>(name = <span class="string">"t_student"</span>)</div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Student</span> </span>&#123;</div><div class="line"></div><div class="line">    <span class="meta">@Id</span></div><div class="line">    <span class="meta">@GenericGenerator</span>(name = <span class="string">"PKUUID"</span>, strategy = <span class="string">"uuid2"</span>)</div><div class="line">    <span class="meta">@GeneratedValue</span>(generator = <span class="string">"PKUUID"</span>)</div><div class="line">    <span class="meta">@Column</span>(length = <span class="number">36</span>)</div><div class="line">    <span class="keyword">private</span> String id;</div><div class="line"></div><div class="line">    <span class="meta">@Version</span></div><div class="line">    <span class="keyword">private</span> <span class="keyword">int</span> version;</div><div class="line"></div><div class="line">    <span class="keyword">private</span> String name;</div><div class="line"></div><div class="line">    <span class="comment">//getter()...</span></div><div class="line">    <span class="comment">//setter()...</span></div><div class="line">&#125;</div></pre></td></tr></table></figure></p>
+            <p class="article-more-link">
+                <a href="/2016/08/16/使用JPA实现乐观锁/#more">查看更多</a>
+            </p>
         
         </div>
         <footer class="article-footer">
@@ -1007,7 +1007,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2016/08/16/hello-world/" data-id="cj9saq8et001buwudq2c6qvf5" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2016/08/16/使用JPA实现乐观锁/" data-id="cj9tgwu44003ye0udy8pikbdf" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1075,7 +1075,7 @@
 
             
     
-        <a href="http://lexburner.github.io/2016/08/16/hello-world/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2016/08/16/hello-world/">评论</a>
+        <a href="http://lexburner.github.io/2016/08/16/使用JPA实现乐观锁/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2016/08/16/使用JPA实现乐观锁/">评论</a>
     
 
         </footer>
