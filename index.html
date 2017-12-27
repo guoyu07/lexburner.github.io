@@ -251,7 +251,7 @@
 <p><strong>2 添加 Maven 插件</strong></p>
 <figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="name">build</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">plugins</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">plugin</span>&gt;</span></div><div class="line">            <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>org.codehaus.mojo<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></div><div class="line">            <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>build-helper-maven-plugin<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></div><div class="line">            <span class="tag">&lt;<span class="name">version</span>&gt;</span>1.10<span class="tag">&lt;/<span class="name">version</span>&gt;</span></div><div class="line">            <span class="tag">&lt;<span class="name">executions</span>&gt;</span></div><div class="line">                <span class="tag">&lt;<span class="name">execution</span>&gt;</span></div><div class="line">                    <span class="tag">&lt;<span class="name">phase</span>&gt;</span>generate-sources<span class="tag">&lt;/<span class="name">phase</span>&gt;</span></div><div class="line">                    <span class="tag">&lt;<span class="name">goals</span>&gt;</span></div><div class="line">                        <span class="tag">&lt;<span class="name">goal</span>&gt;</span>add-source<span class="tag">&lt;/<span class="name">goal</span>&gt;</span></div><div class="line">                    <span class="tag">&lt;/<span class="name">goals</span>&gt;</span></div><div class="line">                    <span class="tag">&lt;<span class="name">configuration</span>&gt;</span></div><div class="line">                        <span class="tag">&lt;<span class="name">sources</span>&gt;</span></div><div class="line">                            <span class="tag">&lt;<span class="name">source</span>&gt;</span>$&#123;project.build.directory&#125;/generated-sources/annotations<span class="tag">&lt;/<span class="name">source</span>&gt;</span></div><div class="line">                        <span class="tag">&lt;/<span class="name">sources</span>&gt;</span></div><div class="line">                    <span class="tag">&lt;/<span class="name">configuration</span>&gt;</span></div><div class="line">                <span class="tag">&lt;/<span class="name">execution</span>&gt;</span></div><div class="line">            <span class="tag">&lt;/<span class="name">executions</span>&gt;</span></div><div class="line">        <span class="tag">&lt;/<span class="name">plugin</span>&gt;</span></div><div class="line">    <span class="tag">&lt;/<span class="name">plugins</span>&gt;</span></div><div class="line"><span class="tag">&lt;/<span class="name">build</span>&gt;</span></div></pre></td></tr></table></figure>
 <p>安装插件后，可以借助它生成一个和 DemoApi 关联的异步接口 DemoApiAsync 。</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">MotanDemoServiceAsync</span> <span class="keyword">extends</span> <span class="title">MotanDemoService</span> </span>&#123;</div><div class="line">  <span class="function">ResponseFuture <span class="title">helloAsync</span><span class="params">(String name)</span></span>;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">DemoApiAsync</span> <span class="keyword">extends</span> <span class="title">DemoApi</span> </span>&#123;</div><div class="line">  <span class="function">ResponseFuture <span class="title">randomDemoAsync</span><span class="params">(String id)</span></span>;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
 <p><strong>3 注入接口即可调用</strong></p>
 <figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Service</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">DemoService</span> </span>&#123;</div><div class="line"></div><div class="line">    <span class="meta">@MotanReferer</span></div><div class="line">    DemoApi demoApi;</div><div class="line"></div><div class="line">    <span class="meta">@MotanReferer</span></div><div class="line">    DemoApiAsync demoApiAsync;<span class="comment">//&lt;1&gt;</span></div><div class="line"></div><div class="line">    <span class="function"><span class="keyword">public</span> DemoDto <span class="title">randomDemo</span><span class="params">(String id)</span></span>&#123;</div><div class="line">        DemoDto demoDto = demoApi.randomDemo(id);</div><div class="line">        <span class="keyword">return</span> demoDto;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    <span class="function"><span class="keyword">public</span> DemoDto <span class="title">randomDemoAsync</span><span class="params">(String id)</span></span>&#123;</div><div class="line">        ResponseFuture responseFuture = demoApiAsync.randomDemoAsync(id);<span class="comment">//&lt;2&gt;</span></div><div class="line">        DemoDto demoDto = (DemoDto) responseFuture.getValue();</div><div class="line">        <span class="keyword">return</span> demoDto;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">&#125;</div></pre></td></tr></table></figure>
 <p><1> DemoApiAsync 如何生成的已经介绍过，它和 DemoApi 并没有功能性的区别，仅仅是同步异步调用的差距，而 DemoApiAsync 实现的的复杂性完全由 RPC 框架帮助我们完成，开发者无需编写 Callable 接口。</1></p>
@@ -270,7 +270,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/12/27/motan-async/" data-id="cjbore77h0027rgud6hmlg5mv" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/12/27/motan-async/" data-id="cjborkn850026msudaqw2jmtm" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -453,7 +453,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/12/22/rpc-transport/" data-id="cjbore7880031rgud8wfowcmr" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/12/22/rpc-transport/" data-id="cjborkn8x0031msudwuoam30c" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -660,7 +660,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/12/15/rpc-dynamic-proxy/" data-id="cjbore780002rrgudztf9zl5f" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/12/15/rpc-dynamic-proxy/" data-id="cjborkn8q002smsudddfo6vk3" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -931,7 +931,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/12/11/rpc-serialize-2/" data-id="cjbore786002xrgudc903lvf6" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/12/11/rpc-serialize-2/" data-id="cjborkn8u002xmsudgpgi27ao" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1173,7 +1173,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/12/06/NJIAS2017/" data-id="cjbore74f0000rgudx84g8nhw" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/12/06/NJIAS2017/" data-id="cjborkn4x0000msudkz0a6ngr" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1449,7 +1449,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/11/28/rpc-serialize-1/" data-id="cjbore783002urgudebw6sb42" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/11/28/rpc-serialize-1/" data-id="cjborkn8s002umsuduua3psja" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1721,7 +1721,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/11/28/view-1/" data-id="cjbore79g004ergudao5yyzpz" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/11/28/view-1/" data-id="cjborkna7004dmsudq51dwqqj" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1948,7 +1948,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/11/15/orika/" data-id="cjbore77o002ergudjjp0gwcy" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/11/15/orika/" data-id="cjborkn8d002emsud2o09pok1" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -2162,7 +2162,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/11/09/spi/" data-id="cjbore78b0035rgudhshuqhdq" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/11/09/spi/" data-id="cjborkn910035msudcrzpguof" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -2383,7 +2383,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/11/07/spring-cloud-sleuth/" data-id="cjbore78e0038rgud7bgz8yra" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/11/07/spring-cloud-sleuth/" data-id="cjborkn940038msudfqbzryup" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
