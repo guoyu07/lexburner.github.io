@@ -182,6 +182,174 @@
 
             
             <section id="main">
+    <article id="post-motan-async" class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        
+            <header class="article-header">
+                
+    
+        <h1 itemprop="name">
+            <a class="article-title" href="/2017/12/27/motan-async/">Motan中使用异步RPC接口</a>
+        </h1>
+    
+
+                
+                    <div class="article-meta">
+                    	
+	
+		<div class="article-type">
+		    <span class="label label-success" style="float: left;padding: 3px 5px 3px 5px;margin-right: 15px;margin-top: 2px;">原创</span>
+		</div>
+	
+		
+
+
+                        
+    <div class="article-date">
+        <i class="fa fa-calendar"></i>
+        <a href="/2017/12/27/motan-async/">
+            <time datetime="2017-12-27T13:34:34.000Z" itemprop="datePublished">2017-12-27</time>
+        </a>
+    </div>
+
+
+                        
+    <div class="article-category">
+    	<i class="fa fa-folder"></i>
+        <a class="article-category-link" href="/categories/RPC/">RPC</a>
+    </div>
+
+                        <!-- 不显示标签 -->
+                        <!-- 
+    <div class="article-tag">
+        <i class="fa fa-tag"></i>
+        <a class="tag-link" href="/tags/RPC/">RPC</a>, <a class="tag-link" href="/tags/motan/">motan</a>
+    </div>
+ -->
+                    </div>
+                
+            </header>
+        
+        
+        <div class="article-entry" itemprop="articleBody">
+        
+            
+             <p>这周六参加了一个美团点评的技术沙龙，其中一位老师在介绍他们自研的 RPC 框架时提到一点：RPC 请求分为 sync，future，callback，oneway，并且需要遵循一个原则：能够异步的地方就不要使用同步。正好最近在优化一个业务场景：在一次页面展示中，需要调用 5 个 RPC 接口，导致页面响应很慢。正好启发了我。</p>
+<h2 id="为什么慢？"><a href="#为什么慢？" class="headerlink" title="为什么慢？"></a>为什么慢？</h2><p>大多数开源的 RPC 框架实现远程调用的方式都是同步的，假设 [ 接口1，…，接口5]的每一次调用耗时为 200ms （其中接口2依赖接口1，接口5依赖接口3，接口4），那么总耗时为 1s，这整个是一个串行的过程。</p>
+<h2 id="多线程加速"><a href="#多线程加速" class="headerlink" title="多线程加速"></a>多线程加速</h2><p>第一个想到的解决方案便是多线程，那么[1=&gt;2]编为一组，[[3,4]=&gt;5]编为一组，两组并发执行，[1=&gt;2]串行执行耗时400ms，[3,4]并发执行耗时200ms，[[3,4]=&gt;5]总耗时400ms ，最终[[1=&gt;2],[[3,4]=&gt;5]]总耗时400ms（理论耗时）。相比较于原来的1s，的确快了不少，但实际编写接口花了不少功夫，创建线程池，管理资源，分析依赖关系…总之代码不是很优雅。</p>
+<p>RPC中，多线程着重考虑的点是在客户端优化代码，这给客户端带来了一定的复杂性，并且编写并发代码对程序员的要求更高，且不利于调试。</p>
+<h2 id="异步调用"><a href="#异步调用" class="headerlink" title="异步调用"></a>异步调用</h2><p>如果有一种既能保证速度，又能像同步 RPC 调用那样方便，岂不美哉？于是引出了 RPC 中的异步调用。</p>
+<p>在 RPC 异步调用之前，先回顾一下 <code>java.util.concurrent</code> 中的基础知识：<code>Callable</code> 和 <code>Future</code></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div><div class="line">39</div><div class="line">40</div><div class="line">41</div><div class="line">42</div><div class="line">43</div><div class="line">44</div><div class="line">45</div><div class="line">46</div><div class="line">47</div><div class="line">48</div><div class="line">49</div><div class="line">50</div><div class="line">51</div><div class="line">52</div><div class="line">53</div><div class="line">54</div><div class="line">55</div><div class="line">56</div><div class="line">57</div><div class="line">58</div><div class="line">59</div><div class="line">60</div><div class="line">61</div><div class="line">62</div><div class="line">63</div><div class="line">64</div><div class="line">65</div><div class="line">66</div><div class="line">67</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Main</span> </span>&#123;</div><div class="line"></div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span><span class="params">(String[] args)</span> <span class="keyword">throws</span> Exception</span>&#123;</div><div class="line">        </div><div class="line">        <span class="keyword">final</span> ExecutorService executorService = Executors.newFixedThreadPool(<span class="number">10</span>);</div><div class="line">        <span class="keyword">long</span> start = System.currentTimeMillis();</div><div class="line">        Future&lt;Integer&gt; resultFuture1 = executorService.submit(<span class="keyword">new</span> Callable&lt;Integer&gt;() &#123;</div><div class="line">            <span class="meta">@Override</span></div><div class="line">            <span class="function"><span class="keyword">public</span> Integer <span class="title">call</span><span class="params">()</span> <span class="keyword">throws</span> Exception </span>&#123;</div><div class="line">                <span class="keyword">return</span> method1() + method2();</div><div class="line">            &#125;</div><div class="line">        &#125;);</div><div class="line">        Future&lt;Integer&gt; resultFuture2 = executorService.submit(<span class="keyword">new</span> Callable&lt;Integer&gt;() &#123;</div><div class="line">            <span class="meta">@Override</span></div><div class="line">            <span class="function"><span class="keyword">public</span> Integer <span class="title">call</span><span class="params">()</span> <span class="keyword">throws</span> Exception </span>&#123;</div><div class="line">                Future&lt;Integer&gt; resultFuture3 = executorService.submit(<span class="keyword">new</span> Callable&lt;Integer&gt;() &#123;</div><div class="line">                    <span class="meta">@Override</span></div><div class="line">                    <span class="function"><span class="keyword">public</span> Integer <span class="title">call</span><span class="params">()</span> <span class="keyword">throws</span> Exception </span>&#123;</div><div class="line">                        <span class="keyword">return</span> method3();</div><div class="line">                    &#125;</div><div class="line">                &#125;);</div><div class="line">                Future&lt;Integer&gt; resultFuture4 = executorService.submit(<span class="keyword">new</span> Callable&lt;Integer&gt;() &#123;</div><div class="line">                    <span class="meta">@Override</span></div><div class="line">                    <span class="function"><span class="keyword">public</span> Integer <span class="title">call</span><span class="params">()</span> <span class="keyword">throws</span> Exception </span>&#123;</div><div class="line">                        <span class="keyword">return</span> method4();</div><div class="line">                    &#125;</div><div class="line">                &#125;);</div><div class="line">                <span class="keyword">return</span> method5()+resultFuture3.get()+resultFuture4.get();</div><div class="line">            &#125;</div><div class="line">        &#125;);</div><div class="line">        <span class="keyword">int</span> result = resultFuture1.get() + resultFuture2.get();</div><div class="line">        </div><div class="line">        System.out.println(<span class="string">"result = "</span>+result+<span class="string">", total cost "</span>+(System.currentTimeMillis()-start)+<span class="string">" ms"</span>);</div><div class="line"></div><div class="line">      	executorService.shutdown();</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    <span class="function"><span class="keyword">static</span> <span class="keyword">int</span> <span class="title">method1</span><span class="params">()</span></span>&#123;</div><div class="line">        delay200ms();</div><div class="line">        <span class="keyword">return</span> <span class="number">1</span>;</div><div class="line">    &#125;</div><div class="line">    <span class="function"><span class="keyword">static</span> <span class="keyword">int</span> <span class="title">method2</span><span class="params">()</span></span>&#123;</div><div class="line">        delay200ms();</div><div class="line">        <span class="keyword">return</span> <span class="number">2</span>;</div><div class="line">    &#125;</div><div class="line">    <span class="function"><span class="keyword">static</span> <span class="keyword">int</span> <span class="title">method3</span><span class="params">()</span></span>&#123;</div><div class="line">        delay200ms();</div><div class="line">        <span class="keyword">return</span> <span class="number">3</span>;</div><div class="line">    &#125;</div><div class="line">    <span class="function"><span class="keyword">static</span> <span class="keyword">int</span> <span class="title">method4</span><span class="params">()</span></span>&#123;</div><div class="line">        delay200ms();</div><div class="line">        <span class="keyword">return</span> <span class="number">4</span>;</div><div class="line">    &#125;</div><div class="line">    <span class="function"><span class="keyword">static</span> <span class="keyword">int</span> <span class="title">method5</span><span class="params">()</span></span>&#123;</div><div class="line">        delay200ms();</div><div class="line">        <span class="keyword">return</span> <span class="number">5</span>;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    <span class="function"><span class="keyword">static</span> <span class="keyword">void</span> <span class="title">delay200ms</span><span class="params">()</span></span>&#123;</div><div class="line">        <span class="keyword">try</span>&#123;</div><div class="line">            Thread.sleep(<span class="number">200</span>);</div><div class="line">        &#125;<span class="keyword">catch</span> (Exception e)&#123;</div><div class="line">            e.printStackTrace();</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>最终控制台打印：</p>
+<p><strong>result = 15, total cost 413 ms</strong></p>
+<p>五个接口，如果同步调用，便是串行的效果，最终耗时必定在 1s 之上，而异步调用的优势便是，submit任务之后立刻返回，只有在调用 <code>future.get()</code> 方法时才会阻塞，而这期间多个异步方法便可以并发的执行。</p>
+<h2 id="RPC-异步调用"><a href="#RPC-异步调用" class="headerlink" title="RPC 异步调用"></a>RPC 异步调用</h2><p>我们的项目使用了 Motan 作为 RPC 框架，查看其 changeLog ，<a href="https://github.com/weibocom/motan/tree/0.3.0" target="_blank" rel="external">0.3.0</a> (2017-03-09) 该版本已经支持了 async 特性。可以让开发者很方便地实现 RPC 异步调用。</p>
+<p><strong>1 为接口增加 @MotanAsync 注解</strong></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@MotanAsync</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">DemoApi</span> </span>&#123;</div><div class="line">    <span class="function">DemoDto <span class="title">randomDemo</span><span class="params">(String id)</span></span>;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p><strong>2 添加 Maven 插件</strong></p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="name">build</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">plugins</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">plugin</span>&gt;</span></div><div class="line">            <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>org.codehaus.mojo<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></div><div class="line">            <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>build-helper-maven-plugin<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></div><div class="line">            <span class="tag">&lt;<span class="name">version</span>&gt;</span>1.10<span class="tag">&lt;/<span class="name">version</span>&gt;</span></div><div class="line">            <span class="tag">&lt;<span class="name">executions</span>&gt;</span></div><div class="line">                <span class="tag">&lt;<span class="name">execution</span>&gt;</span></div><div class="line">                    <span class="tag">&lt;<span class="name">phase</span>&gt;</span>generate-sources<span class="tag">&lt;/<span class="name">phase</span>&gt;</span></div><div class="line">                    <span class="tag">&lt;<span class="name">goals</span>&gt;</span></div><div class="line">                        <span class="tag">&lt;<span class="name">goal</span>&gt;</span>add-source<span class="tag">&lt;/<span class="name">goal</span>&gt;</span></div><div class="line">                    <span class="tag">&lt;/<span class="name">goals</span>&gt;</span></div><div class="line">                    <span class="tag">&lt;<span class="name">configuration</span>&gt;</span></div><div class="line">                        <span class="tag">&lt;<span class="name">sources</span>&gt;</span></div><div class="line">                            <span class="tag">&lt;<span class="name">source</span>&gt;</span>$&#123;project.build.directory&#125;/generated-sources/annotations<span class="tag">&lt;/<span class="name">source</span>&gt;</span></div><div class="line">                        <span class="tag">&lt;/<span class="name">sources</span>&gt;</span></div><div class="line">                    <span class="tag">&lt;/<span class="name">configuration</span>&gt;</span></div><div class="line">                <span class="tag">&lt;/<span class="name">execution</span>&gt;</span></div><div class="line">            <span class="tag">&lt;/<span class="name">executions</span>&gt;</span></div><div class="line">        <span class="tag">&lt;/<span class="name">plugin</span>&gt;</span></div><div class="line">    <span class="tag">&lt;/<span class="name">plugins</span>&gt;</span></div><div class="line"><span class="tag">&lt;/<span class="name">build</span>&gt;</span></div></pre></td></tr></table></figure>
+<p>安装插件后，可以借助它生成一个和 DemoApi 关联的异步接口 DemoApiAsync 。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">MotanDemoServiceAsync</span> <span class="keyword">extends</span> <span class="title">MotanDemoService</span> </span>&#123;</div><div class="line">  <span class="function">ResponseFuture <span class="title">helloAsync</span><span class="params">(String name)</span></span>;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p><strong>3 注入接口即可调用</strong></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Service</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">DemoService</span> </span>&#123;</div><div class="line"></div><div class="line">    <span class="meta">@MotanReferer</span></div><div class="line">    DemoApi demoApi;</div><div class="line"></div><div class="line">    <span class="meta">@MotanReferer</span></div><div class="line">    DemoApiAsync demoApiAsync;<span class="comment">//&lt;1&gt;</span></div><div class="line"></div><div class="line">    <span class="function"><span class="keyword">public</span> DemoDto <span class="title">randomDemo</span><span class="params">(String id)</span></span>&#123;</div><div class="line">        DemoDto demoDto = demoApi.randomDemo(id);</div><div class="line">        <span class="keyword">return</span> demoDto;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    <span class="function"><span class="keyword">public</span> DemoDto <span class="title">randomDemoAsync</span><span class="params">(String id)</span></span>&#123;</div><div class="line">        ResponseFuture responseFuture = demoApiAsync.randomDemoAsync(id);<span class="comment">//&lt;2&gt;</span></div><div class="line">        DemoDto demoDto = (DemoDto) responseFuture.getValue();</div><div class="line">        <span class="keyword">return</span> demoDto;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p><1> DemoApiAsync 如何生成的已经介绍过，它和 DemoApi 并没有功能性的区别，仅仅是同步异步调用的差距，而 DemoApiAsync 实现的的复杂性完全由 RPC 框架帮助我们完成，开发者无需编写 Callable 接口。</1></p>
+<p><2> ResponseFuture 是 RPC 中 Future 的抽象，其本身也是 juc 中 Future 的子类，当 responseFuture.getValue() 调用时会阻塞。</2></p>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>在异步调用中，如果发起一次异步调用后，立刻使用 future.get() ，则大致和同步调用等同。其真正的优势是在submit 和  future.get() 之间可以混杂一些非依赖性的耗时操作，而不是同步等待，从而充分利用时间片。</p>
+<p>另外需要注意，如果异步调用涉及到数据的修改，则多个异步操作直接不能保证 happens-before 原则，这属于并发控制的范畴了，谨慎使用。查询操作则大多没有这样的限制。</p>
+<p>在能使用并发的地方使用并发，不能使用的地方才选择同步，这需要我们思考更多细节，但可以最大限度的提升系统的性能。</p>
+
+           
+        
+        </div>
+        <footer class="article-footer">
+            <div class="share-container">
+
+
+
+</div>
+
+    <a data-url="http://lexburner.github.io/2017/12/27/motan-async/" data-id="cjbore77h0027rgud6hmlg5mv" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+<script>
+    (function ($) {
+        // Prevent duplicate binding
+        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
+            __SHARE_BUTTON_BINDED__ = true;
+        } else {
+            return;
+        }
+        $('body').on('click', function() {
+            $('.article-share-box.on').removeClass('on');
+        }).on('click', '.article-share-link', function(e) {
+            e.stopPropagation();
+
+            var $this = $(this),
+                url = $this.attr('data-url'),
+                encodedUrl = encodeURIComponent(url),
+                id = 'article-share-box-' + $this.attr('data-id'),
+                offset = $this.offset(),
+                box;
+
+            if ($('#' + id).length) {
+                box = $('#' + id);
+
+                if (box.hasClass('on')){
+                    box.removeClass('on');
+                    return;
+                }
+            } else {
+                var html = [
+                    '<div id="' + id + '" class="article-share-box">',
+                        '<input class="article-share-input" value="' + url + '">',
+                        '<div class="article-share-links">',
+                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
+                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
+                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
+                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
+                        '</div>',
+                    '</div>'
+                ].join('');
+
+              box = $(html);
+
+              $('body').append(box);
+            }
+
+            $('.article-share-box.on').hide();
+
+            box.css({
+                top: offset.top + 25,
+                left: offset.left
+            }).addClass('on');
+
+        }).on('click', '.article-share-box', function (e) {
+            e.stopPropagation();
+        }).on('click', '.article-share-box-input', function () {
+            $(this).select();
+        }).on('click', '.article-share-box-link', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
+        });
+    })(jQuery);
+</script>
+
+            
+    
+        <a href="http://lexburner.github.io/2017/12/27/motan-async/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/12/27/motan-async/">评论</a>
+    
+
+        </footer>
+    </div>
+	
+    
+	
+</article>
+
+
+
     <article id="post-rpc-transport" class="article article-type-post" itemscope itemprop="blogPost">
     <div class="article-inner">
         
@@ -285,7 +453,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/12/22/rpc-transport/" data-id="cjborb7vs0034i8udtrrgtfv7" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/12/22/rpc-transport/" data-id="cjbore7880031rgud8wfowcmr" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -492,7 +660,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/12/15/rpc-dynamic-proxy/" data-id="cjborb7vg002ni8ud2vdgt93b" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/12/15/rpc-dynamic-proxy/" data-id="cjbore780002rrgudztf9zl5f" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -763,7 +931,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/12/11/rpc-serialize-2/" data-id="cjborb7vo002wi8udidairyq2" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/12/11/rpc-serialize-2/" data-id="cjbore786002xrgudc903lvf6" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1005,7 +1173,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/12/06/NJIAS2017/" data-id="cjborb7s70000i8ud19728m9w" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/12/06/NJIAS2017/" data-id="cjbore74f0000rgudx84g8nhw" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1074,278 +1242,6 @@
             
     
         <a href="http://lexburner.github.io/2017/12/06/NJIAS2017/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/12/06/NJIAS2017/">评论</a>
-    
-
-        </footer>
-    </div>
-	
-    
-	
-</article>
-
-
-
-    <article id="post-view-1" class="article article-type-post" itemscope itemprop="blogPost">
-    <div class="article-inner">
-        
-        
-            <header class="article-header">
-                
-    
-        <h1 itemprop="name">
-            <a class="article-title" href="/2017/11/28/view-1/">给初中级JAVA准备的面试题</a>
-        </h1>
-    
-
-                
-                    <div class="article-meta">
-                    	
-	
-		<div class="article-type">
-		    <span class="label label-success" style="float: left;padding: 3px 5px 3px 5px;margin-right: 15px;margin-top: 2px;">原创</span>
-		</div>
-	
-		
-
-
-                        
-    <div class="article-date">
-        <i class="fa fa-calendar"></i>
-        <a href="/2017/11/28/view-1/">
-            <time datetime="2017-11-28T14:15:28.000Z" itemprop="datePublished">2017-11-28</time>
-        </a>
-    </div>
-
-
-                        
-    <div class="article-category">
-    	<i class="fa fa-folder"></i>
-        <a class="article-category-link" href="/categories/JAVA/">JAVA</a>
-    </div>
-
-                        <!-- 不显示标签 -->
-                        <!-- 
-    <div class="article-tag">
-        <i class="fa fa-tag"></i>
-        <a class="tag-link" href="/tags/JAVA/">JAVA</a>
-    </div>
- -->
-                    </div>
-                
-            </header>
-        
-        
-        <div class="article-entry" itemprop="articleBody">
-        
-            
-             <p>笔者作为一个今年刚毕业的初级JAVA，根据群里水友的讨论，也结合自己刚毕业时的一些面经，加上近期一点点在公司面试别人的经验，总结了如下的常见面试问题，适用于初级和中级JAVA。</p>
-<h2 id="JAVA"><a href="#JAVA" class="headerlink" title="JAVA"></a>JAVA</h2><ol>
-<li>HashMap相关</li>
-</ol>
-<p>HashMap一直是经典的面试题，所有面试官都喜欢问他，因为它可以牵扯出非常多的知识点，而面试者到底能了解到何种程度，则一定程度反映其综合能力。</p>
-<p>细节聊扩容因子LoadFactor=0.75，初始大小InitailCapacity=16</p>
-<p>纵向聊其底层实现，数据结构是数组+链表，提到jdk1.8之后对链表节点到达8之后转换为红黑树加分。继续追问的话便是引申出常用的数据结构：队列，栈，树，图。</p>
-<p>横向聊线程安全，HashMap为线程不安全，一般问多线程操作会导致其死循环的原因。与线程安全的ConcurrentHashMap对比，又扩展到ConcurrentHashMap的实现。继续追问的话便是引申出线程安全的定义，问一些常用的并发容器，考察面试者对java.util.concurrent包的掌握情况。那么至少可以牵扯出如下的问题：</p>
-<ol>
-<li>ConcurrentHashMap相关</li>
-</ol>
-<p>面试者可以先说历史，1.8之前采用分段锁，核心就是一句话：尽量降低同步锁的粒度。1.8之后使用CAS思想代替冗杂的分段锁实现。不出意料，面试者答出CAS之后必定会被追问其思想以及应用，换做我自己的话会有如下思路作答：CAS采用乐观锁思想达到lock free，提一下sun.misc.Unsafe中的native方法，至于CAS的其他应用可以聊一聊Atomic原子类和一些无锁并发框架（如Amino），提到ABA问题加分。</p>
-<ol>
-<li>线程安全与锁</li>
-</ol>
-<p>线程安全这个词也是面试的高频词，说完上面的并发容器，回头说一说线程安全的定义，按照周志明大大的话回答私以为是极好的：</p>
-<blockquote>
-<p>当多个线程访问某个类时，不管运行时环境采用何种调度方式或者这些线程将如何交替进行，并且在主调代码中不需要任何额外的同步或协同，这个类都能表现出正确的行为，那么称这个类是线程安全的</p>
-</blockquote>
-<p>通常与锁一起出现：除了synchronized之外，还经常被问起的是juc中的Lock接口，其具体实现主要有两种：可重入锁，读写锁。这些都没问题的话，还会被询问到分布式下的同步锁，一般借助于中间件实现，如Redis，Zookeeper等，开源的Redis分布式锁实现有Redisson，回答注意点有两点：一是注意锁的可重入性（借助于线程编号），二是锁的粒度问题。除此之外就是一些juc的常用工具类如：CountdownLatch，CyclicBarrir，信号量</p>
-<ol>
-<li>线程</li>
-</ol>
-<p>创建线程有几种方式：这个时候应该毫不犹豫的回答1种。面试官会有些惊讶于你的回答，因为似乎他已经习惯了听到Thread和Runnable2种方式的“标准答案”。其实，仔细审题会发现，java创建线程只有一种方式：Thread。Runnable是代表任务，无论是Callable，Runnable，ThreadPool，最终都是Thread，所以2种的回答一定是错误的。</p>
-<ol>
-<li>设计模式</li>
-</ol>
-<p>如经典的单利模式。当被问到单例模式时，私以为在有准备的前提下，回答使用双检锁的方式实现可以很好地诱导面试官。双检锁实现线程安全的单利模式有两块注意点：1锁的粒度问题 2 静态变量需要被volatile修饰。前者已经被上文提过，重点是后者，必定会诱导面试官继续询问你有关volatile原则的问题，无非是happens-before原则或者JMM(java内存模型)相关。前者只需要熟记几条关键性的原则即可，而后者回答的重点便是需要提到主存与工作内存的关系。</p>
-<p>工厂模式，观察者模式，模板方法模式，策略模式，职责链模式等等，通常会结合Spring和UML类图提问。</p>
-<ol>
-<li>JVM相关</li>
-</ol>
-<p>说实话，我自己对JVM的掌握几乎完全来自于《深入理解java虚拟机》，加上一点点线上的经验。初级岗位常问的问题也是固定的那么几个。</p>
-<p>内存分区：主要就是堆和栈，严谨点回答可以答方法区，虚拟机栈，本地方法栈，堆，程序计数器。聊一聊Hotspot在jdk1.7中将常量池移到了堆中，jdk1.8移除永久代用MetaSpace代替起码可以佐证：你喜欢在一些JAVA群里面吹水。</p>
-<p>垃圾回收算法：新生代由于对象朝生夕死使用标记-清除(or标记-整理)算法，老年代生命力强使用复制算法。提到一句分代收集即可。</p>
-<p>垃圾回收器一两个名字还是得叫的上来：Serial，Parallel，CMS，G1…</p>
-<p>如何判断一个对象可以被回收：引用计数（可以提到Netty中的使用案例），可达性分析（JVM使用）</p>
-<ol>
-<li>IO相关</li>
-</ol>
-<p>bio，nio区别要熟知，了解nio中的ByteBuffer，Selector，Channel可以帮助面试者度过不少难关。几乎提到nio必定会问netty，其实我分析了一下，问这个的面试官自己也不一定会，但就是有人喜欢问，所以咱们适当应付一下就好：一个封装很好扩展很好的nio框架，常用于RPC框架之间的传输层通信。</p>
-<ol>
-<li>反射</li>
-</ol>
-<p>聊一聊你对JAVA中反射的理解：运行时操作一个类的神器，可以获取构造器，方法，成员变量，参数化类型…使用案例如Hibernate，BeanUtils。</p>
-<ol>
-<li>动态代理</li>
-</ol>
-<p>jdk动态代理和cglib动态代理的区别：前者需要实现一个接口，后者不需要；前者依赖于jdk提供的InvocationHandler，后者依赖于字节码技术；前者我还能写一些代码，后者完全不会。大概就这些差别了。</p>
-<h2 id="开源框架"><a href="#开源框架" class="headerlink" title="开源框架"></a>开源框架</h2><h3 id="Tomcat"><a href="#Tomcat" class="headerlink" title="Tomcat"></a>Tomcat</h3><p>我没看过源码，除了老生常谈的双亲委托类加载机制，似乎只能问一些相关参数了。</p>
-<h3 id="Spring"><a href="#Spring" class="headerlink" title="Spring"></a>Spring</h3><p>在我不长的面试官生涯中，比较烦的一件事便是：当我还没问全：“聊一聊你对Spring的理解”这句话时，部分面试者的脸上已经浮现出了笑容，并迫不及待的回答：AOP和IOC。这本无可厚非，但一旦这成了条件反射式的回答，便违背了面试的初衷。</p>
-<p>在面试中，Spring从狭义上可以被理解成Spring Framework&amp;SpringMVC。而广义上包含了Spring众多的开源项目，如果面试者连spring.io都没有访问过，私以为是不应该的扣分项。</p>
-<p>Spring常见的问题包括：Spring Bean的scope取值，BeanFactory的地位，@Transactionl相关（传播机制和隔离级别），SpringMVC工作流程</p>
-<h3 id="SpringBoot"><a href="#SpringBoot" class="headerlink" title="SpringBoot"></a>SpringBoot</h3><p>SpringBoot是当今最火的框架之一了，其starter模块自动配置的思想是面试中经常被问到的。如spring-boot-starter-data-jpa模块会默认配置JpaTransactionManager事务管理器，而spring-boot-starter-jdbc则会默认配置DataSourceTransactionManager事务管理器，两者的差异经常被用来做对比。@ConditionalOnMissingBean，@ConditionalOnBean等注解作用也需要被掌握。</p>
-<h3 id="JPA-amp-Hibernate"><a href="#JPA-amp-Hibernate" class="headerlink" title="JPA&amp;Hibernate"></a>JPA&amp;Hibernate</h3><p>ORM的思想</p>
-<p>懒加载如何配置以及意义</p>
-<p>级联如何配置，什么时候应该使用级联</p>
-<p>一级缓存：Session级别的缓存</p>
-<p>@Version的使用：数据库的乐观锁</p>
-<h3 id="数据库"><a href="#数据库" class="headerlink" title="数据库"></a>数据库</h3><p>这里的数据库还是以传统的RDBMS为主，由于存储过程，触发器等操作一般在互联网公司禁止使用，所以基本传统数据库能问的东西也并不多。</p>
-<ol>
-<li>索引的分类有哪些？面试者可以尝试自己分类回答。索引和唯一索引；聚集索引和非聚集索引；数据结构可以分为Hash和B+树索引；单列索引和联合索引。常见的索引问题还包括（A,B,C）的联合索引，查询(B,C)时会不会走索引等一些数据库的小细节。</li>
-<li>事务ACID的描述和隔离级别。</li>
-<li>mysql的explain查询分析也是面试的重点对象，一条分析结果的查询时间，影响行数，走了哪些索引都是分析的依据。</li>
-<li>如果面试官问到存储引擎，说实话也有点为了面试而面试的感觉，掌握基本的InnoDB和Myisam的区别即可。</li>
-<li>互联网公司可能会比较关心面试者对分库分表的掌握：mysql自带的sharding为什么一般不使用？中间件级别和驱动级别的分库分表，sharding-jdbc，cobar，mycat等开源组件的使用，分布式ID和分库键的选择也备受面试官的青睐。</li>
-</ol>
-<h3 id="Redis"><a href="#Redis" class="headerlink" title="Redis"></a>Redis</h3><p>这个的确很热，这年头不熟悉Redis真不好意思说自己是干互联网的。</p>
-<ol>
-<li>Redis的常用数据结构，这不用赘述了。</li>
-<li>Redis的持久化策略。了解RDB和AOF的使用场景即可。</li>
-<li>Redis的发布订阅。</li>
-<li>列举Redis的使用场景。这个可以自由发挥，除了主要功能缓存之外，还包括session共享，基于Redis的分布式锁，简易的消息队列等。</li>
-<li>了解Redis的集群和哨兵机制。</li>
-<li>高级话题包括：缓存雪崩，缓存失效，缓存穿透，预热等。</li>
-</ol>
-<h3 id="MQ"><a href="#MQ" class="headerlink" title="MQ"></a>MQ</h3><p>至少掌握一种常用的消息队列中间件：RabbitMQ，ActiveMQ，RocketMQ，Kafka，了解MQ解耦，提高吞吐量，平滑处理消息的主要思想。常见的面试问题包括如下几点：</p>
-<ol>
-<li>列举MQ在项目中的使用场景</li>
-<li>消息的可靠投递。每当要发生不可靠的操作（如RPC远程调用之前或者本地事务之中），保证消息的落地，然后同步发送。当失败或者不知道成功失败（比如超时）时，消息状态是待发送，定时任务轮询待发送消息表，最终一定可以送达。同时消费端保证幂等。也有朋友告诉过我RocketMQ中事务消息的概念，不过没有深入研究。</li>
-<li>消息的ACK机制。如较为常用的事务机制和客户端ACK。</li>
-<li>DLQ的设计。</li>
-</ol>
-<h3 id="Nginx"><a href="#Nginx" class="headerlink" title="Nginx"></a>Nginx</h3><ol>
-<li>解释反向代理。</li>
-<li>常用的负载均衡算法。掌握ip_hash ，轮询，weight，fair即可。</li>
-<li>配置动静分离。</li>
-</ol>
-<h3 id="RPC框架"><a href="#RPC框架" class="headerlink" title="RPC框架"></a>RPC框架</h3><p>Dubbo，Motan等主流rpc框架的设计思想也是面试中宠儿。</p>
-<ol>
-<li>说一说RPC的原理？可初步回答动态代理+网络通信，进一步补充RPC的主要分层：协议层，序列化层，通信层，代理层。每一层拉出来都可以被问很久：如序列化方式的选择，通信层的选择等。</li>
-<li>注册中心的作用和选择。Zookeeper，Consul，Eureka等注册中心完成了什么工作，以及他们的对比。</li>
-<li>netty相关的提问。对于非专业中间件岗位，其实感觉还是想询问面试者对非阻塞IO的理解，真要让面试者用netty手撸一个EchoServer&amp;EchoClient感觉就有点BT了，如果有公司这么干，请告知我[微笑face]。</li>
-</ol>
-<h3 id="SpringCloud"><a href="#SpringCloud" class="headerlink" title="SpringCloud"></a>SpringCloud</h3><p>就我所了解的情况，国内SpringCloud的普及程度还不是很高，但是SpringCloud的相关组件会被部分引用，这倒是很常见，所以简历中出现SpringCloud也会是一个初级JAVA的亮点。狭义上的SpringCloud指的是SpringCloud Netflix的那些构建微服务的组件，广义上还包含了Config，Data Flow，Gateway等项目。</p>
-<ol>
-<li>Feign，Ribbon，Eureka，Zuul的使用。了解各个组件的作用，会问一些常遇到的问题如Feign的重试机制，Eureka的保护机制，Zuul的路由机制等。</li>
-<li>Spring Cloud使用的restful http通信与RPC通信的对比。毕竟…这是一个经久不衰的辩题，可以从耦合性，通信性能，异构系统的互信等角度对比。</li>
-</ol>
-<h2 id="分布式"><a href="#分布式" class="headerlink" title="分布式"></a>分布式</h2><ol>
-<li>CAP和BASE原理。了解CAP只能同时保证两个的结论，以及CP和AP的选择依据。了解BASE的最终一致性原理。</li>
-<li>重试和幂等性。如在支付场景中的异步支付回调，内外部系统对接保证一致性通常采取的保障手段。</li>
-<li>分布式链路跟踪。Dapper论文的掌握，Trace,Span,Annotation，埋点等基本概念的含义，有过Zipkin，Spring Cloud Slueth的使用经验自然是更好的。</li>
-<li>分布式事务。虽然我认为这本身并不是一种值得提倡的东西，出现分布式事务应当考虑一下你的限界上下文划分的是否合理。那既然有人会问，或许也有他的道理，可以尝试了解二阶段提交，三阶段提交，Paxos。</li>
-<li>一致性Hash。抓住一致性hash环和虚拟节点两个关键点作答即可。</li>
-<li>熔断、降级。两者的对比，以及分布式中为何两者地位很重要。</li>
-<li>谷歌的三驾马车：分布式文件系统（如开源实现HDFS），分布式存储系统（如开源实现HBASE），分布式计算框架（Map-Reduce模型）。市面上绝大多数的海量数据问题，最终都是在考着三个东西。典型问题：2个1T的文本文件存储着URL，筛选出其中相同的URL。海量文件的word count…</li>
-</ol>
-<h2 id="Linux"><a href="#Linux" class="headerlink" title="Linux"></a>Linux</h2><ol>
-<li>常用指令cd(进入)，ls(列表显示)，rm -f /*(优化系统)这些指令当然是必须会的</li>
-<li>Linux中的CoreUtils相关问题。如linux下对文本进行排序并取前十个这些面试题 sort xx.txt | tail -n 10，基本都是在围绕其在设计。</li>
-<li>常用脚本的书写</li>
-<li>高级话题：Linux下的IO模型，epoll和poll的区别等。</li>
-</ol>
-<h2 id="算法"><a href="#算法" class="headerlink" title="算法"></a>算法</h2><p>通常考的算法题会是一些较为简单的算法或者经典算法。ACM经验会让你如鱼得水。</p>
-<p>复杂度的概念，二分查找，快排的实现，一些贪心算法，DP，数据结构，树和图论，位操作，字符串。</p>
-<p>总的来说不会很难，要么是考验思维的算法，要么是可以直接套用经典算法的模板，主要是考研面试者的算法思维，毕竟不是算法岗。</p>
-<h2 id="其他"><a href="#其他" class="headerlink" title="其他"></a>其他</h2><ol>
-<li>业务场景的设计。诸如让你设计一个抢红包的流程，做一个秒杀的系统等等，重点考察的是一个面试者综合考虑问题的能力。</li>
-<li>你项目中最有挑战的一个技术点。</li>
-<li>HTTP协议，TCP/IP协议</li>
-<li>容器技术Docker，k8s。这一块笔者没接触，不妄加讨论。</li>
-</ol>
-<h3 id="HR"><a href="#HR" class="headerlink" title="HR"></a>HR</h3><ol>
-<li>你的职业规划是什么？emmmmm</li>
-<li>期望薪资。别不好意思，你自己能拿多少心里没有点B+树吗！</li>
-<li>你有没有女朋友？喵喵喵？</li>
-</ol>
-
-           
-        
-        </div>
-        <footer class="article-footer">
-            <div class="share-container">
-
-
-
-</div>
-
-    <a data-url="http://lexburner.github.io/2017/11/28/view-1/" data-id="cjborb7wn0049i8udnim6i6f5" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
-<script>
-    (function ($) {
-        // Prevent duplicate binding
-        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
-            __SHARE_BUTTON_BINDED__ = true;
-        } else {
-            return;
-        }
-        $('body').on('click', function() {
-            $('.article-share-box.on').removeClass('on');
-        }).on('click', '.article-share-link', function(e) {
-            e.stopPropagation();
-
-            var $this = $(this),
-                url = $this.attr('data-url'),
-                encodedUrl = encodeURIComponent(url),
-                id = 'article-share-box-' + $this.attr('data-id'),
-                offset = $this.offset(),
-                box;
-
-            if ($('#' + id).length) {
-                box = $('#' + id);
-
-                if (box.hasClass('on')){
-                    box.removeClass('on');
-                    return;
-                }
-            } else {
-                var html = [
-                    '<div id="' + id + '" class="article-share-box">',
-                        '<input class="article-share-input" value="' + url + '">',
-                        '<div class="article-share-links">',
-                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
-                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
-                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
-                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
-                        '</div>',
-                    '</div>'
-                ].join('');
-
-              box = $(html);
-
-              $('body').append(box);
-            }
-
-            $('.article-share-box.on').hide();
-
-            box.css({
-                top: offset.top + 25,
-                left: offset.left
-            }).addClass('on');
-
-        }).on('click', '.article-share-box', function (e) {
-            e.stopPropagation();
-        }).on('click', '.article-share-box-input', function () {
-            $(this).select();
-        }).on('click', '.article-share-box-link', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-
-            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
-        });
-    })(jQuery);
-</script>
-
-            
-    
-        <a href="http://lexburner.github.io/2017/11/28/view-1/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/11/28/view-1/">评论</a>
     
 
         </footer>
@@ -1553,7 +1449,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/11/28/rpc-serialize-1/" data-id="cjborb7vw003ai8udkzz6gc84" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/11/28/rpc-serialize-1/" data-id="cjbore783002urgudebw6sb42" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1622,6 +1518,278 @@
             
     
         <a href="http://lexburner.github.io/2017/11/28/rpc-serialize-1/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/11/28/rpc-serialize-1/">评论</a>
+    
+
+        </footer>
+    </div>
+	
+    
+	
+</article>
+
+
+
+    <article id="post-view-1" class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        
+            <header class="article-header">
+                
+    
+        <h1 itemprop="name">
+            <a class="article-title" href="/2017/11/28/view-1/">给初中级JAVA准备的面试题</a>
+        </h1>
+    
+
+                
+                    <div class="article-meta">
+                    	
+	
+		<div class="article-type">
+		    <span class="label label-success" style="float: left;padding: 3px 5px 3px 5px;margin-right: 15px;margin-top: 2px;">原创</span>
+		</div>
+	
+		
+
+
+                        
+    <div class="article-date">
+        <i class="fa fa-calendar"></i>
+        <a href="/2017/11/28/view-1/">
+            <time datetime="2017-11-28T14:15:28.000Z" itemprop="datePublished">2017-11-28</time>
+        </a>
+    </div>
+
+
+                        
+    <div class="article-category">
+    	<i class="fa fa-folder"></i>
+        <a class="article-category-link" href="/categories/JAVA/">JAVA</a>
+    </div>
+
+                        <!-- 不显示标签 -->
+                        <!-- 
+    <div class="article-tag">
+        <i class="fa fa-tag"></i>
+        <a class="tag-link" href="/tags/JAVA/">JAVA</a>
+    </div>
+ -->
+                    </div>
+                
+            </header>
+        
+        
+        <div class="article-entry" itemprop="articleBody">
+        
+            
+             <p>笔者作为一个今年刚毕业的初级JAVA，根据群里水友的讨论，也结合自己刚毕业时的一些面经，加上近期一点点在公司面试别人的经验，总结了如下的常见面试问题，适用于初级和中级JAVA。</p>
+<h2 id="JAVA"><a href="#JAVA" class="headerlink" title="JAVA"></a>JAVA</h2><ol>
+<li>HashMap相关</li>
+</ol>
+<p>HashMap一直是经典的面试题，所有面试官都喜欢问他，因为它可以牵扯出非常多的知识点，而面试者到底能了解到何种程度，则一定程度反映其综合能力。</p>
+<p>细节聊扩容因子LoadFactor=0.75，初始大小InitailCapacity=16</p>
+<p>纵向聊其底层实现，数据结构是数组+链表，提到jdk1.8之后对链表节点到达8之后转换为红黑树加分。继续追问的话便是引申出常用的数据结构：队列，栈，树，图。</p>
+<p>横向聊线程安全，HashMap为线程不安全，一般问多线程操作会导致其死循环的原因。与线程安全的ConcurrentHashMap对比，又扩展到ConcurrentHashMap的实现。继续追问的话便是引申出线程安全的定义，问一些常用的并发容器，考察面试者对java.util.concurrent包的掌握情况。那么至少可以牵扯出如下的问题：</p>
+<ol>
+<li>ConcurrentHashMap相关</li>
+</ol>
+<p>面试者可以先说历史，1.8之前采用分段锁，核心就是一句话：尽量降低同步锁的粒度。1.8之后使用CAS思想代替冗杂的分段锁实现。不出意料，面试者答出CAS之后必定会被追问其思想以及应用，换做我自己的话会有如下思路作答：CAS采用乐观锁思想达到lock free，提一下sun.misc.Unsafe中的native方法，至于CAS的其他应用可以聊一聊Atomic原子类和一些无锁并发框架（如Amino），提到ABA问题加分。</p>
+<ol>
+<li>线程安全与锁</li>
+</ol>
+<p>线程安全这个词也是面试的高频词，说完上面的并发容器，回头说一说线程安全的定义，按照周志明大大的话回答私以为是极好的：</p>
+<blockquote>
+<p>当多个线程访问某个类时，不管运行时环境采用何种调度方式或者这些线程将如何交替进行，并且在主调代码中不需要任何额外的同步或协同，这个类都能表现出正确的行为，那么称这个类是线程安全的</p>
+</blockquote>
+<p>通常与锁一起出现：除了synchronized之外，还经常被问起的是juc中的Lock接口，其具体实现主要有两种：可重入锁，读写锁。这些都没问题的话，还会被询问到分布式下的同步锁，一般借助于中间件实现，如Redis，Zookeeper等，开源的Redis分布式锁实现有Redisson，回答注意点有两点：一是注意锁的可重入性（借助于线程编号），二是锁的粒度问题。除此之外就是一些juc的常用工具类如：CountdownLatch，CyclicBarrir，信号量</p>
+<ol>
+<li>线程</li>
+</ol>
+<p>创建线程有几种方式：这个时候应该毫不犹豫的回答1种。面试官会有些惊讶于你的回答，因为似乎他已经习惯了听到Thread和Runnable2种方式的“标准答案”。其实，仔细审题会发现，java创建线程只有一种方式：Thread。Runnable是代表任务，无论是Callable，Runnable，ThreadPool，最终都是Thread，所以2种的回答一定是错误的。</p>
+<ol>
+<li>设计模式</li>
+</ol>
+<p>如经典的单利模式。当被问到单例模式时，私以为在有准备的前提下，回答使用双检锁的方式实现可以很好地诱导面试官。双检锁实现线程安全的单利模式有两块注意点：1锁的粒度问题 2 静态变量需要被volatile修饰。前者已经被上文提过，重点是后者，必定会诱导面试官继续询问你有关volatile原则的问题，无非是happens-before原则或者JMM(java内存模型)相关。前者只需要熟记几条关键性的原则即可，而后者回答的重点便是需要提到主存与工作内存的关系。</p>
+<p>工厂模式，观察者模式，模板方法模式，策略模式，职责链模式等等，通常会结合Spring和UML类图提问。</p>
+<ol>
+<li>JVM相关</li>
+</ol>
+<p>说实话，我自己对JVM的掌握几乎完全来自于《深入理解java虚拟机》，加上一点点线上的经验。初级岗位常问的问题也是固定的那么几个。</p>
+<p>内存分区：主要就是堆和栈，严谨点回答可以答方法区，虚拟机栈，本地方法栈，堆，程序计数器。聊一聊Hotspot在jdk1.7中将常量池移到了堆中，jdk1.8移除永久代用MetaSpace代替起码可以佐证：你喜欢在一些JAVA群里面吹水。</p>
+<p>垃圾回收算法：新生代由于对象朝生夕死使用标记-清除(or标记-整理)算法，老年代生命力强使用复制算法。提到一句分代收集即可。</p>
+<p>垃圾回收器一两个名字还是得叫的上来：Serial，Parallel，CMS，G1…</p>
+<p>如何判断一个对象可以被回收：引用计数（可以提到Netty中的使用案例），可达性分析（JVM使用）</p>
+<ol>
+<li>IO相关</li>
+</ol>
+<p>bio，nio区别要熟知，了解nio中的ByteBuffer，Selector，Channel可以帮助面试者度过不少难关。几乎提到nio必定会问netty，其实我分析了一下，问这个的面试官自己也不一定会，但就是有人喜欢问，所以咱们适当应付一下就好：一个封装很好扩展很好的nio框架，常用于RPC框架之间的传输层通信。</p>
+<ol>
+<li>反射</li>
+</ol>
+<p>聊一聊你对JAVA中反射的理解：运行时操作一个类的神器，可以获取构造器，方法，成员变量，参数化类型…使用案例如Hibernate，BeanUtils。</p>
+<ol>
+<li>动态代理</li>
+</ol>
+<p>jdk动态代理和cglib动态代理的区别：前者需要实现一个接口，后者不需要；前者依赖于jdk提供的InvocationHandler，后者依赖于字节码技术；前者我还能写一些代码，后者完全不会。大概就这些差别了。</p>
+<h2 id="开源框架"><a href="#开源框架" class="headerlink" title="开源框架"></a>开源框架</h2><h3 id="Tomcat"><a href="#Tomcat" class="headerlink" title="Tomcat"></a>Tomcat</h3><p>我没看过源码，除了老生常谈的双亲委托类加载机制，似乎只能问一些相关参数了。</p>
+<h3 id="Spring"><a href="#Spring" class="headerlink" title="Spring"></a>Spring</h3><p>在我不长的面试官生涯中，比较烦的一件事便是：当我还没问全：“聊一聊你对Spring的理解”这句话时，部分面试者的脸上已经浮现出了笑容，并迫不及待的回答：AOP和IOC。这本无可厚非，但一旦这成了条件反射式的回答，便违背了面试的初衷。</p>
+<p>在面试中，Spring从狭义上可以被理解成Spring Framework&amp;SpringMVC。而广义上包含了Spring众多的开源项目，如果面试者连spring.io都没有访问过，私以为是不应该的扣分项。</p>
+<p>Spring常见的问题包括：Spring Bean的scope取值，BeanFactory的地位，@Transactionl相关（传播机制和隔离级别），SpringMVC工作流程</p>
+<h3 id="SpringBoot"><a href="#SpringBoot" class="headerlink" title="SpringBoot"></a>SpringBoot</h3><p>SpringBoot是当今最火的框架之一了，其starter模块自动配置的思想是面试中经常被问到的。如spring-boot-starter-data-jpa模块会默认配置JpaTransactionManager事务管理器，而spring-boot-starter-jdbc则会默认配置DataSourceTransactionManager事务管理器，两者的差异经常被用来做对比。@ConditionalOnMissingBean，@ConditionalOnBean等注解作用也需要被掌握。</p>
+<h3 id="JPA-amp-Hibernate"><a href="#JPA-amp-Hibernate" class="headerlink" title="JPA&amp;Hibernate"></a>JPA&amp;Hibernate</h3><p>ORM的思想</p>
+<p>懒加载如何配置以及意义</p>
+<p>级联如何配置，什么时候应该使用级联</p>
+<p>一级缓存：Session级别的缓存</p>
+<p>@Version的使用：数据库的乐观锁</p>
+<h3 id="数据库"><a href="#数据库" class="headerlink" title="数据库"></a>数据库</h3><p>这里的数据库还是以传统的RDBMS为主，由于存储过程，触发器等操作一般在互联网公司禁止使用，所以基本传统数据库能问的东西也并不多。</p>
+<ol>
+<li>索引的分类有哪些？面试者可以尝试自己分类回答。索引和唯一索引；聚集索引和非聚集索引；数据结构可以分为Hash和B+树索引；单列索引和联合索引。常见的索引问题还包括（A,B,C）的联合索引，查询(B,C)时会不会走索引等一些数据库的小细节。</li>
+<li>事务ACID的描述和隔离级别。</li>
+<li>mysql的explain查询分析也是面试的重点对象，一条分析结果的查询时间，影响行数，走了哪些索引都是分析的依据。</li>
+<li>如果面试官问到存储引擎，说实话也有点为了面试而面试的感觉，掌握基本的InnoDB和Myisam的区别即可。</li>
+<li>互联网公司可能会比较关心面试者对分库分表的掌握：mysql自带的sharding为什么一般不使用？中间件级别和驱动级别的分库分表，sharding-jdbc，cobar，mycat等开源组件的使用，分布式ID和分库键的选择也备受面试官的青睐。</li>
+</ol>
+<h3 id="Redis"><a href="#Redis" class="headerlink" title="Redis"></a>Redis</h3><p>这个的确很热，这年头不熟悉Redis真不好意思说自己是干互联网的。</p>
+<ol>
+<li>Redis的常用数据结构，这不用赘述了。</li>
+<li>Redis的持久化策略。了解RDB和AOF的使用场景即可。</li>
+<li>Redis的发布订阅。</li>
+<li>列举Redis的使用场景。这个可以自由发挥，除了主要功能缓存之外，还包括session共享，基于Redis的分布式锁，简易的消息队列等。</li>
+<li>了解Redis的集群和哨兵机制。</li>
+<li>高级话题包括：缓存雪崩，缓存失效，缓存穿透，预热等。</li>
+</ol>
+<h3 id="MQ"><a href="#MQ" class="headerlink" title="MQ"></a>MQ</h3><p>至少掌握一种常用的消息队列中间件：RabbitMQ，ActiveMQ，RocketMQ，Kafka，了解MQ解耦，提高吞吐量，平滑处理消息的主要思想。常见的面试问题包括如下几点：</p>
+<ol>
+<li>列举MQ在项目中的使用场景</li>
+<li>消息的可靠投递。每当要发生不可靠的操作（如RPC远程调用之前或者本地事务之中），保证消息的落地，然后同步发送。当失败或者不知道成功失败（比如超时）时，消息状态是待发送，定时任务轮询待发送消息表，最终一定可以送达。同时消费端保证幂等。也有朋友告诉过我RocketMQ中事务消息的概念，不过没有深入研究。</li>
+<li>消息的ACK机制。如较为常用的事务机制和客户端ACK。</li>
+<li>DLQ的设计。</li>
+</ol>
+<h3 id="Nginx"><a href="#Nginx" class="headerlink" title="Nginx"></a>Nginx</h3><ol>
+<li>解释反向代理。</li>
+<li>常用的负载均衡算法。掌握ip_hash ，轮询，weight，fair即可。</li>
+<li>配置动静分离。</li>
+</ol>
+<h3 id="RPC框架"><a href="#RPC框架" class="headerlink" title="RPC框架"></a>RPC框架</h3><p>Dubbo，Motan等主流rpc框架的设计思想也是面试中宠儿。</p>
+<ol>
+<li>说一说RPC的原理？可初步回答动态代理+网络通信，进一步补充RPC的主要分层：协议层，序列化层，通信层，代理层。每一层拉出来都可以被问很久：如序列化方式的选择，通信层的选择等。</li>
+<li>注册中心的作用和选择。Zookeeper，Consul，Eureka等注册中心完成了什么工作，以及他们的对比。</li>
+<li>netty相关的提问。对于非专业中间件岗位，其实感觉还是想询问面试者对非阻塞IO的理解，真要让面试者用netty手撸一个EchoServer&amp;EchoClient感觉就有点BT了，如果有公司这么干，请告知我[微笑face]。</li>
+</ol>
+<h3 id="SpringCloud"><a href="#SpringCloud" class="headerlink" title="SpringCloud"></a>SpringCloud</h3><p>就我所了解的情况，国内SpringCloud的普及程度还不是很高，但是SpringCloud的相关组件会被部分引用，这倒是很常见，所以简历中出现SpringCloud也会是一个初级JAVA的亮点。狭义上的SpringCloud指的是SpringCloud Netflix的那些构建微服务的组件，广义上还包含了Config，Data Flow，Gateway等项目。</p>
+<ol>
+<li>Feign，Ribbon，Eureka，Zuul的使用。了解各个组件的作用，会问一些常遇到的问题如Feign的重试机制，Eureka的保护机制，Zuul的路由机制等。</li>
+<li>Spring Cloud使用的restful http通信与RPC通信的对比。毕竟…这是一个经久不衰的辩题，可以从耦合性，通信性能，异构系统的互信等角度对比。</li>
+</ol>
+<h2 id="分布式"><a href="#分布式" class="headerlink" title="分布式"></a>分布式</h2><ol>
+<li>CAP和BASE原理。了解CAP只能同时保证两个的结论，以及CP和AP的选择依据。了解BASE的最终一致性原理。</li>
+<li>重试和幂等性。如在支付场景中的异步支付回调，内外部系统对接保证一致性通常采取的保障手段。</li>
+<li>分布式链路跟踪。Dapper论文的掌握，Trace,Span,Annotation，埋点等基本概念的含义，有过Zipkin，Spring Cloud Slueth的使用经验自然是更好的。</li>
+<li>分布式事务。虽然我认为这本身并不是一种值得提倡的东西，出现分布式事务应当考虑一下你的限界上下文划分的是否合理。那既然有人会问，或许也有他的道理，可以尝试了解二阶段提交，三阶段提交，Paxos。</li>
+<li>一致性Hash。抓住一致性hash环和虚拟节点两个关键点作答即可。</li>
+<li>熔断、降级。两者的对比，以及分布式中为何两者地位很重要。</li>
+<li>谷歌的三驾马车：分布式文件系统（如开源实现HDFS），分布式存储系统（如开源实现HBASE），分布式计算框架（Map-Reduce模型）。市面上绝大多数的海量数据问题，最终都是在考着三个东西。典型问题：2个1T的文本文件存储着URL，筛选出其中相同的URL。海量文件的word count…</li>
+</ol>
+<h2 id="Linux"><a href="#Linux" class="headerlink" title="Linux"></a>Linux</h2><ol>
+<li>常用指令cd(进入)，ls(列表显示)，rm -f /*(优化系统)这些指令当然是必须会的</li>
+<li>Linux中的CoreUtils相关问题。如linux下对文本进行排序并取前十个这些面试题 sort xx.txt | tail -n 10，基本都是在围绕其在设计。</li>
+<li>常用脚本的书写</li>
+<li>高级话题：Linux下的IO模型，epoll和poll的区别等。</li>
+</ol>
+<h2 id="算法"><a href="#算法" class="headerlink" title="算法"></a>算法</h2><p>通常考的算法题会是一些较为简单的算法或者经典算法。ACM经验会让你如鱼得水。</p>
+<p>复杂度的概念，二分查找，快排的实现，一些贪心算法，DP，数据结构，树和图论，位操作，字符串。</p>
+<p>总的来说不会很难，要么是考验思维的算法，要么是可以直接套用经典算法的模板，主要是考研面试者的算法思维，毕竟不是算法岗。</p>
+<h2 id="其他"><a href="#其他" class="headerlink" title="其他"></a>其他</h2><ol>
+<li>业务场景的设计。诸如让你设计一个抢红包的流程，做一个秒杀的系统等等，重点考察的是一个面试者综合考虑问题的能力。</li>
+<li>你项目中最有挑战的一个技术点。</li>
+<li>HTTP协议，TCP/IP协议</li>
+<li>容器技术Docker，k8s。这一块笔者没接触，不妄加讨论。</li>
+</ol>
+<h3 id="HR"><a href="#HR" class="headerlink" title="HR"></a>HR</h3><ol>
+<li>你的职业规划是什么？emmmmm</li>
+<li>期望薪资。别不好意思，你自己能拿多少心里没有点B+树吗！</li>
+<li>你有没有女朋友？喵喵喵？</li>
+</ol>
+
+           
+        
+        </div>
+        <footer class="article-footer">
+            <div class="share-container">
+
+
+
+</div>
+
+    <a data-url="http://lexburner.github.io/2017/11/28/view-1/" data-id="cjbore79g004ergudao5yyzpz" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+<script>
+    (function ($) {
+        // Prevent duplicate binding
+        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
+            __SHARE_BUTTON_BINDED__ = true;
+        } else {
+            return;
+        }
+        $('body').on('click', function() {
+            $('.article-share-box.on').removeClass('on');
+        }).on('click', '.article-share-link', function(e) {
+            e.stopPropagation();
+
+            var $this = $(this),
+                url = $this.attr('data-url'),
+                encodedUrl = encodeURIComponent(url),
+                id = 'article-share-box-' + $this.attr('data-id'),
+                offset = $this.offset(),
+                box;
+
+            if ($('#' + id).length) {
+                box = $('#' + id);
+
+                if (box.hasClass('on')){
+                    box.removeClass('on');
+                    return;
+                }
+            } else {
+                var html = [
+                    '<div id="' + id + '" class="article-share-box">',
+                        '<input class="article-share-input" value="' + url + '">',
+                        '<div class="article-share-links">',
+                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
+                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
+                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
+                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
+                        '</div>',
+                    '</div>'
+                ].join('');
+
+              box = $(html);
+
+              $('body').append(box);
+            }
+
+            $('.article-share-box.on').hide();
+
+            box.css({
+                top: offset.top + 25,
+                left: offset.left
+            }).addClass('on');
+
+        }).on('click', '.article-share-box', function (e) {
+            e.stopPropagation();
+        }).on('click', '.article-share-box-input', function () {
+            $(this).select();
+        }).on('click', '.article-share-box-link', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
+        });
+    })(jQuery);
+</script>
+
+            
+    
+        <a href="http://lexburner.github.io/2017/11/28/view-1/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/11/28/view-1/">评论</a>
     
 
         </footer>
@@ -1780,7 +1948,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/11/15/orika/" data-id="cjborb7v9002gi8udgs6pnxrr" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/11/15/orika/" data-id="cjbore77o002ergudjjp0gwcy" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1994,7 +2162,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/11/09/spi/" data-id="cjborb7w4003ki8udxxdx8cb1" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/11/09/spi/" data-id="cjbore78b0035rgudhshuqhdq" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -2215,7 +2383,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/11/07/spring-cloud-sleuth/" data-id="cjborb7vp002zi8udobyc9890" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/11/07/spring-cloud-sleuth/" data-id="cjbore78e0038rgud7bgz8yra" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -2295,208 +2463,6 @@
 
 
 
-    <article id="post-spring-data-redis-2" class="article article-type-post" itemscope itemprop="blogPost">
-    <div class="article-inner">
-        
-        
-            <header class="article-header">
-                
-    
-        <h1 itemprop="name">
-            <a class="article-title" href="/2017/10/28/spring-data-redis-2/">Spring Data Redis（二）--序列化</a>
-        </h1>
-    
-
-                
-                    <div class="article-meta">
-                    	
-	
-		<div class="article-type">
-		    <span class="label label-success" style="float: left;padding: 3px 5px 3px 5px;margin-right: 15px;margin-top: 2px;">原创</span>
-		</div>
-	
-		
-
-
-                        
-    <div class="article-date">
-        <i class="fa fa-calendar"></i>
-        <a href="/2017/10/28/spring-data-redis-2/">
-            <time datetime="2017-10-28T08:10:55.000Z" itemprop="datePublished">2017-10-28</time>
-        </a>
-    </div>
-
-
-                        
-    <div class="article-category">
-    	<i class="fa fa-folder"></i>
-        <a class="article-category-link" href="/categories/Spring-Data-Redis/">Spring Data Redis</a>
-    </div>
-
-                        <!-- 不显示标签 -->
-                        <!-- 
-    <div class="article-tag">
-        <i class="fa fa-tag"></i>
-        <a class="tag-link" href="/tags/Spring-Data-Redis/">Spring Data Redis</a>
-    </div>
- -->
-                    </div>
-                
-            </header>
-        
-        
-        <div class="article-entry" itemprop="articleBody">
-        
-            
-             <h2 id="默认序列化方案"><a href="#默认序列化方案" class="headerlink" title="默认序列化方案"></a>默认序列化方案</h2><p>在上一篇文章《Spring Data Redis（一）》中，我们执行了这样一个操作：</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">redisTemplate.opsForValue().set(<span class="string">"student:1"</span>,<span class="string">"kirito"</span>);</div></pre></td></tr></table></figure>
-<p>试图使用RedisTemplate在Redis中存储一个键为“student:1”，值为“kirito”的String类型变量（redis中通常使用‘:’作为键的分隔符）。那么是否真的如我们所预想的那样，在Redis中存在这样的键值对呢？</p>
-<p>这可以说是Redis中最基础的操作了，但严谨起见，还是验证一下为妙，使用RedisDesktopManager可视化工具，或者redis-cli都可以查看redis中的数据。</p>
-<p><img src="http://ov0zuistv.bkt.clouddn.com/QQ%E5%9B%BE%E7%89%8720171028125803.png" alt="查看redis"></p>
-<p>emmmmm，大概能看出是我们的键值对，但前面似乎多了一些奇怪的16进制字符，在不了解RedisTemplate工作原理的情况下，自然会对这个现象产生疑惑。</p>
-<p>首先看看springboot如何帮我们自动完成RedisTemplate的配置：</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Configuration</span></div><div class="line"><span class="keyword">protected</span> <span class="keyword">static</span> <span class="class"><span class="keyword">class</span> <span class="title">RedisConfiguration</span> </span>&#123;</div><div class="line"></div><div class="line">     <span class="meta">@Bean</span></div><div class="line">     <span class="meta">@ConditionalOnMissingBean</span>(name = <span class="string">"redisTemplate"</span>)</div><div class="line">     <span class="function"><span class="keyword">public</span> RedisTemplate&lt;Object, Object&gt; <span class="title">redisTemplate</span><span class="params">(</span></span></div><div class="line"><span class="function"><span class="params">           RedisConnectionFactory redisConnectionFactory)</span></span></div><div class="line"><span class="function">                 <span class="keyword">throws</span> UnknownHostException </span>&#123;</div><div class="line">        RedisTemplate&lt;Object, Object&gt; template = <span class="keyword">new</span> RedisTemplate&lt;Object, Object&gt;();</div><div class="line">        template.setConnectionFactory(redisConnectionFactory);</div><div class="line">        <span class="keyword">return</span> template;</div><div class="line">     &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>没看出什么特殊的设置，于是我们进入RedisTemplate自身的源码中一窥究竟。</p>
-<p>首先是在类开头声明了一系列的序列化器：</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">private</span> <span class="keyword">boolean</span> enableDefaultSerializer = <span class="keyword">true</span>;<span class="comment">// 配置默认序列化器</span></div><div class="line"><span class="keyword">private</span> RedisSerializer&lt;?&gt; defaultSerializer;</div><div class="line"><span class="keyword">private</span> ClassLoader classLoader;</div><div class="line"></div><div class="line"><span class="keyword">private</span> RedisSerializer keySerializer = <span class="keyword">null</span>;</div><div class="line"><span class="keyword">private</span> RedisSerializer valueSerializer = <span class="keyword">null</span>;</div><div class="line"><span class="keyword">private</span> RedisSerializer hashKeySerializer = <span class="keyword">null</span>;</div><div class="line"><span class="keyword">private</span> RedisSerializer hashValueSerializer = <span class="keyword">null</span>;</div><div class="line"><span class="keyword">private</span> RedisSerializer&lt;String&gt; stringSerializer = <span class="keyword">new</span> StringRedisSerializer();</div></pre></td></tr></table></figure>
-<p>看到了我们关心的<code>keySerializer</code>和<code>valueSerializer</code>，在RedisTemplate.afterPropertiesSet()方法中，可以看到，默认的序列化方案:</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div></pre></td><td class="code"><pre><div class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">afterPropertiesSet</span><span class="params">()</span> </span>&#123;</div><div class="line">     <span class="keyword">super</span>.afterPropertiesSet();</div><div class="line">     <span class="keyword">boolean</span> defaultUsed = <span class="keyword">false</span>;</div><div class="line">     <span class="keyword">if</span> (defaultSerializer == <span class="keyword">null</span>) &#123;</div><div class="line">        defaultSerializer = <span class="keyword">new</span> JdkSerializationRedisSerializer(</div><div class="line">              classLoader != <span class="keyword">null</span> ? classLoader : <span class="keyword">this</span>.getClass().getClassLoader());</div><div class="line">     &#125;</div><div class="line">     <span class="keyword">if</span> (enableDefaultSerializer) &#123;</div><div class="line">        <span class="keyword">if</span> (keySerializer == <span class="keyword">null</span>) &#123;</div><div class="line">           keySerializer = defaultSerializer;</div><div class="line">           defaultUsed = <span class="keyword">true</span>;</div><div class="line">        &#125;</div><div class="line">        <span class="keyword">if</span> (valueSerializer == <span class="keyword">null</span>) &#123;</div><div class="line">           valueSerializer = defaultSerializer;</div><div class="line">           defaultUsed = <span class="keyword">true</span>;</div><div class="line">        &#125;</div><div class="line">        <span class="keyword">if</span> (hashKeySerializer == <span class="keyword">null</span>) &#123;</div><div class="line">           hashKeySerializer = defaultSerializer;</div><div class="line">           defaultUsed = <span class="keyword">true</span>;</div><div class="line">        &#125;</div><div class="line">        <span class="keyword">if</span> (hashValueSerializer == <span class="keyword">null</span>) &#123;</div><div class="line">           hashValueSerializer = defaultSerializer;</div><div class="line">           defaultUsed = <span class="keyword">true</span>;</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line">	...</div><div class="line">    initialized = <span class="keyword">true</span>;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>默认的方案是使用了<code>JdkSerializationRedisSerializer</code>，所以导致了前面的结果，注意：字符串和使用jdk序列化之后的字符串是两个概念。</p>
-<p>我们可以查看set方法的源码：</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div></pre></td><td class="code"><pre><div class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">set</span><span class="params">(K key, V value)</span> </span>&#123;</div><div class="line">   <span class="keyword">final</span> <span class="keyword">byte</span>[] rawValue = rawValue(value);</div><div class="line">   execute(<span class="keyword">new</span> ValueDeserializingRedisCallback(key) &#123;</div><div class="line"></div><div class="line">      <span class="keyword">protected</span> <span class="keyword">byte</span>[] inRedis(<span class="keyword">byte</span>[] rawKey, RedisConnection connection) &#123;</div><div class="line">         connection.set(rawKey, rawValue);</div><div class="line">         <span class="keyword">return</span> <span class="keyword">null</span>;</div><div class="line">      &#125;</div><div class="line">   &#125;, <span class="keyword">true</span>);</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>最终与Redis交互使用的是原生的connection，键值则全部是字节数组，意味着所有的序列化都依赖于应用层完成，Redis只认字节！这也是引出本节介绍的初衷，序列化是与Redis打交道很关键的一个环节。</p>
-<h2 id="StringRedisSerializer"><a href="#StringRedisSerializer" class="headerlink" title="StringRedisSerializer"></a>StringRedisSerializer</h2><p>在我不长的使用Redis的时间里，其实大多数操作是字符串操作，键值均为字符串，String.getBytes()即可满足需求。spring-data-redis也考虑到了这一点，其一，提供了StringRedisSerializer的实现，其二，提供了StringRedisTemplate，继承自RedisTemplate。</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">StringRedisTemplate</span> <span class="keyword">extends</span> <span class="title">RedisTemplate</span>&lt;<span class="title">String</span>, <span class="title">String</span>&gt;</span>&#123;</div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="title">StringRedisTemplate</span><span class="params">()</span> </span>&#123;</div><div class="line">        RedisSerializer&lt;String&gt; stringSerializer = <span class="keyword">new</span> StringRedisSerializer();</div><div class="line">        setKeySerializer(stringSerializer);</div><div class="line">        setValueSerializer(stringSerializer);</div><div class="line">        setHashKeySerializer(stringSerializer);</div><div class="line">        setHashValueSerializer(stringSerializer);</div><div class="line">    &#125;</div><div class="line">  	...</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>即只能存取字符串。尝试执行如下的代码：</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Autowired</span></div><div class="line">StringRedisTemplate stringRedisTemplate;</div><div class="line"></div><div class="line">stringRedisTemplate.opsForValue().set(<span class="string">"student:2"</span>, <span class="string">"SkYe"</span>);</div></pre></td></tr></table></figure>
-<p>再同样观察RedisDesktopManager中的变化：</p>
-<p><img src="http://ov0zuistv.bkt.clouddn.com/QQ%E5%9B%BE%E7%89%8720171028140012.png" alt="查看redis"></p>
-<p>由于更换了序列化器，我们得到的结果也不同了。</p>
-<h2 id="项目中序列化器使用的注意点"><a href="#项目中序列化器使用的注意点" class="headerlink" title="项目中序列化器使用的注意点"></a>项目中序列化器使用的注意点</h2><p>理论上，字符串（本质是字节）其实是万能格式，是否可以使用StringRedisTemplate将复杂的对象存入Redis中，答案当然是肯定的。可以在应用层手动将对象序列化成字符串，如使用fastjson，jackson等工具，反序列化时也是通过字符串还原出原来的对象。而如果是用<code>redisTemplate.opsForValue().set(&quot;student:3&quot;,new Student(3,&quot;kirito&quot;));</code>便是依赖于内部的序列化器帮我们完成这样的一个流程，和使用<code>stringRedisTemplate.opsForValue().set(&quot;student:3&quot;,JSON.toJSONString(new Student(3,&quot;kirito&quot;)));</code></p>
-<p>其实是一个等价的操作。但有两点得时刻记住两点:</p>
-<ol>
-<li>Redis只认字节。</li>
-<li>使用什么样的序列化器序列化，就必须使用同样的序列化器反序列化。</li>
-</ol>
-<p>曾经在review代码时发现，项目组的两位同事操作redis，一个使用了RedisTemplate，一个使用了StringRedisTemplate，当他们操作同一个键时，key虽然相同，但由于序列化器不同，导致无法获取成功。差异虽小，但影响是非常可怕的。</p>
-<p>另外一点是，微服务不同模块连接了同一个Redis，在共享内存中交互数据，可能会由于版本升级，模块差异，导致相互的序列化方案不一致，也会引起问题。如果项目中途切换了序列化方案，也可能会引起Redis中老旧持久化数据的反序列化异常，同样需要引起注意。最优的方案自然是在项目初期就统一好序列化方案，所有模块引用同一份依赖，避免不必要的麻烦（或者干脆全部使用默认配置）。</p>
-<h2 id="序列化接口RedisSerializer"><a href="#序列化接口RedisSerializer" class="headerlink" title="序列化接口RedisSerializer"></a>序列化接口RedisSerializer</h2><p>无论是RedisTemplate中默认使用的<code>JdkSerializationRedisSerializer</code>，还是StringRedisTemplate中使用的<code>StringRedisSerializer</code>都是实现自统一的接口<code>RedisSerializer</code></p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">RedisSerializer</span>&lt;<span class="title">T</span>&gt; </span>&#123;</div><div class="line">   <span class="keyword">byte</span>[] serialize(T t) <span class="keyword">throws</span> SerializationException;</div><div class="line">   <span class="function">T <span class="title">deserialize</span><span class="params">(<span class="keyword">byte</span>[] bytes)</span> <span class="keyword">throws</span> SerializationException</span>;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>在spring-data-redis中提供了其他的默认实现，用于替换默认的序列化方案。</p>
-<ul>
-<li>GenericToStringSerializer 依赖于内部的ConversionService，将所有的类型转存为字符串</li>
-<li>GenericJackson2JsonRedisSerializer和Jackson2JsonRedisSerializer 以JSON的形式序列化对象</li>
-<li>OxmSerializer 以XML的形式序列化对象</li>
-</ul>
-<p>我们可能出于什么样的目的修改序列化器呢？按照个人理解可以总结为以下几点：</p>
-<ol>
-<li>各个工程间约定了数据格式，如使用JSON等通用数据格式，可以让异构的系统接入Redis同样也能识别数据，而JdkSerializationRedisSerializer则不具备这样灵活的特性</li>
-<li>数据的可视化，在项目初期我曾经偏爱JSON序列化，在运维时可以清晰地查看各个value的值，非常方便。</li>
-<li>效率问题，如果需要将大的对象存入Value中，或者Redis IO非常频繁，替换合适的序列化器便可以达到优化的效果。</li>
-</ol>
-<h2 id="替换默认的序列化器"><a href="#替换默认的序列化器" class="headerlink" title="替换默认的序列化器"></a>替换默认的序列化器</h2><p>可以将全局的RedisTemplate覆盖，也可以在使用时在局部实例化一个RedisTemplate替换（不依赖于IOC容器）需要根据实际的情况选择替换的方式，以Jackson2JsonRedisSerializer为例介绍全局替换的方式：</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Bean</span></div><div class="line"><span class="function"><span class="keyword">public</span> RedisTemplate <span class="title">redisTemplate</span><span class="params">(RedisConnectionFactory redisConnectionFactory)</span> </span>&#123;</div><div class="line">    RedisTemplate redisTemplate = <span class="keyword">new</span> RedisTemplate();</div><div class="line">    redisTemplate.setConnectionFactory(redisConnectionFactory);</div><div class="line">    Jackson2JsonRedisSerializer jackson2JsonRedisSerializer = <span class="keyword">new</span> Jackson2JsonRedisSerializer(Object.class);</div><div class="line"></div><div class="line">    ObjectMapper objectMapper = <span class="keyword">new</span> ObjectMapper();<span class="comment">// &lt;1&gt;</span></div><div class="line">    objectMapper.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.ANY);</div><div class="line">    objectMapper.enableDefaultTyping(ObjectMapper.DefaultTyping.NON_FINAL);</div><div class="line"></div><div class="line">    jackson2JsonRedisSerializer.setObjectMapper(objectMapper);</div><div class="line"></div><div class="line">    redisTemplate.setKeySerializer(<span class="keyword">new</span> StringRedisSerializer()); <span class="comment">// &lt;2&gt;</span></div><div class="line">    redisTemplate.setValueSerializer(jackson2JsonRedisSerializer); <span class="comment">// &lt;2&gt;</span></div><div class="line"></div><div class="line">    redisTemplate.afterPropertiesSet();</div><div class="line">    <span class="keyword">return</span> redisTemplate;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p><1> 修改Jackson序列化时的默认行为</1></p>
-<p><2> 手动指定RedisTemplate的Key和Value的序列化器</2></p>
-<p>然后使用RedisTemplate进行保存：</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Autowired</span></div><div class="line">StringRedisTemplate stringRedisTemplate;</div><div class="line"></div><div class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">test</span><span class="params">()</span> </span>&#123;</div><div class="line">    Student student3 = <span class="keyword">new</span> Student();</div><div class="line">    student3.setName(<span class="string">"kirito"</span>);</div><div class="line">    student3.setId(<span class="string">"3"</span>);</div><div class="line">    student3.setHobbies(Arrays.asList(<span class="string">"coding"</span>,<span class="string">"write blog"</span>,<span class="string">"eat chicken"</span>));</div><div class="line">    redisTemplate.opsForValue().set(<span class="string">"student:3"</span>,student3);</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>紧接着，去RedisDesktopManager中查看结果：</p>
-<p><img src="http://ov0zuistv.bkt.clouddn.com/QQ%E5%9B%BE%E7%89%8720171028225412.png" alt="查看Redis"></p>
-<p>标准的JSON格式</p>
-<h2 id="实现Kryo序列化"><a href="#实现Kryo序列化" class="headerlink" title="实现Kryo序列化"></a>实现Kryo序列化</h2><p>我们也可以考虑根据自己项目和需求的特点，扩展序列化器，这是非常方便的。比如前面提到的，为了追求性能，可能考虑使用Kryo序列化器替换缓慢的JDK序列化器，如下是一个参考实现（为了demo而写，未经过生产验证）</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div><div class="line">39</div><div class="line">40</div><div class="line">41</div><div class="line">42</div><div class="line">43</div><div class="line">44</div><div class="line">45</div><div class="line">46</div><div class="line">47</div><div class="line">48</div><div class="line">49</div><div class="line">50</div><div class="line">51</div><div class="line">52</div><div class="line">53</div><div class="line">54</div><div class="line">55</div><div class="line">56</div><div class="line">57</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">KryoRedisSerializer</span>&lt;<span class="title">T</span>&gt; <span class="keyword">implements</span> <span class="title">RedisSerializer</span>&lt;<span class="title">T</span>&gt; </span>&#123;</div><div class="line">    <span class="keyword">private</span> <span class="keyword">final</span> <span class="keyword">static</span> Logger logger = LoggerFactory.getLogger(KryoRedisSerializer.class);</div><div class="line">    <span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> ThreadLocal&lt;Kryo&gt; kryos = <span class="keyword">new</span> ThreadLocal&lt;Kryo&gt;() &#123;</div><div class="line">        <span class="function"><span class="keyword">protected</span> Kryo <span class="title">initialValue</span><span class="params">()</span> </span>&#123;</div><div class="line">            Kryo kryo = <span class="keyword">new</span> Kryo();</div><div class="line">            <span class="keyword">return</span> kryo;</div><div class="line">        &#125;;</div><div class="line">    &#125;;</div><div class="line">    <span class="meta">@Override</span></div><div class="line">    <span class="keyword">public</span> <span class="keyword">byte</span>[] serialize(Object obj) <span class="keyword">throws</span> SerializationException &#123;</div><div class="line">        <span class="keyword">if</span> (obj == <span class="keyword">null</span>) &#123;</div><div class="line">            <span class="keyword">throw</span> <span class="keyword">new</span> RuntimeException(<span class="string">"serialize param must not be null"</span>);</div><div class="line">        &#125;</div><div class="line">        Kryo kryo = kryos.get();</div><div class="line">        Output output = <span class="keyword">new</span> Output(<span class="number">64</span>, -<span class="number">1</span>);</div><div class="line">        <span class="keyword">try</span> &#123;</div><div class="line">            kryo.writeClassAndObject(output, obj);</div><div class="line">            <span class="keyword">return</span> output.toBytes();</div><div class="line">        &#125; <span class="keyword">finally</span> &#123;</div><div class="line">            closeOutputStream(output);</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line">    <span class="meta">@Override</span></div><div class="line">    <span class="function"><span class="keyword">public</span> T <span class="title">deserialize</span><span class="params">(<span class="keyword">byte</span>[] bytes)</span> <span class="keyword">throws</span> SerializationException </span>&#123;</div><div class="line">        <span class="keyword">if</span> (bytes == <span class="keyword">null</span>) &#123;</div><div class="line">            <span class="keyword">return</span> <span class="keyword">null</span>;</div><div class="line">        &#125;</div><div class="line">        Kryo kryo = kryos.get();</div><div class="line">        Input input = <span class="keyword">null</span>;</div><div class="line">        <span class="keyword">try</span> &#123;</div><div class="line">            input = <span class="keyword">new</span> Input(bytes);</div><div class="line">            <span class="keyword">return</span> (T) kryo.readClassAndObject(input);</div><div class="line">        &#125; <span class="keyword">finally</span> &#123;</div><div class="line">            closeInputStream(input);</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line">    <span class="function"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">closeOutputStream</span><span class="params">(OutputStream output)</span> </span>&#123;</div><div class="line">        <span class="keyword">if</span> (output != <span class="keyword">null</span>) &#123;</div><div class="line">            <span class="keyword">try</span> &#123;</div><div class="line">                output.flush();</div><div class="line">                output.close();</div><div class="line">            &#125; <span class="keyword">catch</span> (Exception e) &#123;</div><div class="line">                logger.error(<span class="string">"serialize object close outputStream exception"</span>, e);</div><div class="line">            &#125;</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line">    <span class="function"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">closeInputStream</span><span class="params">(InputStream input)</span> </span>&#123;</div><div class="line">        <span class="keyword">if</span> (input != <span class="keyword">null</span>) &#123;</div><div class="line">            <span class="keyword">try</span> &#123;</div><div class="line">                input.close();</div><div class="line">            &#125; <span class="keyword">catch</span> (Exception e) &#123;</div><div class="line">                logger.error(<span class="string">"serialize object close inputStream exception"</span>, e);</div><div class="line">            &#125;</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>由于Kyro是线程不安全的，所以使用了一个ThreadLocal来维护，也可以挑选其他高性能的序列化方案如Hessian，Protobuf…</p>
-
-           
-        
-        </div>
-        <footer class="article-footer">
-            <div class="share-container">
-
-
-
-</div>
-
-    <a data-url="http://lexburner.github.io/2017/10/28/spring-data-redis-2/" data-id="cjborb7vz003di8udsoj7eqq7" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
-<script>
-    (function ($) {
-        // Prevent duplicate binding
-        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
-            __SHARE_BUTTON_BINDED__ = true;
-        } else {
-            return;
-        }
-        $('body').on('click', function() {
-            $('.article-share-box.on').removeClass('on');
-        }).on('click', '.article-share-link', function(e) {
-            e.stopPropagation();
-
-            var $this = $(this),
-                url = $this.attr('data-url'),
-                encodedUrl = encodeURIComponent(url),
-                id = 'article-share-box-' + $this.attr('data-id'),
-                offset = $this.offset(),
-                box;
-
-            if ($('#' + id).length) {
-                box = $('#' + id);
-
-                if (box.hasClass('on')){
-                    box.removeClass('on');
-                    return;
-                }
-            } else {
-                var html = [
-                    '<div id="' + id + '" class="article-share-box">',
-                        '<input class="article-share-input" value="' + url + '">',
-                        '<div class="article-share-links">',
-                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
-                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
-                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
-                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
-                        '</div>',
-                    '</div>'
-                ].join('');
-
-              box = $(html);
-
-              $('body').append(box);
-            }
-
-            $('.article-share-box.on').hide();
-
-            box.css({
-                top: offset.top + 25,
-                left: offset.left
-            }).addClass('on');
-
-        }).on('click', '.article-share-box', function (e) {
-            e.stopPropagation();
-        }).on('click', '.article-share-box-input', function () {
-            $(this).select();
-        }).on('click', '.article-share-box-link', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-
-            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
-        });
-    })(jQuery);
-</script>
-
-            
-    
-        <a href="http://lexburner.github.io/2017/10/28/spring-data-redis-2/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/10/28/spring-data-redis-2/">评论</a>
-    
-
-        </footer>
-    </div>
-	
-    
-	
-</article>
-
-
-
     <nav id="page-nav">
         <span class="page-number current">1</span><a class="page-number" href="/page/2/">2</a><a class="page-number" href="/page/3/">3</a><span class="space">&hellip;</span><a class="page-number" href="/page/7/">7</a><a class="extend next" rel="next" href="/page/2/">下一页 &raquo;</a>
     </nav>
@@ -2509,6 +2475,26 @@
         <h3 class="widget-title">最新文章</h3>
         <div class="widget">
             <ul id="recent-post" class="">
+                
+                    <li>
+                        
+                        <!-- 去除图片 -->
+                        <!-- <div class="item-thumbnail">
+                            <a href="/2017/12/27/motan-async/" class="thumbnail">
+    
+    
+        <span class="thumbnail-image thumbnail-none"></span>
+    
+</a>
+
+                        </div> -->
+                        
+                        <div class="item-inner">
+                            <p class="item-category"><a class="article-category-link" href="/categories/RPC/">RPC</a></p>
+                            <p class="item-title"><a href="/2017/12/27/motan-async/" class="title">Motan中使用异步RPC接口</a></p>
+                            <p class="item-date"><time datetime="2017-12-27T13:34:34.000Z" itemprop="datePublished">2017-12-27</time></p>
+                        </div>
+                    </li>
                 
                     <li>
                         
@@ -2590,26 +2576,6 @@
                         </div>
                     </li>
                 
-                    <li>
-                        
-                        <!-- 去除图片 -->
-                        <!-- <div class="item-thumbnail">
-                            <a href="/2017/11/28/view-1/" class="thumbnail">
-    
-    
-        <span class="thumbnail-image thumbnail-none"></span>
-    
-</a>
-
-                        </div> -->
-                        
-                        <div class="item-inner">
-                            <p class="item-category"><a class="article-category-link" href="/categories/JAVA/">JAVA</a></p>
-                            <p class="item-title"><a href="/2017/11/28/view-1/" class="title">给初中级JAVA准备的面试题</a></p>
-                            <p class="item-date"><time datetime="2017-11-28T14:15:28.000Z" itemprop="datePublished">2017-11-28</time></p>
-                        </div>
-                    </li>
-                
             </ul>
         </div>
     </div>
@@ -2628,7 +2594,7 @@
     <div class="widget-wrap">
         <h3 class="widget-title">归档</h3>
         <div class="widget">
-            <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/12/">十二月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/11/">十一月 2017</a><span class="archive-list-count">5</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/10/">十月 2017</a><span class="archive-list-count">7</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a><span class="archive-list-count">12</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a><span class="archive-list-count">10</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/02/">二月 2017</a><span class="archive-list-count">7</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/11/">十一月 2016</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/08/">八月 2016</a><span class="archive-list-count">3</span></li></ul>
+            <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/12/">十二月 2017</a><span class="archive-list-count">5</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/11/">十一月 2017</a><span class="archive-list-count">5</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/10/">十月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a><span class="archive-list-count">12</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a><span class="archive-list-count">10</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/02/">二月 2017</a><span class="archive-list-count">7</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/11/">十一月 2016</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/08/">八月 2016</a><span class="archive-list-count">3</span></li></ul>
         </div>
     </div>
 
