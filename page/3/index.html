@@ -147,11 +147,11 @@
         </div>
         <div class="article-info profile-block">
             <div class="article-info-block">
-                63
+                65
                 <span>文章</span>
             </div>
             <div class="article-info-block">
-                29
+                30
                 <span>标签</span>
             </div>
         </div>
@@ -182,6 +182,158 @@
 
             
             <section id="main">
+    <article id="post-spring-security-1" class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        
+            <header class="article-header">
+                
+    
+        <h1 itemprop="name">
+            <a class="article-title" href="/2017/09/19/spring-security-1/">Spring Security(一)--Architecture Overview</a>
+        </h1>
+    
+
+                
+                    <div class="article-meta">
+                    	
+	
+		<div class="article-type">
+		    <span class="label label-success" style="float: left;padding: 3px 5px 3px 5px;margin-right: 15px;margin-top: 2px;">原创</span>
+		</div>
+	
+		
+
+
+                        
+    <div class="article-date">
+        <i class="fa fa-calendar"></i>
+        <a href="/2017/09/19/spring-security-1/">
+            <time datetime="2017-09-19T12:12:55.000Z" itemprop="datePublished">2017-09-19</time>
+        </a>
+    </div>
+
+
+                        
+    <div class="article-category">
+    	<i class="fa fa-folder"></i>
+        <a class="article-category-link" href="/categories/Spring-Security/">Spring Security</a>
+    </div>
+
+                        <!-- 不显示标签 -->
+                        <!-- 
+    <div class="article-tag">
+        <i class="fa fa-tag"></i>
+        <a class="tag-link" href="/tags/Spring-Security/">Spring Security</a>
+    </div>
+ -->
+                    </div>
+                
+            </header>
+        
+        
+        <div class="article-entry" itemprop="articleBody">
+        
+            <p><p>一直以来我都想写一写Spring Security系列的文章，但是整个Spring Security体系强大却又繁杂。陆陆续续从最开始的guides接触它，到项目中看了一些源码，到最近这个月为了写一写这个系列的文章，阅读了好几遍文档，最终打算尝试一下，写一个较为完整的系列文章。</p>
+<p>较为简单或者体量较小的技术，完全可以参考着demo直接上手，但系统的学习一门技术则不然。以我的认知，一般的文档大致有两种风格：Architecture First和Code First。前者致力于让读者先了解整体的架构，方便我们对自己的认知有一个宏观的把控，而后者以特定的demo配合讲解，可以让读者在解决问题的过程中顺便掌握一门技术。关注过我博客或者公众号的朋友会发现，我之前介绍技术的文章，大多数是Code First，提出一个需求，介绍一个思路，解决一个问题，分析一下源码，大多如此。而学习一个体系的技术，我推荐Architecture First，正如本文标题所言，这篇文章是我Spring Security系列的第一篇，主要是根据Spring Security文档选择性<del>翻译</del>整理而成的一个架构概览，配合自己的一些注释方便大家理解。写作本系列文章时，参考版本为Spring Security 4.2.3.RELEASE。</p>
+<p>[TOC]</p>
+<h1 id="1-核心组件"><a href="#1-核心组件" class="headerlink" title="1 核心组件"></a>1 核心组件</h1><p>这一节主要介绍一些在Spring Security中常见且核心的Java类，它们之间的依赖，构建起了整个框架。想要理解整个架构，最起码得对这些类眼熟。</p>
+<h3 id="1-1-SecurityContextHolder"><a href="#1-1-SecurityContextHolder" class="headerlink" title="1.1 SecurityContextHolder"></a>1.1 SecurityContextHolder</h3><p><code>SecurityContextHolder</code>用于存储安全上下文（security context）的信息。当前操作的用户是谁，该用户是否已经被认证，他拥有哪些角色权限…这些都被保存在SecurityContextHolder中。<code>SecurityContextHolder</code>默认使用<code>ThreadLocal</code> 策略来存储认证信息。看到<code>ThreadLocal</code> 也就意味着，这是一种与线程绑定的策略。Spring Security在用户登录时自动绑定认证信息到当前线程，在用户退出时，自动清除当前线程的认证信息。但这一切的前提，是你在web场景下使用Spring Security，而如果是Swing界面，Spring也提供了支持，<code>SecurityContextHolder</code>的策略则需要被替换，鉴于我的初衷是基于web来介绍Spring Security，所以这里以及后续，非web的相关的内容都一笔带过。</p>
+<h4 id="获取当前用户的信息"><a href="#获取当前用户的信息" class="headerlink" title="获取当前用户的信息"></a>获取当前用户的信息</h4><p>因为身份信息是与线程绑定的，所以可以在程序的任何地方使用静态方法获取用户信息。一个典型的获取当前登录用户的姓名的例子如下所示：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div></pre></td><td class="code"><pre><div class="line">Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();</div><div class="line"></div><div class="line"><span class="keyword">if</span> (principal <span class="keyword">instanceof</span> UserDetails) &#123;</div><div class="line">String username = ((UserDetails)principal).getUsername();</div><div class="line">&#125; <span class="keyword">else</span> &#123;</div><div class="line">String username = principal.toString();</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>getAuthentication()返回了认证信息，再次getPrincipal()返回了身份信息，UserDetails便是Spring对身份信息封装的一个接口。Authentication和UserDetails的介绍在下面的小节具体讲解，本节重要的内容是介绍SecurityContextHolder这个容器。</p></p>
+            <p class="article-more-link">
+                <a href="/2017/09/19/spring-security-1/#more">查看更多</a>
+            </p>
+        
+        </div>
+        <footer class="article-footer">
+            <div class="share-container">
+
+
+
+</div>
+
+    <a data-url="http://lexburner.github.io/2017/09/19/spring-security-1/" data-id="cjborb7w9003ri8udtc2kcq8p" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+<script>
+    (function ($) {
+        // Prevent duplicate binding
+        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
+            __SHARE_BUTTON_BINDED__ = true;
+        } else {
+            return;
+        }
+        $('body').on('click', function() {
+            $('.article-share-box.on').removeClass('on');
+        }).on('click', '.article-share-link', function(e) {
+            e.stopPropagation();
+
+            var $this = $(this),
+                url = $this.attr('data-url'),
+                encodedUrl = encodeURIComponent(url),
+                id = 'article-share-box-' + $this.attr('data-id'),
+                offset = $this.offset(),
+                box;
+
+            if ($('#' + id).length) {
+                box = $('#' + id);
+
+                if (box.hasClass('on')){
+                    box.removeClass('on');
+                    return;
+                }
+            } else {
+                var html = [
+                    '<div id="' + id + '" class="article-share-box">',
+                        '<input class="article-share-input" value="' + url + '">',
+                        '<div class="article-share-links">',
+                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
+                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
+                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
+                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
+                        '</div>',
+                    '</div>'
+                ].join('');
+
+              box = $(html);
+
+              $('body').append(box);
+            }
+
+            $('.article-share-box.on').hide();
+
+            box.css({
+                top: offset.top + 25,
+                left: offset.left
+            }).addClass('on');
+
+        }).on('click', '.article-share-box', function (e) {
+            e.stopPropagation();
+        }).on('click', '.article-share-box-input', function () {
+            $(this).select();
+        }).on('click', '.article-share-box-link', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
+        });
+    })(jQuery);
+</script>
+
+            
+    
+        <a href="http://lexburner.github.io/2017/09/19/spring-security-1/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/09/19/spring-security-1/">评论</a>
+    
+
+        </footer>
+    </div>
+	
+    
+	
+</article>
+
+
+
     <article id="post-event-2" class="article article-type-post" itemscope itemprop="blogPost">
     <div class="article-inner">
         
@@ -258,7 +410,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/09/13/event-2/" data-id="cjbhqx6i6001gjsuda91tq1mz" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/09/13/event-2/" data-id="cjborb7tx001ei8udn16euez3" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -432,7 +584,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/09/11/rethink-1/" data-id="cjbhqx6je0031jsudl2709c1v" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/09/11/rethink-1/" data-id="cjborb7vk002pi8udpu8pq4k6" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -633,7 +785,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/09/10/event-1/" data-id="cjbhqx6i3001djsudtjvp9tmq" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/09/10/event-1/" data-id="cjborb7tu0019i8udggqj59u6" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -836,7 +988,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/09/09/feign-1/" data-id="cjbhqx6ic001njsud5xrctcoh" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/09/09/feign-1/" data-id="cjborb7u0001gi8udu3jaekkv" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1003,7 +1155,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/09/04/Re：从零开始的Spring Session(三)/" data-id="cjbhqx6gy0009jsudnv6okfso" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/09/04/Re：从零开始的Spring Session(三)/" data-id="cjborb7st0008i8udr7uo2z8g" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1166,7 +1318,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/09/03/Re：从零开始的Spring Session(二)/" data-id="cjbhqx6hj000qjsudmr8cl5wn" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/09/03/Re：从零开始的Spring Session(二)/" data-id="cjborb7sx000di8ud66unxnoa" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1312,7 +1464,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/09/03/Re：从零开始的Spring Session(一)/" data-id="cjbhqx6h1000djsudldgc7ax9" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/09/03/Re：从零开始的Spring Session(一)/" data-id="cjborb7sq0006i8udnl1edj2p" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1558,7 +1710,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/08/30/解析Spring中的ResponseBody和RequestBody/" data-id="cjbhqx6m30063jsudlbpyrk34" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/08/30/解析Spring中的ResponseBody和RequestBody/" data-id="cjborb7xv005pi8udws12qy3g" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1638,7 +1790,7 @@
 
 
 
-    <article id="post-xml与javabean的转换" class="article article-type-post" itemscope itemprop="blogPost">
+    <article id="post-javabean-xml" class="article article-type-post" itemscope itemprop="blogPost">
     <div class="article-inner">
         
         
@@ -1646,7 +1798,7 @@
                 
     
         <h1 itemprop="name">
-            <a class="article-title" href="/2017/08/26/xml与javabean的转换/">XML与javabean的转换</a>
+            <a class="article-title" href="/2017/08/26/javabean-xml/">XML与javabean的转换</a>
         </h1>
     
 
@@ -1664,7 +1816,7 @@
                         
     <div class="article-date">
         <i class="fa fa-calendar"></i>
-        <a href="/2017/08/26/xml与javabean的转换/">
+        <a href="/2017/08/26/javabean-xml/">
             <time datetime="2017-08-25T19:41:27.000Z" itemprop="datePublished">2017-08-26</time>
         </a>
     </div>
@@ -1703,7 +1855,7 @@
 <p><3> 如何在XML中设置集合</3></p>
 <p>在介绍这三点之前，先给出转换的工具类</p></p>
             <p class="article-more-link">
-                <a href="/2017/08/26/xml与javabean的转换/#more">查看更多</a>
+                <a href="/2017/08/26/javabean-xml/#more">查看更多</a>
             </p>
         
         </div>
@@ -1714,7 +1866,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/08/26/xml与javabean的转换/" data-id="cjbhqx6kj004jjsudmoq2fqas" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/08/26/javabean-xml/" data-id="cjborb7um0023i8ud5c1sycwn" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1782,301 +1934,7 @@
 
             
     
-        <a href="http://lexburner.github.io/2017/08/26/xml与javabean的转换/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/08/26/xml与javabean的转换/">评论</a>
-    
-
-        </footer>
-    </div>
-	
-    
-	
-</article>
-
-
-
-    <article id="post-project_rules" class="article article-type-post" itemscope itemprop="blogPost">
-    <div class="article-inner">
-        
-        
-            <header class="article-header">
-                
-    
-        <h1 itemprop="name">
-            <a class="article-title" href="/2017/08/25/project_rules/">sinosoft代码规范</a>
-        </h1>
-    
-
-                
-                    <div class="article-meta">
-                    	
-	
-		<div class="article-type">
-		    <span class="label label-success" style="float: left;padding: 3px 5px 3px 5px;margin-right: 15px;margin-top: 2px;">原创</span>
-		</div>
-	
-		
-
-
-                        
-    <div class="article-date">
-        <i class="fa fa-calendar"></i>
-        <a href="/2017/08/25/project_rules/">
-            <time datetime="2017-08-25T04:18:45.000Z" itemprop="datePublished">2017-08-25</time>
-        </a>
-    </div>
-
-
-                        
-    <div class="article-category">
-    	<i class="fa fa-folder"></i>
-        <a class="article-category-link" href="/categories/技术杂谈/">技术杂谈</a>
-    </div>
-
-                        <!-- 不显示标签 -->
-                        <!-- 
-    <div class="article-tag">
-        <i class="fa fa-tag"></i>
-        <a class="tag-link" href="/tags/代码规范/">代码规范</a>, <a class="tag-link" href="/tags/技术杂谈/">技术杂谈</a>
-    </div>
- -->
-                    </div>
-                
-            </header>
-        
-        
-        <div class="article-entry" itemprop="articleBody">
-        
-            
-             <h2 id="介绍"><a href="#介绍" class="headerlink" title="介绍"></a>介绍</h2><p>本文档主要针对我们项目内部正在使用的框架，以及代码审查发现的一些共性问题提出一些开发规范。</p>
-<h3 id="JavaBean规范"><a href="#JavaBean规范" class="headerlink" title="JavaBean规范"></a>JavaBean规范</h3><p>1    驼峰命名法【强制】</p>
-<p>2    布尔类型规范【强制】<br>【说明】所有的布尔类型不允许以is开头，否则会导致部分序列化，hibernate框架出现解析异常。<br>【反例】<br>原来项目的BaseDomain中标记逻辑删除的字段,在部分场景下会出现问题</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Column</span>(name = <span class="string">"is_delete"</span>)</div><div class="line"><span class="keyword">private</span> Boolean isDelete = <span class="keyword">false</span>;</div><div class="line"></div><div class="line"><span class="function"><span class="keyword">public</span> Boolean <span class="title">getIsDelete</span><span class="params">()</span> </span>&#123;</div><div class="line">        <span class="keyword">return</span> isDelete;</div><div class="line">    &#125;</div><div class="line"></div><div class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">setIsDelete</span><span class="params">(Boolean isDelete)</span> </span>&#123;</div><div class="line">    <span class="keyword">if</span>(deleteFlag)</div><div class="line">        <span class="keyword">this</span>.deleteDate = <span class="keyword">new</span> Date();</div><div class="line">    <span class="keyword">this</span>.isDelete = isDelete;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>tips: 使用intellij idea的快捷键（for eclipse）alt+shift+r，<br>或者菜单栏Refactor-&gt;Rename，可以重构字段名称<br>【正例】</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Column</span>(name = <span class="string">"is_delete"</span>)</div><div class="line"><span class="keyword">private</span> Boolean deleteFlag = <span class="keyword">false</span>;</div></pre></td></tr></table></figure>
-<p>3    装箱类型优于原生类型【推荐】<br>在业务代码中，更加推荐使用装箱类型Integer Double Boolean…<br>【说明】在未设值的情况下，基础类型具有默认值，而装箱类型为null<br>以Boolean类型为例，如果使用boolean，那么在未复制时，无法得知其到底是被赋值成了false，<br>还是未赋值</p>
-<h3 id="领域模型规范"><a href="#领域模型规范" class="headerlink" title="领域模型规范"></a>领域模型规范</h3><p>首先理解各个常用的领域模型的含义：</p>
-<table>
-<thead>
-<tr>
-<th>领域模型</th>
-<th>全称</th>
-<th>中文含义</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>DO</td>
-<td>Domain Object</td>
-<td>领域对象</td>
-</tr>
-<tr>
-<td>DTO</td>
-<td>Data Transfer Object</td>
-<td>数据传输对象</td>
-</tr>
-<tr>
-<td>VO</td>
-<td>View Object</td>
-<td>视图对象</td>
-</tr>
-</tbody>
-</table>
-<p>对于View Object，PO等等其他一些的对象不在此做要求，只说明一下常用的几个<br>DO就是我们最常用的数据库持久对象，是OOP对于现实中的抽象，一般使用orm框架映射到数据库<br>DTO这一层，目前我们的项目还没有投入使用，即将考虑投入使用，理论上来说，两个微服务模块是严禁共享数据库的<br>所以A模块要查询B模块的数据，需要使用B模块app层暴露出来的api来查询，其中B模块返回的实体，不能是直接从数据库中<br>查询出来的DO，而应该是DO转换而成的DTO。以及其他服务服务用语传输的变量，都叫做DTO<br>VO就是常存在于视图层模板渲染使用的实体类</p>
-<p>【推荐】领域模型命名规范<br>【说明】由于DO这一层大家已经养成了习惯，不做要求了。DTO有些特殊，他常常与业务的传输对象相关，而不限于以DTO结尾，如xxxQuery也可以是DTO对象。VO对象推荐以VO结尾。注意：不要命名为Vo,Dto。</p>
-<h3 id="包结构规范"><a href="#包结构规范" class="headerlink" title="包结构规范"></a>包结构规范</h3><p>1    包命名【强制】 </p>
-<p>格式如下：公司名.模块名.层次名<br>包名应当尽量使用能够概括模块总体含义,单词义,单数,不包含特殊字符的单词<br>【正例】: <code>sinosoftgz.message.admin</code><br>【反例】: <code>sinosoftgz.mailsms.admin</code> <code>sinosoftgz.mail.sms.admin</code></p>
-<p>2    包结构【推荐】<br>当项目模块的职责较为复杂，且考虑到以后拓展的情况下，单个模块依旧包含着很多小的业务模块时，应当优先按照业务区分包名</p>
-<p>【反例】:</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div></pre></td><td class="code"><pre><div class="line">sinosoftgz.message.admin</div><div class="line">    config</div><div class="line">        模块公用Config.java</div><div class="line">    service</div><div class="line">        模块公用Service.java</div><div class="line">        Mail私有Service.java</div><div class="line">        MailTemplateService.java</div><div class="line">        MailMessageService.java</div><div class="line">        Sms私有Service.java</div><div class="line">        SmsTemplateService.java</div><div class="line">        SmsMessageService.java</div><div class="line">    web</div><div class="line">        模块公用Controller.java</div><div class="line">        IndexController.java</div><div class="line">        Mail私有Controller.java</div><div class="line">        MailTemplateController.java</div><div class="line">        MailMessageController.java</div><div class="line">        Sms私有Controller.java</div><div class="line">        SmsTemplateController.java</div><div class="line">        SmsMessageController.java</div><div class="line">    MailSmsAdminApp.java</div></pre></td></tr></table></figure>
-<p>【正例】: </p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div></pre></td><td class="code"><pre><div class="line">sinosoftgz.message.admin</div><div class="line">    config</div><div class="line">        模块公用Config.java</div><div class="line">    service</div><div class="line">        模块公用Service.java</div><div class="line">    web</div><div class="line">        模块公用Controller.java</div><div class="line">        IndexController.java</div><div class="line">    mail</div><div class="line">        config</div><div class="line">            MailConfig.java</div><div class="line">        service</div><div class="line">            Mail私有Service.java</div><div class="line">            MailTemplateService.java</div><div class="line">            MailMessageService.java</div><div class="line">        web</div><div class="line">            Mail私有Controller.java</div><div class="line">            MailTemplateController.java</div><div class="line">            MailMessageController.java</div><div class="line">    sms</div><div class="line">        config</div><div class="line">            Smsconfig.java</div><div class="line">        service</div><div class="line">            Sms私有Service.java</div><div class="line">            SmsTemplateService.java</div><div class="line">            SmsMessageService.java</div><div class="line">        web</div><div class="line">            Sms私有Controller.java</div><div class="line">            SmsTemplateController.java</div><div class="line">            SmsMessageController.java</div><div class="line">    MessageAdminApp.java</div></pre></td></tr></table></figure>
-<p>service和controller以及其他业务模块相关的包相隔太远，或者干脆全部丢到一个包内，单纯用前缀区分，会形成臃肿，充血的包结构。如果是项目结构较为单一，可以仅仅使用前缀区分；如果是项目中业务模块有明显的区分条件，应当单独作为一个包，用包名代表业务模块的含义。</p>
-<h2 id="容易忽视的细节"><a href="#容易忽视的细节" class="headerlink" title="容易忽视的细节"></a>容易忽视的细节</h2><p>1    运算溢出【强制】</p>
-<p>【反例】Integer a = Integer b * Integer c;</p>
-<p>【正例】Long a =  Integer b * Integer c;(强转)</p>
-<p>整数相乘可能会溢出，需要使用Long接收</p>
-<p>2    Double类型的精度问题【强制】</p>
-<p>Double不能用于商业计算，使用BigDecimal代替</p>
-<p>3    BigDecimal规范【强制】</p>
-<p>【反例】</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line">BigDecimal totalMoney = <span class="keyword">new</span> BigDecimal(<span class="string">"100.42"</span>);</div><div class="line">BigDecimal averageMoney = totalMoney.divide(<span class="keyword">new</span> BigDecimal(<span class="string">"22"</span>));</div></pre></td></tr></table></figure>
-<p>【正例】 </p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line">BigDecimal totalMoney = <span class="keyword">new</span> BigDecimal(<span class="string">"100.42"</span>);</div><div class="line">BigDecimal averageMoney = totalMoney.divide(<span class="keyword">new</span> BigDecimal(<span class="string">"22"</span>),<span class="number">3</span>);</div></pre></td></tr></table></figure>
-<p>业务实体类中的与金额相关的变量统一使用BigDecimal,四则运算采用BigDecimal的相关api进行。<br>做<strong>除法</strong>时需要额外注意保留精度的问题，否则可能会报异常，并且不易被测试出</p>
-<p>4    equals规范【强制】</p>
-<p>【反例】</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div></pre></td><td class="code"><pre><div class="line">Integer a = 2333;</div><div class="line">Integer b = 2333;</div><div class="line">System.out.println(a == b);//fasle</div><div class="line">Integer a = 2;</div><div class="line">Integer b = 2;</div><div class="line">System.out.println(a == b);//true</div></pre></td></tr></table></figure>
-<p>【正例】</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">a.equals(b)</div></pre></td></tr></table></figure>
-<p>要注意正确的比较方法，谨慎使用==，它比较的是引用</p>
-<h2 id="数据库规范"><a href="#数据库规范" class="headerlink" title="数据库规范"></a>数据库规范</h2><p>1    必要的地方必须添加索引，如唯一索引，作为条件查询的列【强制】</p>
-<p>不添加索引，会造成全表扫描，浪费性能。</p>
-<p>2    生产环境，uat环境，不允许使用<code>jpa.hibernate.ddl-auto: create</code>自动建表，每次ddl的修改需要保留脚本，统一管理【强制】<br>3    业务数据不能使用deleteBy…而要使用逻辑删除setDeleteFlag(true),查询时，findByxxxAndDeleteFlag(xxx,false)【强制】</p>
-<p>4    如有可替代方案，则禁止使用存储过程和触发器【强制】</p>
-<p>5    字段的长度和类型需要按照实际含义定制【推荐】</p>
-<p>【反例】</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Entity</span></div><div class="line"><span class="class"><span class="keyword">class</span> <span class="title">Person</span></span>&#123;</div><div class="line">	<span class="keyword">private</span> String name;</div><div class="line">	<span class="keyword">private</span> Integer age;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>【正例】</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Entity</span></div><div class="line"><span class="class"><span class="keyword">class</span> <span class="title">Person</span></span>&#123;</div><div class="line">  	<span class="meta">@Column</span>(columnDefinition = <span class="string">"varchar(50)"</span>)</div><div class="line">	<span class="keyword">private</span> String name;</div><div class="line">    <span class="meta">@Column</span>(columnDefinition = <span class="string">"int(3)"</span>)</div><div class="line">	<span class="keyword">private</span> Integer age;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>明确字段的长度和类型可以迫使开发者去思考字段所处的业务场景，在性能上，字段长度也可以加强索引的性能。</p>
-<p>6    使用外键不要使用数据库层面的约束【强制】</p>
-<p>不便于数据迁移，统一在应用层控制关联。</p>
-<h2 id="ORM规范"><a href="#ORM规范" class="headerlink" title="ORM规范"></a>ORM规范</h2><p>【强制】条件查询超过三个参数的，使用<code>criteriaQuery</code>，<code>predicates</code> 而不能使用springdata的findBy</p>
-<p>【反例】</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div></pre></td><td class="code"><pre><div class="line"><span class="function"><span class="keyword">public</span> Page&lt;GatewayApiDefine&gt; <span class="title">findAll</span><span class="params">(GatewayApiDefine gatewayApiDefine,Pageable pageable)</span></span>&#123;</div><div class="line">        <span class="keyword">if</span>(Lang.isEmpty(gatewayApiDefine.getRole()))&#123;</div><div class="line">            gatewayApiDefine.setRole(<span class="string">""</span>);</div><div class="line">        &#125;</div><div class="line">        <span class="keyword">if</span>(Lang.isEmpty(gatewayApiDefine.getApiName()))&#123;</div><div class="line">            gatewayApiDefine.setApiName(<span class="string">""</span>);</div><div class="line">        &#125;</div><div class="line">        <span class="keyword">if</span>(Lang.isEmpty(gatewayApiDefine.getEnabled()))&#123;</div><div class="line">            <span class="keyword">return</span> gatewayApiDefineDao.findByRoleLikeAndApiNameLikeOrderByLastUpdatedDesc(<span class="string">"%"</span>+gatewayApiDefine.getRole()+<span class="string">"%"</span>,<span class="string">"%"</span>+gatewayApiDefine.getApiName()+<span class="string">"%"</span>,pageable);</div><div class="line">        &#125;<span class="keyword">else</span>&#123;</div><div class="line">            <span class="keyword">return</span> gatewayApiDefineDao.findByRoleLikeAndApiNameLikeAndEnabledOrderByLastUpdatedDesc(<span class="string">"%"</span>+gatewayApiDefine.getRole()+<span class="string">"%"</span>,<span class="string">"%"</span>+gatewayApiDefine.getApiName()+<span class="string">"%"</span>,gatewayApiDefine.getEnabled(),pageable);</div><div class="line">        &#125;</div><div class="line">    &#125;</div></pre></td></tr></table></figure>
-<p>在Dao层定义了大量的findBy方法，在Service写了过多的if else判断，导致业务逻辑不清晰</p>
-<p>【正例】</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div></pre></td><td class="code"><pre><div class="line"><span class="function"><span class="keyword">public</span> Page&lt;MailTemplateConfig&gt; <span class="title">findAll</span><span class="params">(MailTemplateConfig mailTemplateConfig, Pageable pageable)</span> </span>&#123;</div><div class="line">        Specification querySpecification = (Specification&lt;MailTemplateConfig&gt;) (root, criteriaQuery, criteriaBuilder) -&gt; &#123;</div><div class="line">            List&lt;Predicate&gt; predicates = <span class="keyword">new</span> ArrayList&lt;&gt;();</div><div class="line">            predicates.add(criteriaBuilder.isFalse(root.get(<span class="string">"deleteFlag"</span>)));</div><div class="line">            <span class="comment">//级联查询mailTemplate</span></div><div class="line">            <span class="keyword">if</span> (!Lang.isEmpty(mailTemplateConfig.getMailTemplate())) &#123;</div><div class="line">                <span class="comment">//短信模板名称</span></div><div class="line">                <span class="keyword">if</span> (!Lang.isEmpty(mailTemplateConfig.getMailTemplate().getTemplateName())) &#123;</div><div class="line">                    predicates.add(criteriaBuilder.like(root.join(<span class="string">"mailTemplate"</span>).get(<span class="string">"templateName"</span>), String.format(<span class="string">"%%%s%%"</span>, mailTemplateConfig.getMailTemplate().getTemplateName())));</div><div class="line">                &#125;</div><div class="line">                <span class="comment">//短信模板类型</span></div><div class="line">                <span class="keyword">if</span> (!Lang.isEmpty(mailTemplateConfig.getMailTemplate().getTemplateType())) &#123;</div><div class="line">                    predicates.add(criteriaBuilder.equal(root.join(<span class="string">"mailTemplate"</span>).get(<span class="string">"templateType"</span>), mailTemplateConfig.getMailTemplate().getTemplateType()));</div><div class="line">                &#125;</div><div class="line">            &#125;</div><div class="line">            <span class="comment">//产品分类</span></div><div class="line">            <span class="keyword">if</span> (!Lang.isEmpty(mailTemplateConfig.getProductType())) &#123;</div><div class="line">                predicates.add(criteriaBuilder.equal(root.get(<span class="string">"productType"</span>), mailTemplateConfig.getProductType()));</div><div class="line">            &#125;</div><div class="line">            <span class="comment">//客户类型</span></div><div class="line">            <span class="keyword">if</span> (!Lang.isEmpty(mailTemplateConfig.getConsumerType())) &#123;</div><div class="line">                predicates.add(criteriaBuilder.equal(root.get(<span class="string">"consumerType"</span>), mailTemplateConfig.getConsumerType()));</div><div class="line">            &#125;</div><div class="line">            <span class="keyword">return</span> criteriaBuilder.and(predicates.toArray(<span class="keyword">new</span> Predicate[predicates.size()]));</div><div class="line">        &#125;;</div><div class="line">        <span class="keyword">return</span> mailTemplateConfigRepos.findAll(querySpecification, pageable);</div><div class="line">    &#125;</div></pre></td></tr></table></figure>
-<p>条件查询是admin模块不可避免的一个业务功能，使用<code>criteriaQuery</code>可以轻松的添加条件，使得代码容易维护，他也可以进行分页，排序，连表操作，充分发挥jpa面向对象的特性，使得业务开发变得快捷。</p>
-<h2 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h2><p>1    集合中迭代过程中增删数据使用迭代器完成</p>
-<p>【反例】</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line">List&lt;String&gt; a = <span class="keyword">new</span> ArrayList&lt;String&gt;();</div><div class="line">a.add(<span class="string">"1"</span>); </div><div class="line">a.add(<span class="string">"2"</span>); </div><div class="line"><span class="keyword">for</span> (String temp : a) &#123; </div><div class="line">  <span class="keyword">if</span>(<span class="string">"1"</span>.equals(temp))&#123; </div><div class="line">	a.remove(temp); </div><div class="line">  &#125; </div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>【正例】</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div></pre></td><td class="code"><pre><div class="line">Iterator&lt;String&gt; it = a.iterator(); </div><div class="line"><span class="keyword">while</span>(it.hasNext())&#123; </div><div class="line">  String temp = it.next(); </div><div class="line">  <span class="keyword">if</span>((<span class="string">"1"</span>.equals(temp))&#123; </div><div class="line">    it.remove(); </div><div class="line">  &#125; </div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>2    hashCode和equals重写规范【强制】</p>
-<p>作为Map键值，Set值的实体类，务必重写hashCode与equals方法，可参考《effective java》。重写时务必做到以下几点</p>
-<ul>
-<li><strong>自反性</strong>:  x.equals(x) 一定是true</li>
-<li><strong>对null</strong>:  x.equals(null) 一定是false</li>
-<li><strong>对称性</strong>:  x.equals(y)  和  y.equals(x)结果一致</li>
-<li><strong>传递性</strong>:  a 和 b equals , b 和 c  equals，那么 a 和 c也一定equals。</li>
-<li><strong>一致性</strong>:  在某个运行时期间，2个对象的状态的改变不会不影响equals的决策结果，那么，在这个运行时期间，无论调用多少次equals，都返回相同的结果。做到无状态。</li>
-</ul>
-<h2 id="禁止使用魔法数字"><a href="#禁止使用魔法数字" class="headerlink" title="禁止使用魔法数字"></a>禁止使用魔法数字</h2><p>【模型层与业务层】【强制】<br>一些固定业务含义的代码可以使用枚举类型，或者final static常量表示，在设值时，不能直接使用不具备业务含义的数值。</p>
-<p>【反例】</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div></pre></td><td class="code"><pre><div class="line"><span class="comment">//实体类定义</span></div><div class="line"><span class="comment">/**</span></div><div class="line"><span class="comment">  * 发送设置标志 (1：立即发送 2：预设时间发送 )</span></div><div class="line"><span class="comment">  */</span></div><div class="line"><span class="meta">@Column</span>(columnDefinition = <span class="string">"varchar(1) comment '发送设置标志'"</span>)</div><div class="line"><span class="keyword">protected</span> String sendFlag;</div><div class="line"><span class="comment">//业务代码赋值使用</span></div><div class="line">MailMessage mailMessage = <span class="keyword">new</span> MailMessage();</div><div class="line">mailMessage.setSendSuccessFlag(<span class="string">"1"</span>);</div><div class="line">mailMessage.setValidStatus(<span class="string">"0"</span>);</div><div class="line">mailMessage.setCustom(<span class="keyword">true</span>);</div></pre></td></tr></table></figure>
-<p>【正例】：使用final static常量: </p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div></pre></td><td class="code"><pre><div class="line"><span class="comment">//实体类定义</span></div><div class="line">	<span class="comment">/**</span></div><div class="line"><span class="comment">     * 发送设置标志</span></div><div class="line"><span class="comment">     *</span></div><div class="line"><span class="comment">     * <span class="doctag">@see</span> sendFlag</span></div><div class="line"><span class="comment">     */</span></div><div class="line">    <span class="keyword">public</span> <span class="keyword">final</span> <span class="keyword">static</span> String SEND_FLAG_NOW = <span class="string">"1"</span>; <span class="comment">//立即发送</span></div><div class="line">    <span class="keyword">public</span> <span class="keyword">final</span> <span class="keyword">static</span> String SEND_FLAG_DELAY = <span class="string">"2"</span>; <span class="comment">//预设时间发送</span></div><div class="line"></div><div class="line">    <span class="comment">/**</span></div><div class="line"><span class="comment">     * 发送成功标志</span></div><div class="line"><span class="comment">     *</span></div><div class="line"><span class="comment">     * <span class="doctag">@see</span> sendSuccessFlag</span></div><div class="line"><span class="comment">     */</span></div><div class="line">    <span class="keyword">public</span> <span class="keyword">final</span> <span class="keyword">static</span> Map&lt;String, String&gt; SEND_SUCCESS_FLAG_MAP = <span class="keyword">new</span> LinkedHashMap&lt;&gt;();</div><div class="line">    <span class="keyword">public</span> <span class="keyword">final</span> <span class="keyword">static</span> String SEND_WAIT = <span class="string">"0"</span>;</div><div class="line">    <span class="keyword">public</span> <span class="keyword">final</span> <span class="keyword">static</span> String SEND_SUCCESS = <span class="string">"1"</span>;</div><div class="line">    <span class="keyword">public</span> <span class="keyword">final</span> <span class="keyword">static</span> String SEND_FAIL = <span class="string">"2"</span>;</div><div class="line"></div><div class="line">    <span class="keyword">static</span> &#123;</div><div class="line">        SEND_SUCCESS_FLAG_MAP.put(SEND_WAIT, <span class="string">"未发送"</span>);</div><div class="line">        SEND_SUCCESS_FLAG_MAP.put(SEND_SUCCESS, <span class="string">"发送成功"</span>);</div><div class="line">        SEND_SUCCESS_FLAG_MAP.put(SEND_FAIL, <span class="string">"发送失败"</span>);</div><div class="line">    &#125;</div><div class="line">	<span class="comment">/**</span></div><div class="line"><span class="comment">     * 发送设置标志 (1：立即发送 2：预设时间发送 )</span></div><div class="line"><span class="comment">     */</span></div><div class="line">    <span class="meta">@Column</span>(columnDefinition = <span class="string">"varchar(1) comment '发送设置标志'"</span>)</div><div class="line">    <span class="keyword">protected</span> String sendFlag;</div><div class="line"></div><div class="line"><span class="comment">//业务代码赋值使用</span></div><div class="line">MailMessage mailMessage = <span class="keyword">new</span> MailMessage();</div><div class="line">mailMessage.setSendSuccessFlag(MailMessage.SEND_WAIT);</div><div class="line">mailMessage.setValidStatus(MailMessage.VALID_WAIT);</div><div class="line">mailMessage.setCustom(<span class="keyword">true</span>);</div></pre></td></tr></table></figure>
-<p>【说明】魔法数字不能使代码一眼能够看明白到底赋的是什么值，并且，实体类发生变化后，可能会导致赋值错误，与预期赋值不符合且错误不容易被发现。</p>
-<p>【正例】：也可以使用枚举类型避免魔法数字</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">protected</span> String productType;</div><div class="line"></div><div class="line"><span class="keyword">protected</span> String productName;</div><div class="line"></div><div class="line"><span class="meta">@Enumerated</span>(EnumType.STRING)</div><div class="line"><span class="keyword">protected</span> ConsumerTypeEnum consumerType;</div><div class="line"></div><div class="line"><span class="meta">@Enumerated</span>(EnumType.STRING)</div><div class="line"><span class="keyword">protected</span> PolicyTypeEnum policyType;</div><div class="line"></div><div class="line"><span class="meta">@Enumerated</span>(EnumType.STRING)</div><div class="line"><span class="keyword">protected</span> ReceiverEnum receiver;</div><div class="line"><span class="keyword">public</span> <span class="keyword">enum</span> ConsumerTypeEnum &#123;</div><div class="line">  PERSONAL, ORGANIZATION;</div><div class="line"></div><div class="line">  <span class="function"><span class="keyword">public</span> String <span class="title">getLabel</span><span class="params">()</span> </span>&#123;</div><div class="line">    <span class="keyword">switch</span> (<span class="keyword">this</span>) &#123;</div><div class="line">      <span class="keyword">case</span> PERSONAL:</div><div class="line">        <span class="keyword">return</span> <span class="string">"个人"</span>;</div><div class="line">      <span class="keyword">case</span> ORGANIZATION:</div><div class="line">        <span class="keyword">return</span> <span class="string">"团体"</span>;</div><div class="line">      <span class="keyword">default</span>:</div><div class="line">        <span class="keyword">return</span> <span class="string">""</span>;</div><div class="line">    &#125;</div><div class="line">  &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>【视图层】【推荐】<br>例如，页面迭代select的option，不应该在view层判断，而应该在后台传入map在前台迭代<br>【正例】：<br><figure class="highlight"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line">model.put(<span class="string">"typeMap"</span>,typeMap);</div><div class="line"></div><div class="line">模板类型：&lt;select type=<span class="string">"text"</span> name=<span class="string">"templateType"</span>&gt;</div><div class="line">	&lt;option value=""&gt;全部&lt;/option&gt;</div><div class="line">	&lt;#list typeMap?keys as key&gt;</div><div class="line">		&lt;option &lt;#if ((mailTemplate.templateType!"")==key)&gt;selected="selected"&lt;/#if&gt;value="$&#123;key&#125;"&gt;$&#123;typeMap[key]&#125;&lt;/option&gt;</div><div class="line">	 &lt;/#list&gt;</div><div class="line">&lt;/select&gt;</div></pre></td></tr></table></figure></p>
-<p>【反例】：<br><figure class="highlight"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line">模板类型：&lt;select type=<span class="string">"text"</span> name=<span class="string">"templateType"</span>&gt;</div><div class="line">	&lt;option value=""&gt;全部&lt;/option&gt;</div><div class="line">	&lt;option &lt;#if $&#123;xxx.templateType!&#125;=="1"</div><div class="line">		selected="selected"&lt;/#if&gt; value="1"&gt;承保通知&lt;/option&gt;</div><div class="line">	...</div><div class="line">	&lt;option &lt;#if $&#123;xxx.templateType!&#125;=="5"</div><div class="line">		selected="selected"&lt;/#if&gt; value="5"&gt;核保通知&lt;/option&gt;</div><div class="line">&lt;/select&gt;</div></pre></td></tr></table></figure></p>
-<p>否则修改后台代码后，前端页面也要修改，设计原则应当是修改一处，其他全部变化。且 1，2…,5的含义可能会变化，不能从页面得知value和option的含义是否对应。</p>
-<h2 id="并发处理"><a href="#并发处理" class="headerlink" title="并发处理"></a>并发处理</h2><p>项目中会出现很多并发问题，要做到根据业务选择合适的并发解决方案，避免线程安全问题</p>
-<p>1    simpleDateFormat有并发问题，不能作为static类变量【强制】<br>【反例】：<br>这是我在某个项目模块中，发现的一段代码<br><figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div></pre></td><td class="code"><pre><div class="line">Class XxxController&#123;</div><div class="line">	<span class="keyword">public</span> <span class="keyword">final</span> <span class="keyword">static</span> SimpleDateFormat simpleDateFormat = <span class="keyword">new</span> SimpleDateFormat(<span class="string">"yyyy-MM-dd hh:mm:ss"</span>);</div><div class="line">	</div><div class="line">	<span class="meta">@RequestMapping</span>(<span class="string">"/xxxx"</span>)</div><div class="line">	<span class="function"><span class="keyword">public</span> String <span class="title">xxxx</span><span class="params">(String dateStr)</span></span>&#123;</div><div class="line">		XxxEntity xxxEntity = <span class="keyword">new</span> XxxEntity();</div><div class="line">		xxxEntity.setDate(simpleDateFormat.parse(dateStr));</div><div class="line">		xxxDao.save(xxxEntity);</div><div class="line">		<span class="keyword">return</span> <span class="string">"xxx"</span>;</div><div class="line">	&#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure></p>
-<p>【说明】SimpleDateFormat 是线程不安全的类，不能作为静态类变量给多线程并发访问。如果不了解多线程，可以将其作为实例变量，每次使用时都new一个出来使用。不过更推荐使用ThreadLocal来维护，减少new的开销。<br>【正例】一个使用ThreadLocal维护SimpleDateFormat的线程安全的日期转换类：<br><figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ConcurrentDateUtil</span> </span>&#123;</div><div class="line"></div><div class="line">    <span class="keyword">private</span> <span class="keyword">static</span> ThreadLocal&lt;DateFormat&gt; threadLocal = <span class="keyword">new</span> ThreadLocal&lt;DateFormat&gt;() &#123;</div><div class="line">        <span class="meta">@Override</span></div><div class="line">        <span class="function"><span class="keyword">protected</span> DateFormat <span class="title">initialValue</span><span class="params">()</span> </span>&#123;</div><div class="line">            <span class="keyword">return</span> <span class="keyword">new</span> SimpleDateFormat(<span class="string">"yyyy-MM-dd HH:mm:ss"</span>);</div><div class="line">        &#125;</div><div class="line">    &#125;;</div><div class="line"></div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">static</span> Date <span class="title">parse</span><span class="params">(String dateStr)</span> <span class="keyword">throws</span> ParseException </span>&#123;</div><div class="line">        <span class="keyword">return</span> threadLocal.get().parse(dateStr);</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">static</span> String <span class="title">format</span><span class="params">(Date date)</span> </span>&#123;</div><div class="line">        <span class="keyword">return</span> threadLocal.get().format(date);</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure></p>
-<p>2    名称唯一性校验出现的线程安全问题【推荐】<br>各个项目的admin模块在需求中经常会出现要求名称不能重复，即唯一性问题。通常在前台做ajax校验，后台使用<code>select count(1) from table_name where name=?</code>的方式查询数据库。这么做无可厚非，但是在极端的情况下，会出现并发问题。两个线程同时插入一条相同的name，如果没有做并发控制，会导致出现脏数据。如果仅仅是后台系统，那么没有必要加锁去避免，只需要对数据库加上唯一索引，并且再web层或者service层捕获数据异常即可。<br>【正例】：</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div></pre></td><td class="code"><pre><div class="line"><span class="comment">//实体类添加唯一索引</span></div><div class="line"><span class="meta">@Entity</span></div><div class="line"><span class="meta">@Table</span>(name = <span class="string">"mns_mail_template"</span>,</div><div class="line">        uniqueConstraints = &#123;<span class="meta">@UniqueConstraint</span>(columnNames = &#123;<span class="string">"templateName"</span>&#125;)&#125;</div><div class="line">)</div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">MailTemplate</span> <span class="keyword">extends</span> <span class="title">AbstractTemplate</span> </span>&#123;</div><div class="line">	<span class="comment">/**</span></div><div class="line"><span class="comment">     * 模板名称</span></div><div class="line"><span class="comment">     */</span></div><div class="line">    <span class="meta">@Column</span>(columnDefinition = <span class="string">"varchar(160) comment '模板名称'"</span>)</div><div class="line">    <span class="keyword">private</span> String templateName;</div><div class="line">&#125;</div><div class="line"></div><div class="line"><span class="comment">//业务代码捕获异常</span></div><div class="line"><span class="meta">@RequestMapping</span>(value = &#123;<span class="string">"/saveOrUpdate"</span>&#125;, method = RequestMethod.POST)</div><div class="line">    <span class="meta">@ResponseBody</span></div><div class="line">    <span class="function"><span class="keyword">public</span> AjaxResponseVo <span class="title">saveOrUpdate</span><span class="params">(MailTemplate mailTemplate)</span> </span>&#123;</div><div class="line">        AjaxResponseVo ajaxResponseVo = <span class="keyword">new</span> AjaxResponseVo(AjaxResponseVo.STATUS_CODE_SUCCESS, <span class="string">"操作成功"</span>, <span class="string">"邮件模板定义"</span>, AjaxResponseVo.CALLBACK_TYPE_CLOSE_CURRENT);</div><div class="line">        <span class="keyword">try</span> &#123;</div><div class="line">            <span class="comment">//管理端新增时初始化一些数据</span></div><div class="line">            <span class="keyword">if</span> (Lang.isEmpty(mailTemplate.getId())) &#123;</div><div class="line">                mailTemplate.setValidStatus(MailTemplate.VALID_WAIT);</div><div class="line">            &#125;</div><div class="line">            mailTemplateService.save(mailTemplate);</div><div class="line">        &#125; <span class="keyword">catch</span> (DataIntegrityViolationException ce) &#123;</div><div class="line">            ajaxResponseVo.setStatusCode(AjaxResponseVo.STATUS_CODE_ERROR);</div><div class="line">            ajaxResponseVo.setMessage(<span class="string">"模板名称已经存在"</span>);</div><div class="line">            ajaxResponseVo.setCallbackType(<span class="keyword">null</span>);</div><div class="line">            logger.error(ce);</div><div class="line">        &#125; <span class="keyword">catch</span> (Exception e) &#123;</div><div class="line">            ajaxResponseVo.setStatusCode(AjaxResponseVo.STATUS_CODE_ERROR);</div><div class="line">            ajaxResponseVo.setMessage(<span class="string">"操作失败!"</span>);</div><div class="line">            ajaxResponseVo.setCallbackType(<span class="keyword">null</span>);</div><div class="line">            logger.error(e);</div><div class="line">        &#125;</div><div class="line">        <span class="keyword">return</span> ajaxResponseVo;</div><div class="line">    &#125;</div></pre></td></tr></table></figure>
-<p>【说明】关于其他一些并发问题,如分布式锁，CAS，不仅仅是一篇文档能够讲解清楚的，需要对开发有很深的理解。</p>
-<p>3    余额扣减，库存扣减，积分发放等敏感并发操作【强制】</p>
-<p>这一块通常交给有经验的开发来完成，但所有人都需要注意。原则是事务保障，幂等保障等等设计原则。</p>
-<p>【反例】</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div></pre></td><td class="code"><pre><div class="line"><span class="comment">//Transaction start</span></div><div class="line">User user = UserDao.findById(<span class="string">"1"</span>);</div><div class="line">user.setBalance(user.getBalance()+<span class="number">100.00</span>);</div><div class="line">...<span class="comment">//其他耗时操作</span></div><div class="line">UserDao.save(user);</div><div class="line"><span class="comment">//Transaction commit</span></div></pre></td></tr></table></figure>
-<p>【正例】</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line"><span class="comment">//Transaction start</span></div><div class="line">lock...</div><div class="line">User user = UserDao.findById(<span class="string">"1"</span>);</div><div class="line">user.setBalance(user.getBalance()+<span class="number">100.00</span>);</div><div class="line">...<span class="comment">//其他耗时操作</span></div><div class="line">UserDao.save(user);</div><div class="line">release lock...</div><div class="line"><span class="comment">//Transaction commit</span></div></pre></td></tr></table></figure>
-<p>并发场景必须加锁，根据业务场景决定到底加什么锁，sychronized，ReentrantLock，version乐观锁，for update悲观锁（不推荐），redis，zookeeper实现的分布式锁等等。</p>
-<h2 id="moton使用注意事项"><a href="#moton使用注意事项" class="headerlink" title="moton使用注意事项"></a>moton使用注意事项</h2><p>1    包的扫描【注意】</p>
-<p>每个模块都要扫描自身的项目结构<br><figure class="highlight yaml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div></pre></td><td class="code"><pre><div class="line"><span class="attr">mail-sms-admin:</span><span class="string">application.yml</span></div><div class="line"></div><div class="line"><span class="attr">motan:</span></div><div class="line"><span class="attr">  client-group:</span> <span class="string">sinosoftrpc</span></div><div class="line"><span class="attr">  client-access-log:</span> <span class="literal">false</span></div><div class="line"><span class="attr">  server-group:</span> <span class="string">sinosoftrpc</span></div><div class="line"><span class="attr">  server-access-log:</span> <span class="literal">false</span></div><div class="line"><span class="attr">  export-port:</span> <span class="string">$&#123;random.int[9001,9999]&#125;</span></div><div class="line"><span class="attr">  zookeeper-host:</span> <span class="number">127.0</span><span class="number">.0</span><span class="number">.1</span><span class="string">:2181</span></div><div class="line"><span class="attr">  annotaiong-package:</span> <span class="string">sinosoftgz.message.admin</span></div></pre></td></tr></table></figure></p>
-<p>app模块由于将api-impl脱离出了自身的模块，通常还需要扫描api-impl的模块</p>
-<p>配置pom.xml依赖 </p>
-<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="name">dependency</span>&gt;</span></div><div class="line">	<span class="tag">&lt;<span class="name">groupId</span>&gt;</span>sinosoftgz<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></div><div class="line">	<span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>mail-sms-api-impl<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></div><div class="line"><span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></div></pre></td></tr></table></figure>
-<p>配置spring ioc扫描 AutoImportConfig.java</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@ComponentScans</span>(&#123;</div><div class="line">        <span class="meta">@ComponentScan</span>(basePackages = &#123;<span class="string">"sinosoftgz.message.app"</span>, <span class="string">"sinosoftgz.message.api"</span>&#125;)</div><div class="line">&#125;)</div></pre></td></tr></table></figure>
-<p>配置motan扫描 mail-sms-app:application.yml</p>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line"><span class="attr">motan:</span></div><div class="line"><span class="attr">  annotaiong-package:</span> <span class="string">sinosoftgz.message.app,sinosoftgz.message.api</span></div><div class="line"><span class="attr">  client-group:</span> <span class="string">sinosoftrpc</span></div><div class="line"><span class="attr">  client-access-log:</span> <span class="literal">true</span></div><div class="line"><span class="attr">  server-group:</span> <span class="string">sinosoftrpc</span></div><div class="line"><span class="attr">  server-access-log:</span> <span class="literal">true</span></div><div class="line"><span class="attr">  export-port:</span> <span class="string">$&#123;random.int[9001,9999]&#125;</span></div><div class="line"><span class="attr">  zookeeper-host:</span> <span class="attr">localhost:2181</span></div></pre></td></tr></table></figure>
-<p>2    motan跨模块传输实体类时懒加载失效【注意】<br>遇到的时候注意一下，由于jpa，hibernate懒加载的问题，因为其内部使用动态代理去实现的懒加载，导致懒加载对象无法被正确的跨模块传输，此时需要进行深拷贝。<br>【正例】：</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div><div class="line">39</div><div class="line">40</div><div class="line">41</div><div class="line">42</div><div class="line">43</div><div class="line">44</div><div class="line">45</div><div class="line">46</div><div class="line">47</div><div class="line">48</div><div class="line">49</div><div class="line">50</div><div class="line">51</div><div class="line">52</div><div class="line">53</div><div class="line">54</div><div class="line">55</div><div class="line">56</div><div class="line">57</div><div class="line">58</div><div class="line">59</div><div class="line">60</div><div class="line">61</div><div class="line">62</div><div class="line">63</div><div class="line">64</div><div class="line">65</div><div class="line">66</div><div class="line">67</div><div class="line">68</div><div class="line">69</div><div class="line">70</div><div class="line">71</div><div class="line">72</div><div class="line">73</div><div class="line">74</div><div class="line">75</div><div class="line">76</div><div class="line">77</div></pre></td><td class="code"><pre><div class="line"><span class="comment">/**</span></div><div class="line"><span class="comment">     * 深拷贝OrderMain对象，主要用于防止Hibernate序列化懒加载Session关闭问题</span></div><div class="line"><span class="comment">     * &lt;p/&gt;</span></div><div class="line"><span class="comment">     * //     * <span class="doctag">@param</span> order</span></div><div class="line"><span class="comment">     *</span></div><div class="line"><span class="comment">     * <span class="doctag">@return</span></span></div><div class="line"><span class="comment">     */</span></div><div class="line">    <span class="function"><span class="keyword">public</span> OrderMain <span class="title">cpyOrder</span><span class="params">(OrderMain from, OrderMain to)</span> </span>&#123;</div><div class="line">        OrderMain orderMainNew = to == <span class="keyword">null</span> ? <span class="keyword">new</span> OrderMain() : to;</div><div class="line">        Copys copys = Copys.create();</div><div class="line">        List&lt;OrderItem&gt; orderItemList = <span class="keyword">new</span> ArrayList&lt;&gt;();</div><div class="line">        List&lt;SubOrder&gt; subOrders = <span class="keyword">new</span> ArrayList&lt;&gt;();</div><div class="line">        List&lt;OrderGift&gt; orderGifts = <span class="keyword">new</span> ArrayList&lt;&gt;();</div><div class="line">        List&lt;OrderMainAttr&gt; orderMainAttrs = <span class="keyword">new</span> ArrayList&lt;&gt;();</div><div class="line">        OrderItem orderItemTmp;</div><div class="line">        SubOrder subOrderTmp;</div><div class="line">        OrderGift orderGiftTmp;</div><div class="line">        OrderMainAttr orderMainAttrTmp;</div><div class="line">        copys.from(from).excludes(<span class="string">"orderItems"</span>, <span class="string">"subOrders"</span>, <span class="string">"orderGifts"</span>, <span class="string">"orderAttrs"</span>).to(orderMainNew).clear();</div><div class="line">        <span class="keyword">if</span> (!Lang.isEmpty(from.getOrderItems())) &#123;</div><div class="line">            <span class="keyword">for</span> (OrderItem i : from.getOrderItems()) &#123;</div><div class="line">                orderItemTmp = <span class="keyword">new</span> OrderItem();</div><div class="line">                copys.from(i).excludes(<span class="string">"order"</span>).to(orderItemTmp).clear();</div><div class="line">                orderItemTmp.setOrder(orderMainNew);</div><div class="line">                orderItemList.add(orderItemTmp);</div><div class="line">            &#125;</div><div class="line">            orderMainNew.setOrderItems(orderItemList);</div><div class="line">        &#125;</div><div class="line">        SubOrderItem subOrderItem;</div><div class="line">        List&lt;SubOrderItem&gt; subOrderItemList = <span class="keyword">new</span> ArrayList&lt;&gt;();</div><div class="line">        <span class="keyword">if</span> (from.getSubOrders() != <span class="keyword">null</span>) &#123;</div><div class="line">            <span class="keyword">for</span> (SubOrder s : from.getSubOrders()) &#123;</div><div class="line">                subOrderTmp = <span class="keyword">new</span> SubOrder();</div><div class="line">                copys.from(s).excludes(<span class="string">"order"</span>, <span class="string">"subOrderItems"</span>).to(subOrderTmp).clear();</div><div class="line">                subOrderTmp.setOrder(from);</div><div class="line">                <span class="keyword">for</span> (SubOrderItem soi : s.getSubOrderItems()) &#123;</div><div class="line">                    subOrderItem = <span class="keyword">new</span> SubOrderItem();</div><div class="line">                    copys.from(soi).excludes(<span class="string">"order"</span>, <span class="string">"subOrder"</span>, <span class="string">"orderItem"</span>).to(subOrderItem).clear();</div><div class="line">                    subOrderItem.setOrder(orderMainNew);</div><div class="line">                    subOrderItem.setSubOrder(subOrderTmp);</div><div class="line">                    subOrderItemList.add(subOrderItem);</div><div class="line">                    <span class="keyword">if</span> (!Lang.isEmpty(soi.getOrderItem())) &#123;</div><div class="line">                        <span class="keyword">for</span> (OrderItem i : orderMainNew.getOrderItems()) &#123;</div><div class="line">                            <span class="keyword">if</span> (i.getId().equals(soi.getOrderItem().getId())) &#123;</div><div class="line">                                subOrderItem.setOrderItem(soi.getOrderItem());</div><div class="line">                            &#125; <span class="keyword">else</span> &#123;</div><div class="line">                                subOrderItem.setOrderItem(soi.getOrderItem());</div><div class="line">                            &#125;</div><div class="line">                        &#125;</div><div class="line">                    &#125;</div><div class="line">                &#125;</div><div class="line">                subOrderTmp.setSubOrderItems(subOrderItemList);</div><div class="line">                subOrders.add(subOrderTmp);</div><div class="line">            &#125;</div><div class="line">            orderMainNew.setSubOrders(subOrders);</div><div class="line">        &#125;</div><div class="line">        <span class="keyword">if</span> (from.getOrderGifts() != <span class="keyword">null</span>) &#123;</div><div class="line">            <span class="keyword">for</span> (OrderGift og : from.getOrderGifts()) &#123;</div><div class="line">                orderGiftTmp = <span class="keyword">new</span> OrderGift();</div><div class="line">              copys.from(og).excludes(<span class="string">"order"</span>).to(orderGiftTmp).clear();</div><div class="line">                orderGiftTmp.setOrder(orderMainNew);</div><div class="line">                orderGifts.add(orderGiftTmp);</div><div class="line">            &#125;</div><div class="line">            orderMainNew.setOrderGifts(orderGifts);</div><div class="line">        &#125;</div><div class="line"></div><div class="line">        <span class="keyword">if</span> (from.getOrderAttrs() != <span class="keyword">null</span>) &#123;</div><div class="line">            <span class="keyword">for</span> (OrderMainAttr attr : from.getOrderAttrs()) &#123;</div><div class="line">                orderMainAttrTmp = <span class="keyword">new</span> OrderMainAttr();</div><div class="line">                copys.from(attr).excludes(<span class="string">"order"</span>).to(orderMainAttrTmp).clear();</div><div class="line">                orderMainAttrTmp.setOrder(orderMainNew);</div><div class="line">                orderMainAttrs.add(orderMainAttrTmp);</div><div class="line">            &#125;</div><div class="line">            orderMainNew.setOrderAttrs(orderMainAttrs);</div><div class="line">        &#125;</div><div class="line">        <span class="keyword">return</span> orderMainNew;</div><div class="line">    &#125;</div></pre></td></tr></table></figure>
-<h2 id="公用常量规范"><a href="#公用常量规范" class="headerlink" title="公用常量规范"></a>公用常量规范</h2><p>1    模块常量【强制】<br>模块自身公用的常量放置于模块的Constants 类中，以final static的方式声明<br><figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div><div class="line">39</div><div class="line">40</div><div class="line">41</div><div class="line">42</div><div class="line">43</div><div class="line">44</div><div class="line">45</div><div class="line">46</div><div class="line">47</div><div class="line">48</div><div class="line">49</div><div class="line">50</div><div class="line">51</div><div class="line">52</div><div class="line">53</div><div class="line">54</div><div class="line">55</div><div class="line">56</div><div class="line">57</div><div class="line">58</div><div class="line">59</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Constants</span> </span>&#123;</div><div class="line">    <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> String birthdayPattern = <span class="string">"yyyy-MM-dd"</span>; <span class="comment">//生日格式</span></div><div class="line">    <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> String inputTimePattern = <span class="string">"yyyy-MM-dd HH:mm:ss"</span>; <span class="comment">//录入时间格式</span></div><div class="line"></div><div class="line">    <span class="keyword">public</span> <span class="keyword">static</span> <span class="class"><span class="keyword">class</span> <span class="title">PolicyType</span> </span>&#123;</div><div class="line">        <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> String personal = <span class="string">"0"</span>; <span class="comment">//个单</span></div><div class="line">        <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> String group = <span class="string">"1"</span>; <span class="comment">//团单</span></div><div class="line">    &#125;</div><div class="line"></div><div class="line">    <span class="keyword">public</span> <span class="keyword">static</span> <span class="class"><span class="keyword">class</span> <span class="title">InsuredNature</span> </span>&#123;</div><div class="line">        <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> String naturePerson = <span class="string">"1"</span>; <span class="comment">//自然人</span></div><div class="line">        <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> String artificialPerson = <span class="string">"0"</span>; <span class="comment">//法人</span></div><div class="line">    &#125;</div><div class="line"></div><div class="line">    <span class="keyword">public</span> <span class="keyword">static</span> <span class="class"><span class="keyword">class</span> <span class="title">InsuredIdentity</span> </span>&#123;</div><div class="line">        <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> String myself = <span class="string">"0"</span>; <span class="comment">//本人</span></div><div class="line">    &#125;</div><div class="line"></div><div class="line">    <span class="keyword">public</span> <span class="keyword">static</span> <span class="class"><span class="keyword">class</span> <span class="title">JfeeFlag</span> </span>&#123;</div><div class="line">        <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> String noFeeFlag = <span class="string">"0"</span>; <span class="comment">//非见费标志</span></div><div class="line">        <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> String feeFlag = <span class="string">"1"</span>; <span class="comment">//见费标志</span></div><div class="line">    &#125;</div><div class="line"></div><div class="line">    <span class="keyword">public</span> <span class="keyword">static</span> <span class="class"><span class="keyword">class</span> <span class="title">ItemKindFlag</span> </span>&#123;</div><div class="line">        <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> String mainRiskFlag = <span class="string">"1"</span>; <span class="comment">//主险标志</span></div><div class="line">        <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> String additionalRiskFlag = <span class="string">"2"</span>; <span class="comment">//附加险标志</span></div><div class="line">        <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> String otherRiskFlag = <span class="string">"3"</span>; <span class="comment">//其它标志</span></div><div class="line">    &#125;</div><div class="line"></div><div class="line">    <span class="keyword">public</span> <span class="keyword">static</span> <span class="class"><span class="keyword">class</span> <span class="title">CalculateAmountFlag</span> </span>&#123;</div><div class="line">        <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> String calculateFlag = <span class="string">"Y"</span>; <span class="comment">//计算保额标志</span></div><div class="line">        <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> String noCalculateFlag = <span class="string">"N"</span>; <span class="comment">//不计算保额标志</span></div><div class="line">    &#125;</div><div class="line"></div><div class="line">    <span class="keyword">public</span> <span class="keyword">static</span> <span class="class"><span class="keyword">class</span> <span class="title">LimitGrade</span> </span>&#123;</div><div class="line">        <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> String policyLevel = <span class="string">"1"</span>; <span class="comment">//限额/免赔保单级别</span></div><div class="line">        <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> String clauseLevel = <span class="string">"2"</span>; <span class="comment">//限额/免赔条款级别</span></div><div class="line">    &#125;</div><div class="line"></div><div class="line">    <span class="comment">/**</span></div><div class="line"><span class="comment">     * 批改类型</span></div><div class="line"><span class="comment">     *</span></div><div class="line"><span class="comment">     * 命名规则：对象（可选）+行为</span></div><div class="line"><span class="comment">     */</span></div><div class="line">    <span class="keyword">public</span> <span class="keyword">static</span> <span class="class"><span class="keyword">class</span> <span class="title">EndorType</span> </span>&#123;</div><div class="line">        <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> String collectivePolicyInsuredModify = <span class="string">"22"</span>; <span class="comment">//团单变更被保险人</span></div><div class="line">        <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> String collectivePolicyInsuredAdd = <span class="string">"Z1"</span>; <span class="comment">//团单批增被保险人</span></div><div class="line">        <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> String collectivePolicyInsuredRemove = <span class="string">"J1"</span>; <span class="comment">//团单批减被保险人</span></div><div class="line">        <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> String surrender = <span class="string">"04"</span>; <span class="comment">//全单退保</span></div><div class="line">        <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> String withdraw = <span class="string">"05"</span>; <span class="comment">//注销</span></div><div class="line">        <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> String insurancePeriodModify = <span class="string">"06"</span>; <span class="comment">//平移保险期限</span></div><div class="line">        <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> String applicantModify = <span class="string">"H01"</span>; <span class="comment">//更改投保人</span></div><div class="line">        <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> String customerModify = <span class="string">"50"</span>; <span class="comment">//变更客户信息</span></div><div class="line">        <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> String insuredModify = <span class="string">"29"</span>; <span class="comment">//变更被保人职业</span></div><div class="line">        <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> String individualPolicyBeneficiaryModify = <span class="string">"03"</span>; <span class="comment">//变更受益人信息</span></div><div class="line">        <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> String engageModify = <span class="string">"15"</span>; <span class="comment">//变更特别约定</span></div><div class="line">        <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> String individualPolicyInsuredModify = <span class="string">"77"</span>;<span class="comment">//个单变更被保人</span></div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure></p>
-<p>Constants类在一个限界上下文只能有一个，一个限界上下文包含了一整个业务模块（如policy-admin,policy-admin,policy-api,policy-model）<br>构成一个限界上下文</p>
-<p>在Constants类中使用静态内部类尽量细化到常量的归属，不要散放</p>
-<p>2    项目常量【强制】<br>项目公用的常量放置于util模块的GlobalContants类中，以内部类和final static的方式声明</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="keyword">abstract</span> <span class="class"><span class="keyword">class</span> <span class="title">GlobalContants</span> </span>&#123;</div><div class="line">	<span class="comment">/**</span></div><div class="line"><span class="comment">     * 返回的状态</span></div><div class="line"><span class="comment">     */</span></div><div class="line">    <span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ResponseStatus</span></span>&#123;</div><div class="line">        <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> String SUCCESS = <span class="string">"success"</span>;<span class="comment">//成功</span></div><div class="line">        <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> String ERROR = <span class="string">"error"</span>;<span class="comment">//错误</span></div><div class="line">    &#125;</div><div class="line"></div><div class="line">	<span class="comment">/**</span></div><div class="line"><span class="comment">	 * 响应状态</span></div><div class="line"><span class="comment">	 */</span></div><div class="line">    <span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ResponseString</span></span>&#123;</div><div class="line">        <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> String STATUS = <span class="string">"status"</span>;<span class="comment">//状态</span></div><div class="line">        <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> String ERROR_CODE = <span class="string">"error"</span>;<span class="comment">// 错误代码</span></div><div class="line">        <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> String MESSAGE = <span class="string">"message"</span>;<span class="comment">//消息</span></div><div class="line">        <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">final</span> String DATA = <span class="string">"data"</span>;<span class="comment">//数据</span></div><div class="line">    &#125;</div><div class="line">    ...</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<h2 id="日志规范"><a href="#日志规范" class="headerlink" title="日志规范"></a>日志规范</h2><p>1 打印日志时不允许拼接字符串【强制】</p>
-<p>【反例】log.debug ( “Load No.” + i + “ object, “ + object );</p>
-<p>【正例】log.debug( “Load No.{} object, {}” , i , object );</p>
-<p>字符串的计算是在编译期，日志级别如果是INFO，就等于在浪费机器的性能，无谓的字符串拼接。</p>
-<p>2 预防空指针【强制】</p>
-<p>【反例】log.debug( “Load student(id={}), name: {}” , id , student.getName() );</p>
-<p>【正例】log.debug( “Load student(id={}), student: {}” , id , student );</p>
-<p>不要在日志中调用对象的方法获取值，除非确保该对象肯定不为 null，否则很有可能会因为日志的问题而导致应用产生空指针异常。实现需要打印日志的实体类的toString方法或者使用JSON.toString</p>
-<p>3 输出异常信息</p>
-<p>【反例】log.error(e.getMessage,e);        log.error(“邮件发送失败，接收人姓名：{} ，e : {}”, username, e);</p>
-<p>【正例】log.error(“邮件发送失败，接收人姓名：{}”, username, e);</p>
-<p>e包含了全部的异常堆栈信息，是e.getMessage的父集，出现异常一定要保证输出堆栈信息。并且要保证exception作为log的重载方法的最后一个参数。</p>
-<p>4 Logger声明规范</p>
-<p>【正例】Logger logger = LoggerFactory.getLogger(Student.class);</p>
-<p>保证某个类的字节码作为日志跟踪标识，方便定位日志的出处。</p>
-
-           
-        
-        </div>
-        <footer class="article-footer">
-            <div class="share-container">
-
-
-
-</div>
-
-    <a data-url="http://lexburner.github.io/2017/08/25/project_rules/" data-id="cjbhqx6jc002yjsudoxqbwi8n" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
-<script>
-    (function ($) {
-        // Prevent duplicate binding
-        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
-            __SHARE_BUTTON_BINDED__ = true;
-        } else {
-            return;
-        }
-        $('body').on('click', function() {
-            $('.article-share-box.on').removeClass('on');
-        }).on('click', '.article-share-link', function(e) {
-            e.stopPropagation();
-
-            var $this = $(this),
-                url = $this.attr('data-url'),
-                encodedUrl = encodeURIComponent(url),
-                id = 'article-share-box-' + $this.attr('data-id'),
-                offset = $this.offset(),
-                box;
-
-            if ($('#' + id).length) {
-                box = $('#' + id);
-
-                if (box.hasClass('on')){
-                    box.removeClass('on');
-                    return;
-                }
-            } else {
-                var html = [
-                    '<div id="' + id + '" class="article-share-box">',
-                        '<input class="article-share-input" value="' + url + '">',
-                        '<div class="article-share-links">',
-                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
-                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
-                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
-                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
-                        '</div>',
-                    '</div>'
-                ].join('');
-
-              box = $(html);
-
-              $('body').append(box);
-            }
-
-            $('.article-share-box.on').hide();
-
-            box.css({
-                top: offset.top + 25,
-                left: offset.left
-            }).addClass('on');
-
-        }).on('click', '.article-share-box', function (e) {
-            e.stopPropagation();
-        }).on('click', '.article-share-box-input', function () {
-            $(this).select();
-        }).on('click', '.article-share-box-link', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-
-            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
-        });
-    })(jQuery);
-</script>
-
-            
-    
-        <a href="http://lexburner.github.io/2017/08/25/project_rules/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/08/25/project_rules/">评论</a>
+        <a href="http://lexburner.github.io/2017/08/26/javabean-xml/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/08/26/javabean-xml/">评论</a>
     
 
         </footer>
@@ -2185,7 +2043,7 @@
                         
                         <!-- 去除图片 -->
                         <!-- <div class="item-thumbnail">
-                            <a href="/2017/11/28/rpc-serialize-1/" class="thumbnail">
+                            <a href="/2017/11/28/view-1/" class="thumbnail">
     
     
         <span class="thumbnail-image thumbnail-none"></span>
@@ -2195,8 +2053,8 @@
                         </div> -->
                         
                         <div class="item-inner">
-                            <p class="item-category"><a class="article-category-link" href="/categories/RPC/">RPC</a></p>
-                            <p class="item-title"><a href="/2017/11/28/rpc-serialize-1/" class="title">深入理解RPC之序列化篇--Kryo</a></p>
+                            <p class="item-category"><a class="article-category-link" href="/categories/JAVA/">JAVA</a></p>
+                            <p class="item-title"><a href="/2017/11/28/view-1/" class="title">给初中级JAVA准备的面试题</a></p>
                             <p class="item-date"><time datetime="2017-11-28T14:15:28.000Z" itemprop="datePublished">2017-11-28</time></p>
                         </div>
                     </li>
@@ -2210,7 +2068,7 @@
     <div class="widget-wrap">
         <h3 class="widget-title">分类</h3>
         <div class="widget">
-            <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/DevOps/">DevOps</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/JAVA/">JAVA</a><span class="category-list-count">14</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/RPC/">RPC</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring/">Spring</a><span class="category-list-count">6</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Cloud/">Spring Cloud</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Data-Redis/">Spring Data Redis</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security/">Spring Security</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security-OAuth2/">Spring Security OAuth2</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Session/">Spring Session</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/技术杂谈/">技术杂谈</a><span class="category-list-count">7</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/架构设计/">架构设计</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/规则引擎/">规则引擎</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/领域驱动设计/">领域驱动设计</a><span class="category-list-count">2</span></li></ul>
+            <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/DevOps/">DevOps</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/JAVA/">JAVA</a><span class="category-list-count">14</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/RPC/">RPC</a><span class="category-list-count">6</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring/">Spring</a><span class="category-list-count">7</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Cloud/">Spring Cloud</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Data-Redis/">Spring Data Redis</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security/">Spring Security</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security-OAuth2/">Spring Security OAuth2</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Session/">Spring Session</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/技术杂谈/">技术杂谈</a><span class="category-list-count">7</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/架构设计/">架构设计</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/规则引擎/">规则引擎</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/领域驱动设计/">领域驱动设计</a><span class="category-list-count">2</span></li></ul>
         </div>
     </div>
 
@@ -2219,7 +2077,7 @@
     <div class="widget-wrap">
         <h3 class="widget-title">归档</h3>
         <div class="widget">
-            <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/12/">十二月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/11/">十一月 2017</a><span class="archive-list-count">5</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/10/">十月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a><span class="archive-list-count">12</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a><span class="archive-list-count">10</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/02/">二月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/11/">十一月 2016</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/08/">八月 2016</a><span class="archive-list-count">3</span></li></ul>
+            <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/12/">十二月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/11/">十一月 2017</a><span class="archive-list-count">5</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/10/">十月 2017</a><span class="archive-list-count">7</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a><span class="archive-list-count">12</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a><span class="archive-list-count">10</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/02/">二月 2017</a><span class="archive-list-count">7</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/11/">十一月 2016</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/08/">八月 2016</a><span class="archive-list-count">3</span></li></ul>
         </div>
     </div>
 
@@ -2228,7 +2086,7 @@
     <div class="widget-wrap">
         <h3 class="widget-title">标签云</h3>
         <div class="widget tagcloud">
-            <a href="/tags/DevOps/" style="font-size: 11.67px;">DevOps</a> <a href="/tags/JAVA/" style="font-size: 20px;">JAVA</a> <a href="/tags/JMM/" style="font-size: 10px;">JMM</a> <a href="/tags/RPC/" style="font-size: 16.67px;">RPC</a> <a href="/tags/Spring/" style="font-size: 18.33px;">Spring</a> <a href="/tags/Spring-Cloud/" style="font-size: 13.33px;">Spring Cloud</a> <a href="/tags/Spring-Cloud-Zuul/" style="font-size: 11.67px;">Spring Cloud Zuul</a> <a href="/tags/Spring-Data-Redis/" style="font-size: 11.67px;">Spring Data Redis</a> <a href="/tags/Spring-Security/" style="font-size: 16.67px;">Spring Security</a> <a href="/tags/Spring-Security-OAuth2/" style="font-size: 13.33px;">Spring Security OAuth2</a> <a href="/tags/Spring-Session/" style="font-size: 13.33px;">Spring Session</a> <a href="/tags/Validation/" style="font-size: 11.67px;">Validation</a> <a href="/tags/XML/" style="font-size: 10px;">XML</a> <a href="/tags/Zipkin/" style="font-size: 10px;">Zipkin</a> <a href="/tags/drools/" style="font-size: 15px;">drools</a> <a href="/tags/lua/" style="font-size: 10px;">lua</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/zookeeper/" style="font-size: 10px;">zookeeper</a> <a href="/tags/事务/" style="font-size: 10px;">事务</a> <a href="/tags/代码规范/" style="font-size: 10px;">代码规范</a> <a href="/tags/多线程/" style="font-size: 16.67px;">多线程</a> <a href="/tags/微服务/" style="font-size: 10px;">微服务</a> <a href="/tags/技术杂谈/" style="font-size: 16.67px;">技术杂谈</a> <a href="/tags/数据库/" style="font-size: 10px;">数据库</a> <a href="/tags/杂谈/" style="font-size: 10px;">杂谈</a> <a href="/tags/架构设计/" style="font-size: 15px;">架构设计</a> <a href="/tags/求职/" style="font-size: 10px;">求职</a> <a href="/tags/规则引擎/" style="font-size: 15px;">规则引擎</a> <a href="/tags/领域驱动设计/" style="font-size: 11.67px;">领域驱动设计</a>
+            <a href="/tags/DevOps/" style="font-size: 11.43px;">DevOps</a> <a href="/tags/JAVA/" style="font-size: 20px;">JAVA</a> <a href="/tags/JMM/" style="font-size: 10px;">JMM</a> <a href="/tags/RPC/" style="font-size: 17.14px;">RPC</a> <a href="/tags/Spring/" style="font-size: 18.57px;">Spring</a> <a href="/tags/Spring-Cloud/" style="font-size: 12.86px;">Spring Cloud</a> <a href="/tags/Spring-Cloud-Zuul/" style="font-size: 11.43px;">Spring Cloud Zuul</a> <a href="/tags/Spring-Data-Redis/" style="font-size: 11.43px;">Spring Data Redis</a> <a href="/tags/Spring-Security/" style="font-size: 15.71px;">Spring Security</a> <a href="/tags/Spring-Security-OAuth2/" style="font-size: 12.86px;">Spring Security OAuth2</a> <a href="/tags/Spring-Session/" style="font-size: 12.86px;">Spring Session</a> <a href="/tags/Validation/" style="font-size: 11.43px;">Validation</a> <a href="/tags/XML/" style="font-size: 10px;">XML</a> <a href="/tags/Zipkin/" style="font-size: 10px;">Zipkin</a> <a href="/tags/drools/" style="font-size: 14.29px;">drools</a> <a href="/tags/lua/" style="font-size: 10px;">lua</a> <a href="/tags/motan/" style="font-size: 10px;">motan</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/zookeeper/" style="font-size: 10px;">zookeeper</a> <a href="/tags/事务/" style="font-size: 11.43px;">事务</a> <a href="/tags/代码规范/" style="font-size: 10px;">代码规范</a> <a href="/tags/多线程/" style="font-size: 15.71px;">多线程</a> <a href="/tags/微服务/" style="font-size: 10px;">微服务</a> <a href="/tags/技术杂谈/" style="font-size: 15.71px;">技术杂谈</a> <a href="/tags/数据库/" style="font-size: 10px;">数据库</a> <a href="/tags/杂谈/" style="font-size: 10px;">杂谈</a> <a href="/tags/架构设计/" style="font-size: 14.29px;">架构设计</a> <a href="/tags/求职/" style="font-size: 10px;">求职</a> <a href="/tags/规则引擎/" style="font-size: 14.29px;">规则引擎</a> <a href="/tags/领域驱动设计/" style="font-size: 11.43px;">领域驱动设计</a>
         </div>
     </div>
 
