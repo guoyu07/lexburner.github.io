@@ -147,7 +147,7 @@
         </div>
         <div class="article-info profile-block">
             <div class="article-info-block">
-                65
+                66
                 <span>文章</span>
             </div>
             <div class="article-info-block">
@@ -182,6 +182,162 @@
 
             
             <section id="main">
+    <article id="post-javabean-xml" class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        
+            <header class="article-header">
+                
+    
+        <h1 itemprop="name">
+            <a class="article-title" href="/2017/08/26/javabean-xml/">XML与javabean的转换</a>
+        </h1>
+    
+
+                
+                    <div class="article-meta">
+                    	
+	
+		<div class="article-type">
+		    <span class="label label-success" style="float: left;padding: 3px 5px 3px 5px;margin-right: 15px;margin-top: 2px;">原创</span>
+		</div>
+	
+		
+
+
+                        
+    <div class="article-date">
+        <i class="fa fa-calendar"></i>
+        <a href="/2017/08/26/javabean-xml/">
+            <time datetime="2017-08-25T19:41:27.000Z" itemprop="datePublished">2017-08-26</time>
+        </a>
+    </div>
+
+
+                        
+    <div class="article-category">
+    	<i class="fa fa-folder"></i>
+        <a class="article-category-link" href="/categories/JAVA/">JAVA</a>
+    </div>
+
+                        <!-- 不显示标签 -->
+                        <!-- 
+    <div class="article-tag">
+        <i class="fa fa-tag"></i>
+        <a class="tag-link" href="/tags/XML/">XML</a>
+    </div>
+ -->
+                    </div>
+                
+            </header>
+        
+        
+        <div class="article-entry" itemprop="articleBody">
+        
+            <p><p>XML可以说是一种被时代淘汰的数据传输格式，毕竟相比较JSON，其语法，表现形式，以及第三方类库的支持，都要略逊一筹，但最近在对接一些老接口时，主要还是以XML为主，而翻阅相关的文档以及博客，没看到很好的文章介绍如何使用xml进行数据传输，所以简单写下此文，做一下记录。内心多多少少还是会抵制对接如此老旧的接口，不过生活还是要继续。</p>
+<h2 id="Code-First"><a href="#Code-First" class="headerlink" title="Code First"></a>Code First</h2><p>先上一段代码，展示一下如何封装，讲解放到后面</p>
+<p>一个典型的对接方提供的XML如下：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div></pre></td><td class="code"><pre><div class="line">&lt;?xml version="1.0" encoding="UTF-8" standalone="yes"?&gt;</div><div class="line"><span class="tag">&lt;<span class="name">ORDER</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">ORDER_NO</span>&gt;</span>10086<span class="tag">&lt;/<span class="name">ORDER_NO</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">TOTAL_PRICE</span>&gt;</span>3.14<span class="tag">&lt;/<span class="name">TOTAL_PRICE</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">CREATE_TIME</span>&gt;</span>2017-08-26 03:39:30<span class="tag">&lt;/<span class="name">CREATE_TIME</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">ORDER_ITEMS</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">ORDER_ITEM</span>&gt;</span></div><div class="line">            <span class="tag">&lt;<span class="name">GOODS_NAME</span>&gt;</span>德芙<span class="tag">&lt;/<span class="name">GOODS_NAME</span>&gt;</span></div><div class="line">            <span class="tag">&lt;<span class="name">NUM</span>&gt;</span>3<span class="tag">&lt;/<span class="name">NUM</span>&gt;</span></div><div class="line">        <span class="tag">&lt;/<span class="name">ORDER_ITEM</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">ORDER_ITEM</span>&gt;</span></div><div class="line">            <span class="tag">&lt;<span class="name">GOODS_NAME</span>&gt;</span>旺仔<span class="tag">&lt;/<span class="name">GOODS_NAME</span>&gt;</span></div><div class="line">            <span class="tag">&lt;<span class="name">NUM</span>&gt;</span>10<span class="tag">&lt;/<span class="name">NUM</span>&gt;</span></div><div class="line">        <span class="tag">&lt;/<span class="name">ORDER_ITEM</span>&gt;</span></div><div class="line">    <span class="tag">&lt;/<span class="name">ORDER_ITEMS</span>&gt;</span></div><div class="line"><span class="tag">&lt;/<span class="name">ORDER</span>&gt;</span></div></pre></td></tr></table></figure>
+<p>而我们要对应的实体类，则应当如下：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@XmlRootElement</span>(name = <span class="string">"ORDER"</span>)<span class="comment">// &lt;1&gt;</span></div><div class="line"><span class="meta">@XmlAccessorType</span>(XmlAccessType.FIELD)<span class="comment">// &lt;1&gt;</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Order</span> </span>&#123;</div><div class="line"></div><div class="line">    <span class="meta">@XmlElement</span>(name = <span class="string">"ORDER_NO"</span>)<span class="comment">// &lt;1&gt;</span></div><div class="line">    <span class="keyword">private</span> String orderNo;</div><div class="line"></div><div class="line">    <span class="meta">@XmlElement</span>(name = <span class="string">"TOTAL_PRICE"</span>)</div><div class="line">    <span class="keyword">private</span> BigDecimal totalPrice;</div><div class="line"></div><div class="line">    <span class="meta">@XmlElement</span>(name = <span class="string">"CREATE_TIME"</span>)</div><div class="line">    <span class="meta">@XmlJavaTypeAdapter</span>(DateAdapter.class) <span class="comment">// &lt;2&gt;</span></div><div class="line">    <span class="keyword">private</span> Date createTime;</div><div class="line"></div><div class="line">    <span class="meta">@XmlElementWrapper</span>(name = <span class="string">"ORDER_ITEMS"</span>) <span class="comment">// &lt;3&gt;</span></div><div class="line">    <span class="meta">@XmlElement</span>(name = <span class="string">"ORDER_ITEM"</span>)</div><div class="line">    <span class="keyword">private</span> List&lt;OrderItem&gt; orderItems;</div><div class="line"></div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@XmlAccessorType</span>(XmlAccessType.FIELD)</div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">OrderItem</span> </span>&#123;</div><div class="line"></div><div class="line">    <span class="meta">@XmlElement</span>(name = <span class="string">"GOODS_NAME"</span>)</div><div class="line">    <span class="keyword">private</span> String goodsName;</div><div class="line"></div><div class="line">    <span class="meta">@XmlElement</span>(name = <span class="string">"NUM"</span>)</div><div class="line">    <span class="keyword">private</span> Integer num;</div><div class="line"></div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>我举的这个示例基本包含一般情况下所有可能出现的需求</p>
+<p><1> 常用注解XmlRootElement，XmlAccessorType，XmlElement</1></p>
+<p><2> 日期转换的适配器注解</2></p>
+<p><3> 如何在XML中设置集合</3></p>
+<p>在介绍这三点之前，先给出转换的工具类</p></p>
+            <p class="article-more-link">
+                <a href="/2017/08/26/javabean-xml/#more">查看更多</a>
+            </p>
+        
+        </div>
+        <footer class="article-footer">
+            <div class="share-container">
+
+
+
+</div>
+
+    <a data-url="http://lexburner.github.io/2017/08/26/javabean-xml/" data-id="cjbrm6kby001zccuda19a9qrt" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+<script>
+    (function ($) {
+        // Prevent duplicate binding
+        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
+            __SHARE_BUTTON_BINDED__ = true;
+        } else {
+            return;
+        }
+        $('body').on('click', function() {
+            $('.article-share-box.on').removeClass('on');
+        }).on('click', '.article-share-link', function(e) {
+            e.stopPropagation();
+
+            var $this = $(this),
+                url = $this.attr('data-url'),
+                encodedUrl = encodeURIComponent(url),
+                id = 'article-share-box-' + $this.attr('data-id'),
+                offset = $this.offset(),
+                box;
+
+            if ($('#' + id).length) {
+                box = $('#' + id);
+
+                if (box.hasClass('on')){
+                    box.removeClass('on');
+                    return;
+                }
+            } else {
+                var html = [
+                    '<div id="' + id + '" class="article-share-box">',
+                        '<input class="article-share-input" value="' + url + '">',
+                        '<div class="article-share-links">',
+                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
+                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
+                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
+                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
+                        '</div>',
+                    '</div>'
+                ].join('');
+
+              box = $(html);
+
+              $('body').append(box);
+            }
+
+            $('.article-share-box.on').hide();
+
+            box.css({
+                top: offset.top + 25,
+                left: offset.left
+            }).addClass('on');
+
+        }).on('click', '.article-share-box', function (e) {
+            e.stopPropagation();
+        }).on('click', '.article-share-box-input', function () {
+            $(this).select();
+        }).on('click', '.article-share-box-link', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
+        });
+    })(jQuery);
+</script>
+
+            
+    
+        <a href="http://lexburner.github.io/2017/08/26/javabean-xml/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/08/26/javabean-xml/">评论</a>
+    
+
+        </footer>
+    </div>
+	
+    
+	
+</article>
+
+
+
     <article id="post-project-rules" class="article article-type-post" itemscope itemprop="blogPost">
     <div class="article-inner">
         
@@ -396,7 +552,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/08/25/project-rules/" data-id="cjborkn8m002nmsudb9p9k684" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/08/25/project-rules/" data-id="cjbrm6kde002rccudcmb90hlv" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -548,7 +704,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/08/22/博客搬家/" data-id="cjborknb90058msud72odwc7n" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/08/22/博客搬家/" data-id="cjbrm6kfw0055ccud52tpu8nx" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -693,7 +849,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/08/21/一个DDD指导下的实体类设计案例/" data-id="cjborknak004pmsud4rpjt1sq" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/08/21/一个DDD指导下的实体类设计案例/" data-id="cjbrm6kfi004qccudpbgb1uj0" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -839,7 +995,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/08/16/使用spring validation完成数据后端校验/" data-id="cjborknaz0050msudwptds5x3" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/08/16/使用spring validation完成数据后端校验/" data-id="cjbrm6kfl004tccudh5sgqygv" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -989,7 +1145,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/08/10/Re：从零开始的Spring Security OAuth2（三）/" data-id="cjborkn5k0006msudsuofav7s" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/08/10/Re：从零开始的Spring Security OAuth2（三）/" data-id="cjbrm6k9q0009ccudw2nrgovp" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1140,7 +1296,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/08/09/Re：从零开始的Spring Security OAuth2（二）/" data-id="cjborkn5q0008msudh3w1avdb" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/08/09/Re：从零开始的Spring Security OAuth2（二）/" data-id="cjbrm6k9k0006ccudiwh1bbjg" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1287,7 +1443,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/08/08/Re：从零开始的Spring Security OAuth2（一）/" data-id="cjborkn590002msude5hemqm0" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/08/08/Re：从零开始的Spring Security OAuth2（一）/" data-id="cjbrm6k8w0000ccudk3q9vl16" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1434,7 +1590,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/08/03/thinking-in-spring-cloud-feign/" data-id="cjborkna00043msudzwp7mh3o" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/08/03/thinking-in-spring-cloud-feign/" data-id="cjbrm6kew0046ccudk8wiw43r" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1585,7 +1741,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/07/28/Re：从零开始的领域驱动设计/" data-id="cjborkn5z000fmsudbrfjtpty" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/07/28/Re：从零开始的领域驱动设计/" data-id="cjbrm6kaa000mccud6hrck6c5" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1665,157 +1821,6 @@
 
 
 
-    <article id="post-spring-transation-1" class="article article-type-post" itemscope itemprop="blogPost">
-    <div class="article-inner">
-        
-        
-            <header class="article-header">
-                
-    
-        <h1 itemprop="name">
-            <a class="article-title" href="/2017/06/23/spring-transation-1/">spring中的懒加载与事务--排坑记录</a>
-        </h1>
-    
-
-                
-                    <div class="article-meta">
-                    	
-	
-		<div class="article-type">
-		    <span class="label label-success" style="float: left;padding: 3px 5px 3px 5px;margin-right: 15px;margin-top: 2px;">原创</span>
-		</div>
-	
-		
-
-
-                        
-    <div class="article-date">
-        <i class="fa fa-calendar"></i>
-        <a href="/2017/06/23/spring-transation-1/">
-            <time datetime="2017-06-23T05:37:41.000Z" itemprop="datePublished">2017-06-23</time>
-        </a>
-    </div>
-
-
-                        
-    <div class="article-category">
-    	<i class="fa fa-folder"></i>
-        <a class="article-category-link" href="/categories/Spring/">Spring</a>
-    </div>
-
-                        <!-- 不显示标签 -->
-                        <!-- 
-    <div class="article-tag">
-        <i class="fa fa-tag"></i>
-        <a class="tag-link" href="/tags/Spring/">Spring</a>, <a class="tag-link" href="/tags/事务/">事务</a>
-    </div>
- -->
-                    </div>
-                
-            </header>
-        
-        
-        <div class="article-entry" itemprop="articleBody">
-        
-            <p><h2 id="案例描述"><a href="#案例描述" class="headerlink" title="案例描述"></a>案例描述</h2><p>本文主要描述了开发中常见的几个与spring懒加载和事务相关的案例，描述常见的使用场景，以及如何规避他们，给出具体的代码。</p>
-<ol>
-<li>在新的线程中，访问某个持久化对象的懒加载属性。</li>
-<li>在quartz定时任务中，访问某个持久化对象的懒加载属性。</li>
-<li>在dubbo，motan一类rpc框架中，远程调用时服务端session关闭的问题。</li>
-</ol>
-<p>上面三个案例，其实核心都是一个问题，就是牵扯到spring对事务的管理，而懒加载这个技术，只是比较容易体现出事务出错的一个实践，主要用它来引发问题，进而对问题进行思考。</p></p>
-            <p class="article-more-link">
-                <a href="/2017/06/23/spring-transation-1/#more">查看更多</a>
-            </p>
-        
-        </div>
-        <footer class="article-footer">
-            <div class="share-container">
-
-
-
-</div>
-
-    <a data-url="http://lexburner.github.io/2017/06/23/spring-transation-1/" data-id="cjborkn9s003ymsudy7bprnkt" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
-<script>
-    (function ($) {
-        // Prevent duplicate binding
-        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
-            __SHARE_BUTTON_BINDED__ = true;
-        } else {
-            return;
-        }
-        $('body').on('click', function() {
-            $('.article-share-box.on').removeClass('on');
-        }).on('click', '.article-share-link', function(e) {
-            e.stopPropagation();
-
-            var $this = $(this),
-                url = $this.attr('data-url'),
-                encodedUrl = encodeURIComponent(url),
-                id = 'article-share-box-' + $this.attr('data-id'),
-                offset = $this.offset(),
-                box;
-
-            if ($('#' + id).length) {
-                box = $('#' + id);
-
-                if (box.hasClass('on')){
-                    box.removeClass('on');
-                    return;
-                }
-            } else {
-                var html = [
-                    '<div id="' + id + '" class="article-share-box">',
-                        '<input class="article-share-input" value="' + url + '">',
-                        '<div class="article-share-links">',
-                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
-                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
-                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
-                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
-                        '</div>',
-                    '</div>'
-                ].join('');
-
-              box = $(html);
-
-              $('body').append(box);
-            }
-
-            $('.article-share-box.on').hide();
-
-            box.css({
-                top: offset.top + 25,
-                left: offset.left
-            }).addClass('on');
-
-        }).on('click', '.article-share-box', function (e) {
-            e.stopPropagation();
-        }).on('click', '.article-share-box-input', function () {
-            $(this).select();
-        }).on('click', '.article-share-box-link', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-
-            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
-        });
-    })(jQuery);
-</script>
-
-            
-    
-        <a href="http://lexburner.github.io/2017/06/23/spring-transation-1/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/06/23/spring-transation-1/">评论</a>
-    
-
-        </footer>
-    </div>
-	
-    
-	
-</article>
-
-
-
     <nav id="page-nav">
         <a class="extend prev" rel="prev" href="/page/3/">&laquo; 上一页</a><a class="page-number" href="/">1</a><a class="page-number" href="/page/2/">2</a><a class="page-number" href="/page/3/">3</a><span class="page-number current">4</span><a class="page-number" href="/page/5/">5</a><a class="page-number" href="/page/6/">6</a><a class="page-number" href="/page/7/">7</a><a class="extend next" rel="next" href="/page/5/">下一页 &raquo;</a>
     </nav>
@@ -1828,6 +1833,26 @@
         <h3 class="widget-title">最新文章</h3>
         <div class="widget">
             <ul id="recent-post" class="">
+                
+                    <li>
+                        
+                        <!-- 去除图片 -->
+                        <!-- <div class="item-thumbnail">
+                            <a href="/2017/12/28/rpc-protocol/" class="thumbnail">
+    
+    
+        <span class="thumbnail-image thumbnail-none"></span>
+    
+</a>
+
+                        </div> -->
+                        
+                        <div class="item-inner">
+                            <p class="item-category"><a class="article-category-link" href="/categories/RPC/">RPC</a></p>
+                            <p class="item-title"><a href="/2017/12/28/rpc-protocol/" class="title">深入理解RPC之协议篇</a></p>
+                            <p class="item-date"><time datetime="2017-12-28T12:16:28.000Z" itemprop="datePublished">2017-12-28</time></p>
+                        </div>
+                    </li>
                 
                     <li>
                         
@@ -1909,26 +1934,6 @@
                         </div>
                     </li>
                 
-                    <li>
-                        
-                        <!-- 去除图片 -->
-                        <!-- <div class="item-thumbnail">
-                            <a href="/2017/12/06/NJIAS2017/" class="thumbnail">
-    
-    
-        <span class="thumbnail-image thumbnail-none"></span>
-    
-</a>
-
-                        </div> -->
-                        
-                        <div class="item-inner">
-                            <p class="item-category"><a class="article-category-link" href="/categories/技术杂谈/">技术杂谈</a></p>
-                            <p class="item-title"><a href="/2017/12/06/NJIAS2017/" class="title">南京IAS架构师峰会观后感</a></p>
-                            <p class="item-date"><time datetime="2017-12-05T17:15:28.000Z" itemprop="datePublished">2017-12-06</time></p>
-                        </div>
-                    </li>
-                
             </ul>
         </div>
     </div>
@@ -1938,7 +1943,7 @@
     <div class="widget-wrap">
         <h3 class="widget-title">分类</h3>
         <div class="widget">
-            <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/DevOps/">DevOps</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/JAVA/">JAVA</a><span class="category-list-count">14</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/RPC/">RPC</a><span class="category-list-count">6</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring/">Spring</a><span class="category-list-count">7</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Cloud/">Spring Cloud</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Data-Redis/">Spring Data Redis</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security/">Spring Security</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security-OAuth2/">Spring Security OAuth2</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Session/">Spring Session</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/技术杂谈/">技术杂谈</a><span class="category-list-count">7</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/架构设计/">架构设计</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/规则引擎/">规则引擎</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/领域驱动设计/">领域驱动设计</a><span class="category-list-count">2</span></li></ul>
+            <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/DevOps/">DevOps</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/JAVA/">JAVA</a><span class="category-list-count">14</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/RPC/">RPC</a><span class="category-list-count">7</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring/">Spring</a><span class="category-list-count">7</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Cloud/">Spring Cloud</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Data-Redis/">Spring Data Redis</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security/">Spring Security</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security-OAuth2/">Spring Security OAuth2</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Session/">Spring Session</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/技术杂谈/">技术杂谈</a><span class="category-list-count">7</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/架构设计/">架构设计</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/规则引擎/">规则引擎</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/领域驱动设计/">领域驱动设计</a><span class="category-list-count">2</span></li></ul>
         </div>
     </div>
 
@@ -1947,7 +1952,7 @@
     <div class="widget-wrap">
         <h3 class="widget-title">归档</h3>
         <div class="widget">
-            <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/12/">十二月 2017</a><span class="archive-list-count">5</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/11/">十一月 2017</a><span class="archive-list-count">5</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/10/">十月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a><span class="archive-list-count">12</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a><span class="archive-list-count">10</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/02/">二月 2017</a><span class="archive-list-count">7</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/11/">十一月 2016</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/08/">八月 2016</a><span class="archive-list-count">3</span></li></ul>
+            <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/12/">十二月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/11/">十一月 2017</a><span class="archive-list-count">5</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/10/">十月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a><span class="archive-list-count">12</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a><span class="archive-list-count">10</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/02/">二月 2017</a><span class="archive-list-count">7</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/11/">十一月 2016</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/08/">八月 2016</a><span class="archive-list-count">3</span></li></ul>
         </div>
     </div>
 
