@@ -147,7 +147,7 @@
         </div>
         <div class="article-info profile-block">
             <div class="article-info-block">
-                66
+                67
                 <span>文章</span>
             </div>
             <div class="article-info-block">
@@ -182,6 +182,281 @@
 
             
             <section id="main">
+    <article id="post-rpc-registry" class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        
+            <header class="article-header">
+                
+    
+        <h1 itemprop="name">
+            <a class="article-title" href="/2018/01/05/rpc-registry/">深入理解RPC之服务注册与发现篇</a>
+        </h1>
+    
+
+                
+                    <div class="article-meta">
+                    	
+	
+		<div class="article-type">
+		    <span class="label label-success" style="float: left;padding: 3px 5px 3px 5px;margin-right: 15px;margin-top: 2px;">原创</span>
+		</div>
+	
+		
+
+
+                        
+    <div class="article-date">
+        <i class="fa fa-calendar"></i>
+        <a href="/2018/01/05/rpc-registry/">
+            <time datetime="2018-01-05T12:16:28.000Z" itemprop="datePublished">2018-01-05</time>
+        </a>
+    </div>
+
+
+                        
+    <div class="article-category">
+    	<i class="fa fa-folder"></i>
+        <a class="article-category-link" href="/categories/RPC/">RPC</a>
+    </div>
+
+                        <!-- 不显示标签 -->
+                        <!-- 
+    <div class="article-tag">
+        <i class="fa fa-tag"></i>
+        <a class="tag-link" href="/tags/RPC/">RPC</a>
+    </div>
+ -->
+                    </div>
+                
+            </header>
+        
+        
+        <div class="article-entry" itemprop="articleBody">
+        
+            
+             <p>在我们之前 RPC 原理的分析中，主要将笔墨集中在 Client 和 Server 端。而成熟的服务治理框架中不止存在这两个角色，一般还会有一个 Registry（注册中心）的角色。一张图就可以解释注册中心的主要职责。</p>
+<p><img src="https://images2015.cnblogs.com/blog/17071/201705/17071-20170522235215679-280378465.png" alt="注册中心的地位"></p>
+<ul>
+<li>注册中心，用于服务端注册远程服务以及客户端发现服务</li>
+<li>服务端，对外提供后台服务，将自己的服务信息注册到注册中心</li>
+<li>客户端，从注册中心获取远程服务的注册信息，然后进行远程过程调用</li>
+</ul>
+<p>目前主要的注册中心可以借由 zookeeper，eureka，consul，etcd 等开源框架实现。互联网公司也会因为自身业务的特性自研，如美团点评自研的 MNS，新浪微博自研的 vintage。</p>
+<p>本文定位是对注册中心有一定了解的读者，所以不过多阐述注册中心的基础概念。</p>
+<h2 id="注册中心的抽象"><a href="#注册中心的抽象" class="headerlink" title="注册中心的抽象"></a>注册中心的抽象</h2><p>借用开源框架中的核心接口，可以帮助我们从一个较为抽象的高度去理解注册中心。例如 motan 中的相关接口：</p>
+<p>服务注册接口</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">RegistryService</span> </span>&#123;</div><div class="line">	<span class="comment">//1. 向注册中心注册服务</span></div><div class="line">    <span class="function"><span class="keyword">void</span> <span class="title">register</span><span class="params">(URL url)</span></span>;</div><div class="line">    <span class="comment">//2. 从注册中心摘除服务</span></div><div class="line">    <span class="function"><span class="keyword">void</span> <span class="title">unregister</span><span class="params">(URL url)</span></span>;</div><div class="line">    <span class="comment">//3. 将服务设置为可用，供客户端调用</span></div><div class="line">    <span class="function"><span class="keyword">void</span> <span class="title">available</span><span class="params">(URL url)</span></span>;</div><div class="line">    <span class="comment">//4. 禁用服务，客户端无法发现该服务</span></div><div class="line">    <span class="function"><span class="keyword">void</span> <span class="title">unavailable</span><span class="params">(URL url)</span></span>;</div><div class="line">  	<span class="comment">//5. 获取已注册服务的集合</span></div><div class="line">    <span class="function">Collection&lt;URL&gt; <span class="title">getRegisteredServiceUrls</span><span class="params">()</span></span>;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>服务发现接口</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">DiscoveryService</span> </span>&#123;</div><div class="line">    <span class="comment">//1. 订阅服务</span></div><div class="line">    <span class="function"><span class="keyword">void</span> <span class="title">subscribe</span><span class="params">(URL url, NotifyListener listener)</span></span>;</div><div class="line">    <span class="comment">//2. 取消订阅</span></div><div class="line">    <span class="function"><span class="keyword">void</span> <span class="title">unsubscribe</span><span class="params">(URL url, NotifyListener listener)</span></span>;</div><div class="line">    <span class="comment">//3. 发现服务列表</span></div><div class="line">    <span class="function">List&lt;URL&gt; <span class="title">discover</span><span class="params">(URL url)</span></span>;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>主要使用的方法是 RegistryService#register(URL) 和 DiscoveryService#discover(URL)。其中这个 URL 参数被传递，显然也是很重要的一个类。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">URL</span> </span>&#123;</div><div class="line">    <span class="keyword">private</span> String protocol;<span class="comment">//协议名称</span></div><div class="line">    <span class="keyword">private</span> String host;</div><div class="line">    <span class="keyword">private</span> <span class="keyword">int</span> port;</div><div class="line">    <span class="comment">// interfaceName,也代表着路径</span></div><div class="line">    <span class="keyword">private</span> String path;</div><div class="line">    <span class="keyword">private</span> Map&lt;String, String&gt; parameters;</div><div class="line">    <span class="keyword">private</span> <span class="keyword">volatile</span> <span class="keyword">transient</span> Map&lt;String, Number&gt; numbers;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>注册中心也没那么玄乎，其实可以简单理解为：提供一个存储介质，供服务提供者和服务消费者共同连接，而存储的主要信息就是这里的 URL。但是具体 URL 都包含了什么实际信息，我们还没有一个直观的感受。</p>
+<h2 id="注册信息概览"><a href="#注册信息概览" class="headerlink" title="注册信息概览"></a>注册信息概览</h2><p>以元老级别的注册中心 zookeeper 为例，看看它实际都存储了什么信息以及它是如何持久化上一节的 URL。</p>
+<p>为了测试，我创建了一个 RPC 服务接口 <code>com.sinosoft.student.api.DemoApi</code> ,并且在 6666 端口暴露了这个服务的实现类，将其作为服务提供者。在 6667 端口远程调用这个服务，作为服务消费者。两者都连接本地的 zookeeper，本机 ip 为 192.168.150.1。</p>
+<p>使用 zkClient.bash 或者 zkClient.sh 作为客户端连接到本地的 zookeeper，执行如下的命令：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line">[zk: localhost:2181(CONNECTED) 1] ls /motan/demo_group/com.sinosoft.student.api.DemoApi</div><div class="line">&gt; [client, server, unavailableServer]</div></pre></td></tr></table></figure>
+<p>zookeeper 有着和 linux 类似的命令和结构，其中 motan，demo_group，com.sinosoft.student.api.DemoApi，client, server, unavailableServer 都是一个个节点。可以从上述命令看出他们的父子关系。</p>
+<p><code>/motan/demo_group/com.sinosoft.student.api.DemoApi</code> 的结构为 /框架标识/分组名/接口名，其中的分组是 motan 为了隔离不同组的服务而设置的。这样，接口名称相同，分组不同的服务无法互相发现。如果此时有一个分组名为 demo_group2 的服务，接口名称为 DemoApi2，则 motan 会为其创建一个新的节点 <code>/motan/demo_group2/com.sinosoft.student.api.DemoApi2</code></p>
+<p>而 client，server，unavailableServer 则就是服务注册与发现的核心节点了。我们先看看这些节点都存储了什么信息。</p>
+<p>server 节点：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line">[zk: localhost:2181(CONNECTED) 2] ls /motan/demo_group/com.sinosoft.student.api.DemoApi/server</div><div class="line">&gt; [192.168.150.1:6666]</div><div class="line"></div><div class="line">[zk: localhost:2181(CONNECTED) 3] get /motan/demo_group/com.sinosoft.student.api.DemoApi/server/192.168.150.1:6666</div><div class="line">&gt; motan://192.168.150.1:6666/com.sinosoft.student.api.DemoApi?serialization=hessian2&amp;protocol=motan&amp;isDefault=true&amp;maxContentLength=1548576&amp;shareChannel=true&amp;refreshTimestamp=1515122649835&amp;id=motanServerBasicConfig&amp;nodeType=service&amp;export=motan:6666&amp;requestTimeout=9000000&amp;accessLog=false&amp;group=demo_group&amp;</div></pre></td></tr></table></figure>
+<p>client 节点：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line">[zk: localhost:2181(CONNECTED) 4] ls /motan/demo_group/com.sinosoft.student.api.DemoApi/client</div><div class="line">&gt; [192.168.150.1]</div><div class="line">[zk: localhost:2181(CONNECTED) 5] get /motan/demo_group/com.sinosoft.student.api.DemoApi/client/192.168.150.1</div><div class="line">&gt; motan://192.168.150.1:0/com.sinosoft.student.api.DemoApi?singleton=true&amp;maxContentLength=1548576&amp;check=false&amp;nodeType=service&amp;version=1.0&amp;throwException=true&amp;accessLog=false&amp;serialization=hessian2&amp;retries=0&amp;protocol=motan&amp;isDefault=true&amp;refreshTimestamp=1515122631758&amp;id=motanClientBasicConfig&amp;requestTimeout=9000&amp;group=demo_group&amp;</div></pre></td></tr></table></figure>
+<p>unavailableServer 节点是一个过渡节点，所以在一切正常的情况下不会存在信息，它的具体作用在下面会介绍。</p>
+<p>从这些输出数据可以发现，注册中心承担的一个职责就是存储服务调用中相关的信息，server 向 zookeeper 注册信息，保存在 server 节点，而 client 实际和 server 共享同一个接口，接口名称就是路径名，所以也到达了同样的 server 节点去获取信息。并且同时注册到了 client 节点下（为什么需要这么做在下面介绍）。</p>
+<h2 id="注册信息详解"><a href="#注册信息详解" class="headerlink" title="注册信息详解"></a>注册信息详解</h2><h3 id="Server-节点"><a href="#Server-节点" class="headerlink" title="Server 节点"></a>Server 节点</h3><p>server 节点承担着最重要的职责，它由服务提供者创建，以供服务消费者获取节点中的信息，从而定位到服务提供者真正网络拓扑位置以及得知如何调用。demo 中我只在本机  [192.168.150.1:6666] 启动了一个实例，所以在server 节点之下，只存在这么一个节点，继续 get 这个节点，可以获取更详细的信息</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">motan://192.168.150.1:6666/com.sinosoft.student.api.DemoApi?serialization=hessian2&amp;protocol=motan&amp;isDefault=true&amp;maxContentLength=1548576&amp;shareChannel=true&amp;refreshTimestamp=1515122649835&amp;id=motanServerBasicConfig&amp;nodeType=service&amp;export=motan:6666&amp;requestTimeout=9000000&amp;accessLog=false&amp;group=demo_group&amp;</div></pre></td></tr></table></figure>
+<p>作为一个 value 值，它和 http 协议的请求十分相似，不过是以 motan:// 开头，表达的意图也很明确，这是 motan 协议和相关的路径及参数，关于 RPC 中的协议，可以翻看我的上一篇文章《深入理解RPC之协议篇》。</p>
+<p>serialization 对应序列化方式，protocol 对应协议名称，maxContentLength 对应 RPC 传输中数据报文的最大长度，shareChannel 是传输层用到的参数，netty channel 中的一个属性，group 对应分组名称。</p>
+<p>上述的 value 包含了 RPC 调用中所需要的全部信息。</p>
+<h3 id="Client-节点"><a href="#Client-节点" class="headerlink" title="Client 节点"></a>Client 节点</h3><p>在 motan 中使用 zookeeper 作为注册中心时，客户端订阅服务时会向 zookeeper 注册自身，主要是方便对调用方进行统计、管理。但订阅时是否注册 client 不是必要行为，和不同的注册中心实现有关，例如使用 consul 时便没有注册。</p>
+<p>由于我们使用 zookeeper，也可以分析下 zookeeper 中都注册了什么信息。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">motan://192.168.150.1:0/com.sinosoft.student.api.DemoApi?singleton=true&amp;maxContentLength=1548576&amp;check=false&amp;nodeType=service&amp;version=1.0&amp;throwException=true&amp;accessLog=false&amp;serialization=hessian2&amp;retries=0&amp;protocol=motan&amp;isDefault=true&amp;refreshTimestamp=1515122631758&amp;id=motanClientBasicConfig&amp;requestTimeout=9000&amp;group=demo_group</div></pre></td></tr></table></figure>
+<p>和 Server 节点的值类似，但也有客户独有的一些属性，如 singleton 代表服务是否单例，check 检查服务提供者是否存在，retries 代表重试次数，这也是 RPC 中特别需要注意的一点。</p>
+<h3 id="UnavailableServer-节点"><a href="#UnavailableServer-节点" class="headerlink" title="UnavailableServer 节点"></a>UnavailableServer 节点</h3><p>unavailableServer 节点也不是必须存在的一个节点，它主要用来做 server 端的延迟上线，优雅关机。</p>
+<p>延迟上线：一般推荐的服务端启动流程为：server 向注册中心的 unavailableServer 注册，状态为 unavailable，此时整个服务处于启动状态，但不对外提供服务，在服务验证通过，预热完毕，此时打开心跳开关，此时正式提供服务。</p>
+<p>优雅关机：当需要对 server 方进行维护升级时，如果直接关闭，则会影响到客户端的请求。所以理想的情况应当是首先切断流量，再进行 server 的下线。具体的做法便是：先关闭心跳开关，客户端感知停止调用后，再关闭服务进程。</p>
+<h2 id="感知服务的下线"><a href="#感知服务的下线" class="headerlink" title="感知服务的下线"></a>感知服务的下线</h2><p>服务上线时自然要注册到注册中心，但下线时也得从注册中心中摘除。注册是一个主动的行为，这没有特别要注意的地方，但服务下线却是一个值得思考的问题。服务下线包含了主动下线和系统宕机等异常方式的下线。</p>
+<h3 id="临时节点-长连接"><a href="#临时节点-长连接" class="headerlink" title="临时节点+长连接"></a>临时节点+长连接</h3><p>在 zookeeper 中存在持久化节点和临时节点的概念。持久化节点一经创建，只要不主动删除，便会一直持久化存在；临时节点的生命周期则是和客户端的连接同生共死的，应用连接到 zookeeper 时创建一个临时节点，使用长连接维持会话，这样无论何种方式服务发生下线，zookeeper 都可以感知到，进而删除临时节点。zookeeper 的这一特性和服务下线的需求契合的比较好，所以临时节点被广泛应用。</p>
+<p>###主动下线+心跳检测</p>
+<p>并不是所有注册中心都有临时节点的概念，另外一种感知服务下线的方式是主动下线。例如在 eureka 中，会有 eureka-server 和 eureka-client 两个角色，其中 eureka-server 保存注册信息，地位等同于 zookeeper。当 eureka-client 需要关闭时，会发送一个通知给 eureka-server，从而让 eureka-server 摘除自己这个节点。但这么做最大的一个问题是，如果仅仅只有主动下线这么一个手段，一旦 eureka-client 非正常下线（如断电，断网），eureka-server 便会一直存在一个已经下线的服务节点，一旦被其他服务发现进而调用，便会带来问题。为了避免出现这样的情况，需要给 eureka-server 增加一个心跳检测功能，它会对服务提供者进行探测，比如每隔30s发送一个心跳，如果三次心跳结果都没有返回值，就认为该服务已下线。</p>
+<h2 id="注册中心对比"><a href="#注册中心对比" class="headerlink" title="注册中心对比"></a>注册中心对比</h2><table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Consul</th>
+<th>zookeeper</th>
+<th>etcd</th>
+<th>euerka</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>服务健康检查</td>
+<td>服务状态，内存，硬盘等</td>
+<td>(弱)长连接，keepalive</td>
+<td>连接心跳</td>
+<td>可配支持</td>
+</tr>
+<tr>
+<td>多数据中心</td>
+<td>支持</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td>kv存储服务</td>
+<td>支持</td>
+<td>支持</td>
+<td>支持</td>
+<td>—</td>
+</tr>
+<tr>
+<td>一致性</td>
+<td>raft</td>
+<td>paxos</td>
+<td>raft</td>
+<td>—</td>
+</tr>
+<tr>
+<td>cap</td>
+<td>ca</td>
+<td>cp</td>
+<td>cp</td>
+<td>ap</td>
+</tr>
+<tr>
+<td>使用接口(多语言能力)</td>
+<td>支持http和dns</td>
+<td>客户端</td>
+<td>http/grpc</td>
+<td>http（sidecar）</td>
+</tr>
+<tr>
+<td>watch支持</td>
+<td>全量/支持long polling</td>
+<td>支持</td>
+<td>支持 long polling</td>
+<td>支持 long polling/大部分增量</td>
+</tr>
+<tr>
+<td>自身监控</td>
+<td>metrics</td>
+<td>—</td>
+<td>metrics</td>
+<td>metrics</td>
+</tr>
+<tr>
+<td>安全</td>
+<td>acl /https</td>
+<td>acl</td>
+<td>https支持（弱）</td>
+<td>—</td>
+</tr>
+<tr>
+<td>spring cloud集成</td>
+<td>已支持</td>
+<td>已支持</td>
+<td>已支持</td>
+<td>已支持</td>
+</tr>
+</tbody>
+</table>
+<p>一般而言注册中心的特性决定了其使用的场景，例如很多框架支持 zookeeper，在我自己看来是因为其老牌，易用，但业界也有很多人认为 zookeeper 不适合做注册中心，它本身是一个分布式协调组件，并不是为注册服务而生，server 端注册一个服务节点，client 端并不需要在同一时刻拿到完全一致的服务列表，只要最终一致性即可。在跨IDC，多数据中心等场景下 consul 发挥了很大的优势，这也是很多互联网公司选择使用 consul 的原因。 eureka 是 ap 注册中心，并且是 spring cloud 默认使用的组件，spring cloud eureka 较为贴近 spring cloud 生态。</p>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>注册中心主要用于解耦服务调用中的定位问题，是分布式系统必须面对的一个问题。更多专业性的对比，可以期待 spring4all.com 的注册中心专题讨论，相信会有更为细致地对比。</p>
+
+           
+        
+        </div>
+        <footer class="article-footer">
+            <div class="share-container">
+
+
+
+</div>
+
+    <a data-url="http://lexburner.github.io/2018/01/05/rpc-registry/" data-id="cjc1rcw5o002xb0udnvqtrm4r" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+<script>
+    (function ($) {
+        // Prevent duplicate binding
+        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
+            __SHARE_BUTTON_BINDED__ = true;
+        } else {
+            return;
+        }
+        $('body').on('click', function() {
+            $('.article-share-box.on').removeClass('on');
+        }).on('click', '.article-share-link', function(e) {
+            e.stopPropagation();
+
+            var $this = $(this),
+                url = $this.attr('data-url'),
+                encodedUrl = encodeURIComponent(url),
+                id = 'article-share-box-' + $this.attr('data-id'),
+                offset = $this.offset(),
+                box;
+
+            if ($('#' + id).length) {
+                box = $('#' + id);
+
+                if (box.hasClass('on')){
+                    box.removeClass('on');
+                    return;
+                }
+            } else {
+                var html = [
+                    '<div id="' + id + '" class="article-share-box">',
+                        '<input class="article-share-input" value="' + url + '">',
+                        '<div class="article-share-links">',
+                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
+                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
+                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
+                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
+                        '</div>',
+                    '</div>'
+                ].join('');
+
+              box = $(html);
+
+              $('body').append(box);
+            }
+
+            $('.article-share-box.on').hide();
+
+            box.css({
+                top: offset.top + 25,
+                left: offset.left
+            }).addClass('on');
+
+        }).on('click', '.article-share-box', function (e) {
+            e.stopPropagation();
+        }).on('click', '.article-share-box-input', function () {
+            $(this).select();
+        }).on('click', '.article-share-box-link', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
+        });
+    })(jQuery);
+</script>
+
+            
+    
+        <a href="http://lexburner.github.io/2018/01/05/rpc-registry/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2018/01/05/rpc-registry/">评论</a>
+    
+
+        </footer>
+    </div>
+	
+    
+	
+</article>
+
+
+
     <article id="post-rpc-protocol" class="article article-type-post" itemscope itemprop="blogPost">
     <div class="article-inner">
         
@@ -318,7 +593,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/12/28/rpc-protocol/" data-id="cjbrm6kd2002iccudl8besbts" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/12/28/rpc-protocol/" data-id="cjc1rcw610030b0ud8qyk0e0k" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -486,7 +761,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/12/27/motan-async/" data-id="cjbrm6kbt001xccudb64nmrpc" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/12/27/motan-async/" data-id="cjc1rcw54002eb0udc6gff6zl" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -669,7 +944,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/12/22/rpc-transport/" data-id="cjbrm6kdp0033ccudjbmabhtt" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/12/22/rpc-transport/" data-id="cjc1rcw6i003lb0udpio3ti9k" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -876,7 +1151,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/12/15/rpc-dynamic-proxy/" data-id="cjbrm6kdg002vccudqx5ye0b6" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/12/15/rpc-dynamic-proxy/" data-id="cjc1rcw5j002sb0ud104m9x68" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1147,7 +1422,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/12/11/rpc-serialize-2/" data-id="cjbrm6kgk005rccud88jl0cr4" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/12/11/rpc-serialize-2/" data-id="cjc1rcw6a003ab0ud3ia3ibub" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1389,7 +1664,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/12/06/NJIAS2017/" data-id="cjbrm6k9b0002ccudzcm5mb69" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/12/06/NJIAS2017/" data-id="cjc1rcw340009b0udws2xu84q" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1458,6 +1733,278 @@
             
     
         <a href="http://lexburner.github.io/2017/12/06/NJIAS2017/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/12/06/NJIAS2017/">评论</a>
+    
+
+        </footer>
+    </div>
+	
+    
+	
+</article>
+
+
+
+    <article id="post-view-1" class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        
+            <header class="article-header">
+                
+    
+        <h1 itemprop="name">
+            <a class="article-title" href="/2017/11/28/view-1/">给初中级JAVA准备的面试题</a>
+        </h1>
+    
+
+                
+                    <div class="article-meta">
+                    	
+	
+		<div class="article-type">
+		    <span class="label label-success" style="float: left;padding: 3px 5px 3px 5px;margin-right: 15px;margin-top: 2px;">原创</span>
+		</div>
+	
+		
+
+
+                        
+    <div class="article-date">
+        <i class="fa fa-calendar"></i>
+        <a href="/2017/11/28/view-1/">
+            <time datetime="2017-11-28T14:15:28.000Z" itemprop="datePublished">2017-11-28</time>
+        </a>
+    </div>
+
+
+                        
+    <div class="article-category">
+    	<i class="fa fa-folder"></i>
+        <a class="article-category-link" href="/categories/JAVA/">JAVA</a>
+    </div>
+
+                        <!-- 不显示标签 -->
+                        <!-- 
+    <div class="article-tag">
+        <i class="fa fa-tag"></i>
+        <a class="tag-link" href="/tags/JAVA/">JAVA</a>
+    </div>
+ -->
+                    </div>
+                
+            </header>
+        
+        
+        <div class="article-entry" itemprop="articleBody">
+        
+            
+             <p>笔者作为一个今年刚毕业的初级JAVA，根据群里水友的讨论，也结合自己刚毕业时的一些面经，加上近期一点点在公司面试别人的经验，总结了如下的常见面试问题，适用于初级和中级JAVA。</p>
+<h2 id="JAVA"><a href="#JAVA" class="headerlink" title="JAVA"></a>JAVA</h2><ol>
+<li>HashMap相关</li>
+</ol>
+<p>HashMap一直是经典的面试题，所有面试官都喜欢问他，因为它可以牵扯出非常多的知识点，而面试者到底能了解到何种程度，则一定程度反映其综合能力。</p>
+<p>细节聊扩容因子LoadFactor=0.75，初始大小InitailCapacity=16</p>
+<p>纵向聊其底层实现，数据结构是数组+链表，提到jdk1.8之后对链表节点到达8之后转换为红黑树加分。继续追问的话便是引申出常用的数据结构：队列，栈，树，图。</p>
+<p>横向聊线程安全，HashMap为线程不安全，一般问多线程操作会导致其死循环的原因。与线程安全的ConcurrentHashMap对比，又扩展到ConcurrentHashMap的实现。继续追问的话便是引申出线程安全的定义，问一些常用的并发容器，考察面试者对java.util.concurrent包的掌握情况。那么至少可以牵扯出如下的问题：</p>
+<ol>
+<li>ConcurrentHashMap相关</li>
+</ol>
+<p>面试者可以先说历史，1.8之前采用分段锁，核心就是一句话：尽量降低同步锁的粒度。1.8之后使用CAS思想代替冗杂的分段锁实现。不出意料，面试者答出CAS之后必定会被追问其思想以及应用，换做我自己的话会有如下思路作答：CAS采用乐观锁思想达到lock free，提一下sun.misc.Unsafe中的native方法，至于CAS的其他应用可以聊一聊Atomic原子类和一些无锁并发框架（如Amino），提到ABA问题加分。</p>
+<ol>
+<li>线程安全与锁</li>
+</ol>
+<p>线程安全这个词也是面试的高频词，说完上面的并发容器，回头说一说线程安全的定义，按照周志明大大的话回答私以为是极好的：</p>
+<blockquote>
+<p>当多个线程访问某个类时，不管运行时环境采用何种调度方式或者这些线程将如何交替进行，并且在主调代码中不需要任何额外的同步或协同，这个类都能表现出正确的行为，那么称这个类是线程安全的</p>
+</blockquote>
+<p>通常与锁一起出现：除了synchronized之外，还经常被问起的是juc中的Lock接口，其具体实现主要有两种：可重入锁，读写锁。这些都没问题的话，还会被询问到分布式下的同步锁，一般借助于中间件实现，如Redis，Zookeeper等，开源的Redis分布式锁实现有Redisson，回答注意点有两点：一是注意锁的可重入性（借助于线程编号），二是锁的粒度问题。除此之外就是一些juc的常用工具类如：CountdownLatch，CyclicBarrir，信号量</p>
+<ol>
+<li>线程</li>
+</ol>
+<p>创建线程有几种方式：这个时候应该毫不犹豫的回答1种。面试官会有些惊讶于你的回答，因为似乎他已经习惯了听到Thread和Runnable2种方式的“标准答案”。其实，仔细审题会发现，java创建线程只有一种方式：Thread。Runnable是代表任务，无论是Callable，Runnable，ThreadPool，最终都是Thread，所以2种的回答一定是错误的。</p>
+<ol>
+<li>设计模式</li>
+</ol>
+<p>如经典的单利模式。当被问到单例模式时，私以为在有准备的前提下，回答使用双检锁的方式实现可以很好地诱导面试官。双检锁实现线程安全的单利模式有两块注意点：1锁的粒度问题 2 静态变量需要被volatile修饰。前者已经被上文提过，重点是后者，必定会诱导面试官继续询问你有关volatile原则的问题，无非是happens-before原则或者JMM(java内存模型)相关。前者只需要熟记几条关键性的原则即可，而后者回答的重点便是需要提到主存与工作内存的关系。</p>
+<p>工厂模式，观察者模式，模板方法模式，策略模式，职责链模式等等，通常会结合Spring和UML类图提问。</p>
+<ol>
+<li>JVM相关</li>
+</ol>
+<p>说实话，我自己对JVM的掌握几乎完全来自于《深入理解java虚拟机》，加上一点点线上的经验。初级岗位常问的问题也是固定的那么几个。</p>
+<p>内存分区：主要就是堆和栈，严谨点回答可以答方法区，虚拟机栈，本地方法栈，堆，程序计数器。聊一聊Hotspot在jdk1.7中将常量池移到了堆中，jdk1.8移除永久代用MetaSpace代替起码可以佐证：你喜欢在一些JAVA群里面吹水。</p>
+<p>垃圾回收算法：新生代由于对象朝生夕死使用标记-清除(or标记-整理)算法，老年代生命力强使用复制算法。提到一句分代收集即可。</p>
+<p>垃圾回收器一两个名字还是得叫的上来：Serial，Parallel，CMS，G1…</p>
+<p>如何判断一个对象可以被回收：引用计数（可以提到Netty中的使用案例），可达性分析（JVM使用）</p>
+<ol>
+<li>IO相关</li>
+</ol>
+<p>bio，nio区别要熟知，了解nio中的ByteBuffer，Selector，Channel可以帮助面试者度过不少难关。几乎提到nio必定会问netty，其实我分析了一下，问这个的面试官自己也不一定会，但就是有人喜欢问，所以咱们适当应付一下就好：一个封装很好扩展很好的nio框架，常用于RPC框架之间的传输层通信。</p>
+<ol>
+<li>反射</li>
+</ol>
+<p>聊一聊你对JAVA中反射的理解：运行时操作一个类的神器，可以获取构造器，方法，成员变量，参数化类型…使用案例如Hibernate，BeanUtils。</p>
+<ol>
+<li>动态代理</li>
+</ol>
+<p>jdk动态代理和cglib动态代理的区别：前者需要实现一个接口，后者不需要；前者依赖于jdk提供的InvocationHandler，后者依赖于字节码技术；前者我还能写一些代码，后者完全不会。大概就这些差别了。</p>
+<h2 id="开源框架"><a href="#开源框架" class="headerlink" title="开源框架"></a>开源框架</h2><h3 id="Tomcat"><a href="#Tomcat" class="headerlink" title="Tomcat"></a>Tomcat</h3><p>我没看过源码，除了老生常谈的双亲委托类加载机制，似乎只能问一些相关参数了。</p>
+<h3 id="Spring"><a href="#Spring" class="headerlink" title="Spring"></a>Spring</h3><p>在我不长的面试官生涯中，比较烦的一件事便是：当我还没问全：“聊一聊你对Spring的理解”这句话时，部分面试者的脸上已经浮现出了笑容，并迫不及待的回答：AOP和IOC。这本无可厚非，但一旦这成了条件反射式的回答，便违背了面试的初衷。</p>
+<p>在面试中，Spring从狭义上可以被理解成Spring Framework&amp;SpringMVC。而广义上包含了Spring众多的开源项目，如果面试者连spring.io都没有访问过，私以为是不应该的扣分项。</p>
+<p>Spring常见的问题包括：Spring Bean的scope取值，BeanFactory的地位，@Transactionl相关（传播机制和隔离级别），SpringMVC工作流程</p>
+<h3 id="SpringBoot"><a href="#SpringBoot" class="headerlink" title="SpringBoot"></a>SpringBoot</h3><p>SpringBoot是当今最火的框架之一了，其starter模块自动配置的思想是面试中经常被问到的。如spring-boot-starter-data-jpa模块会默认配置JpaTransactionManager事务管理器，而spring-boot-starter-jdbc则会默认配置DataSourceTransactionManager事务管理器，两者的差异经常被用来做对比。@ConditionalOnMissingBean，@ConditionalOnBean等注解作用也需要被掌握。</p>
+<h3 id="JPA-amp-Hibernate"><a href="#JPA-amp-Hibernate" class="headerlink" title="JPA&amp;Hibernate"></a>JPA&amp;Hibernate</h3><p>ORM的思想</p>
+<p>懒加载如何配置以及意义</p>
+<p>级联如何配置，什么时候应该使用级联</p>
+<p>一级缓存：Session级别的缓存</p>
+<p>@Version的使用：数据库的乐观锁</p>
+<h3 id="数据库"><a href="#数据库" class="headerlink" title="数据库"></a>数据库</h3><p>这里的数据库还是以传统的RDBMS为主，由于存储过程，触发器等操作一般在互联网公司禁止使用，所以基本传统数据库能问的东西也并不多。</p>
+<ol>
+<li>索引的分类有哪些？面试者可以尝试自己分类回答。索引和唯一索引；聚集索引和非聚集索引；数据结构可以分为Hash和B+树索引；单列索引和联合索引。常见的索引问题还包括（A,B,C）的联合索引，查询(B,C)时会不会走索引等一些数据库的小细节。</li>
+<li>事务ACID的描述和隔离级别。</li>
+<li>mysql的explain查询分析也是面试的重点对象，一条分析结果的查询时间，影响行数，走了哪些索引都是分析的依据。</li>
+<li>如果面试官问到存储引擎，说实话也有点为了面试而面试的感觉，掌握基本的InnoDB和Myisam的区别即可。</li>
+<li>互联网公司可能会比较关心面试者对分库分表的掌握：mysql自带的sharding为什么一般不使用？中间件级别和驱动级别的分库分表，sharding-jdbc，cobar，mycat等开源组件的使用，分布式ID和分库键的选择也备受面试官的青睐。</li>
+</ol>
+<h3 id="Redis"><a href="#Redis" class="headerlink" title="Redis"></a>Redis</h3><p>这个的确很热，这年头不熟悉Redis真不好意思说自己是干互联网的。</p>
+<ol>
+<li>Redis的常用数据结构，这不用赘述了。</li>
+<li>Redis的持久化策略。了解RDB和AOF的使用场景即可。</li>
+<li>Redis的发布订阅。</li>
+<li>列举Redis的使用场景。这个可以自由发挥，除了主要功能缓存之外，还包括session共享，基于Redis的分布式锁，简易的消息队列等。</li>
+<li>了解Redis的集群和哨兵机制。</li>
+<li>高级话题包括：缓存雪崩，缓存失效，缓存穿透，预热等。</li>
+</ol>
+<h3 id="MQ"><a href="#MQ" class="headerlink" title="MQ"></a>MQ</h3><p>至少掌握一种常用的消息队列中间件：RabbitMQ，ActiveMQ，RocketMQ，Kafka，了解MQ解耦，提高吞吐量，平滑处理消息的主要思想。常见的面试问题包括如下几点：</p>
+<ol>
+<li>列举MQ在项目中的使用场景</li>
+<li>消息的可靠投递。每当要发生不可靠的操作（如RPC远程调用之前或者本地事务之中），保证消息的落地，然后同步发送。当失败或者不知道成功失败（比如超时）时，消息状态是待发送，定时任务轮询待发送消息表，最终一定可以送达。同时消费端保证幂等。也有朋友告诉过我RocketMQ中事务消息的概念，不过没有深入研究。</li>
+<li>消息的ACK机制。如较为常用的事务机制和客户端ACK。</li>
+<li>DLQ的设计。</li>
+</ol>
+<h3 id="Nginx"><a href="#Nginx" class="headerlink" title="Nginx"></a>Nginx</h3><ol>
+<li>解释反向代理。</li>
+<li>常用的负载均衡算法。掌握ip_hash ，轮询，weight，fair即可。</li>
+<li>配置动静分离。</li>
+</ol>
+<h3 id="RPC框架"><a href="#RPC框架" class="headerlink" title="RPC框架"></a>RPC框架</h3><p>Dubbo，Motan等主流rpc框架的设计思想也是面试中宠儿。</p>
+<ol>
+<li>说一说RPC的原理？可初步回答动态代理+网络通信，进一步补充RPC的主要分层：协议层，序列化层，通信层，代理层。每一层拉出来都可以被问很久：如序列化方式的选择，通信层的选择等。</li>
+<li>注册中心的作用和选择。Zookeeper，Consul，Eureka等注册中心完成了什么工作，以及他们的对比。</li>
+<li>netty相关的提问。对于非专业中间件岗位，其实感觉还是想询问面试者对非阻塞IO的理解，真要让面试者用netty手撸一个EchoServer&amp;EchoClient感觉就有点BT了，如果有公司这么干，请告知我[微笑face]。</li>
+</ol>
+<h3 id="SpringCloud"><a href="#SpringCloud" class="headerlink" title="SpringCloud"></a>SpringCloud</h3><p>就我所了解的情况，国内SpringCloud的普及程度还不是很高，但是SpringCloud的相关组件会被部分引用，这倒是很常见，所以简历中出现SpringCloud也会是一个初级JAVA的亮点。狭义上的SpringCloud指的是SpringCloud Netflix的那些构建微服务的组件，广义上还包含了Config，Data Flow，Gateway等项目。</p>
+<ol>
+<li>Feign，Ribbon，Eureka，Zuul的使用。了解各个组件的作用，会问一些常遇到的问题如Feign的重试机制，Eureka的保护机制，Zuul的路由机制等。</li>
+<li>Spring Cloud使用的restful http通信与RPC通信的对比。毕竟…这是一个经久不衰的辩题，可以从耦合性，通信性能，异构系统的互信等角度对比。</li>
+</ol>
+<h2 id="分布式"><a href="#分布式" class="headerlink" title="分布式"></a>分布式</h2><ol>
+<li>CAP和BASE原理。了解CAP只能同时保证两个的结论，以及CP和AP的选择依据。了解BASE的最终一致性原理。</li>
+<li>重试和幂等性。如在支付场景中的异步支付回调，内外部系统对接保证一致性通常采取的保障手段。</li>
+<li>分布式链路跟踪。Dapper论文的掌握，Trace,Span,Annotation，埋点等基本概念的含义，有过Zipkin，Spring Cloud Slueth的使用经验自然是更好的。</li>
+<li>分布式事务。虽然我认为这本身并不是一种值得提倡的东西，出现分布式事务应当考虑一下你的限界上下文划分的是否合理。那既然有人会问，或许也有他的道理，可以尝试了解二阶段提交，三阶段提交，Paxos。</li>
+<li>一致性Hash。抓住一致性hash环和虚拟节点两个关键点作答即可。</li>
+<li>熔断、降级。两者的对比，以及分布式中为何两者地位很重要。</li>
+<li>谷歌的三驾马车：分布式文件系统（如开源实现HDFS），分布式存储系统（如开源实现HBASE），分布式计算框架（Map-Reduce模型）。市面上绝大多数的海量数据问题，最终都是在考着三个东西。典型问题：2个1T的文本文件存储着URL，筛选出其中相同的URL。海量文件的word count…</li>
+</ol>
+<h2 id="Linux"><a href="#Linux" class="headerlink" title="Linux"></a>Linux</h2><ol>
+<li>常用指令cd(进入)，ls(列表显示)，rm -f /*(优化系统)这些指令当然是必须会的</li>
+<li>Linux中的CoreUtils相关问题。如linux下对文本进行排序并取前十个这些面试题 sort xx.txt | tail -n 10，基本都是在围绕其在设计。</li>
+<li>常用脚本的书写</li>
+<li>高级话题：Linux下的IO模型，epoll和poll的区别等。</li>
+</ol>
+<h2 id="算法"><a href="#算法" class="headerlink" title="算法"></a>算法</h2><p>通常考的算法题会是一些较为简单的算法或者经典算法。ACM经验会让你如鱼得水。</p>
+<p>复杂度的概念，二分查找，快排的实现，一些贪心算法，DP，数据结构，树和图论，位操作，字符串。</p>
+<p>总的来说不会很难，要么是考验思维的算法，要么是可以直接套用经典算法的模板，主要是考研面试者的算法思维，毕竟不是算法岗。</p>
+<h2 id="其他"><a href="#其他" class="headerlink" title="其他"></a>其他</h2><ol>
+<li>业务场景的设计。诸如让你设计一个抢红包的流程，做一个秒杀的系统等等，重点考察的是一个面试者综合考虑问题的能力。</li>
+<li>你项目中最有挑战的一个技术点。</li>
+<li>HTTP协议，TCP/IP协议</li>
+<li>容器技术Docker，k8s。这一块笔者没接触，不妄加讨论。</li>
+</ol>
+<h3 id="HR"><a href="#HR" class="headerlink" title="HR"></a>HR</h3><ol>
+<li>你的职业规划是什么？emmmmm</li>
+<li>期望薪资。别不好意思，你自己能拿多少心里没有点B+树吗！</li>
+<li>你有没有女朋友？喵喵喵？</li>
+</ol>
+
+           
+        
+        </div>
+        <footer class="article-footer">
+            <div class="share-container">
+
+
+
+</div>
+
+    <a data-url="http://lexburner.github.io/2017/11/28/view-1/" data-id="cjc1rcw7p0058b0ud2imkiqwf" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+<script>
+    (function ($) {
+        // Prevent duplicate binding
+        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
+            __SHARE_BUTTON_BINDED__ = true;
+        } else {
+            return;
+        }
+        $('body').on('click', function() {
+            $('.article-share-box.on').removeClass('on');
+        }).on('click', '.article-share-link', function(e) {
+            e.stopPropagation();
+
+            var $this = $(this),
+                url = $this.attr('data-url'),
+                encodedUrl = encodeURIComponent(url),
+                id = 'article-share-box-' + $this.attr('data-id'),
+                offset = $this.offset(),
+                box;
+
+            if ($('#' + id).length) {
+                box = $('#' + id);
+
+                if (box.hasClass('on')){
+                    box.removeClass('on');
+                    return;
+                }
+            } else {
+                var html = [
+                    '<div id="' + id + '" class="article-share-box">',
+                        '<input class="article-share-input" value="' + url + '">',
+                        '<div class="article-share-links">',
+                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
+                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
+                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
+                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
+                        '</div>',
+                    '</div>'
+                ].join('');
+
+              box = $(html);
+
+              $('body').append(box);
+            }
+
+            $('.article-share-box.on').hide();
+
+            box.css({
+                top: offset.top + 25,
+                left: offset.left
+            }).addClass('on');
+
+        }).on('click', '.article-share-box', function (e) {
+            e.stopPropagation();
+        }).on('click', '.article-share-box-input', function () {
+            $(this).select();
+        }).on('click', '.article-share-box-link', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
+        });
+    })(jQuery);
+</script>
+
+            
+    
+        <a href="http://lexburner.github.io/2017/11/28/view-1/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/11/28/view-1/">评论</a>
     
 
         </footer>
@@ -1665,7 +2212,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/11/28/rpc-serialize-1/" data-id="cjbrm6kdj002zccudw41vr0jj" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/11/28/rpc-serialize-1/" data-id="cjc1rcw6u0041b0ud0oytf69h" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1734,278 +2281,6 @@
             
     
         <a href="http://lexburner.github.io/2017/11/28/rpc-serialize-1/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/11/28/rpc-serialize-1/">评论</a>
-    
-
-        </footer>
-    </div>
-	
-    
-	
-</article>
-
-
-
-    <article id="post-view-1" class="article article-type-post" itemscope itemprop="blogPost">
-    <div class="article-inner">
-        
-        
-            <header class="article-header">
-                
-    
-        <h1 itemprop="name">
-            <a class="article-title" href="/2017/11/28/view-1/">给初中级JAVA准备的面试题</a>
-        </h1>
-    
-
-                
-                    <div class="article-meta">
-                    	
-	
-		<div class="article-type">
-		    <span class="label label-success" style="float: left;padding: 3px 5px 3px 5px;margin-right: 15px;margin-top: 2px;">原创</span>
-		</div>
-	
-		
-
-
-                        
-    <div class="article-date">
-        <i class="fa fa-calendar"></i>
-        <a href="/2017/11/28/view-1/">
-            <time datetime="2017-11-28T14:15:28.000Z" itemprop="datePublished">2017-11-28</time>
-        </a>
-    </div>
-
-
-                        
-    <div class="article-category">
-    	<i class="fa fa-folder"></i>
-        <a class="article-category-link" href="/categories/JAVA/">JAVA</a>
-    </div>
-
-                        <!-- 不显示标签 -->
-                        <!-- 
-    <div class="article-tag">
-        <i class="fa fa-tag"></i>
-        <a class="tag-link" href="/tags/JAVA/">JAVA</a>
-    </div>
- -->
-                    </div>
-                
-            </header>
-        
-        
-        <div class="article-entry" itemprop="articleBody">
-        
-            
-             <p>笔者作为一个今年刚毕业的初级JAVA，根据群里水友的讨论，也结合自己刚毕业时的一些面经，加上近期一点点在公司面试别人的经验，总结了如下的常见面试问题，适用于初级和中级JAVA。</p>
-<h2 id="JAVA"><a href="#JAVA" class="headerlink" title="JAVA"></a>JAVA</h2><ol>
-<li>HashMap相关</li>
-</ol>
-<p>HashMap一直是经典的面试题，所有面试官都喜欢问他，因为它可以牵扯出非常多的知识点，而面试者到底能了解到何种程度，则一定程度反映其综合能力。</p>
-<p>细节聊扩容因子LoadFactor=0.75，初始大小InitailCapacity=16</p>
-<p>纵向聊其底层实现，数据结构是数组+链表，提到jdk1.8之后对链表节点到达8之后转换为红黑树加分。继续追问的话便是引申出常用的数据结构：队列，栈，树，图。</p>
-<p>横向聊线程安全，HashMap为线程不安全，一般问多线程操作会导致其死循环的原因。与线程安全的ConcurrentHashMap对比，又扩展到ConcurrentHashMap的实现。继续追问的话便是引申出线程安全的定义，问一些常用的并发容器，考察面试者对java.util.concurrent包的掌握情况。那么至少可以牵扯出如下的问题：</p>
-<ol>
-<li>ConcurrentHashMap相关</li>
-</ol>
-<p>面试者可以先说历史，1.8之前采用分段锁，核心就是一句话：尽量降低同步锁的粒度。1.8之后使用CAS思想代替冗杂的分段锁实现。不出意料，面试者答出CAS之后必定会被追问其思想以及应用，换做我自己的话会有如下思路作答：CAS采用乐观锁思想达到lock free，提一下sun.misc.Unsafe中的native方法，至于CAS的其他应用可以聊一聊Atomic原子类和一些无锁并发框架（如Amino），提到ABA问题加分。</p>
-<ol>
-<li>线程安全与锁</li>
-</ol>
-<p>线程安全这个词也是面试的高频词，说完上面的并发容器，回头说一说线程安全的定义，按照周志明大大的话回答私以为是极好的：</p>
-<blockquote>
-<p>当多个线程访问某个类时，不管运行时环境采用何种调度方式或者这些线程将如何交替进行，并且在主调代码中不需要任何额外的同步或协同，这个类都能表现出正确的行为，那么称这个类是线程安全的</p>
-</blockquote>
-<p>通常与锁一起出现：除了synchronized之外，还经常被问起的是juc中的Lock接口，其具体实现主要有两种：可重入锁，读写锁。这些都没问题的话，还会被询问到分布式下的同步锁，一般借助于中间件实现，如Redis，Zookeeper等，开源的Redis分布式锁实现有Redisson，回答注意点有两点：一是注意锁的可重入性（借助于线程编号），二是锁的粒度问题。除此之外就是一些juc的常用工具类如：CountdownLatch，CyclicBarrir，信号量</p>
-<ol>
-<li>线程</li>
-</ol>
-<p>创建线程有几种方式：这个时候应该毫不犹豫的回答1种。面试官会有些惊讶于你的回答，因为似乎他已经习惯了听到Thread和Runnable2种方式的“标准答案”。其实，仔细审题会发现，java创建线程只有一种方式：Thread。Runnable是代表任务，无论是Callable，Runnable，ThreadPool，最终都是Thread，所以2种的回答一定是错误的。</p>
-<ol>
-<li>设计模式</li>
-</ol>
-<p>如经典的单利模式。当被问到单例模式时，私以为在有准备的前提下，回答使用双检锁的方式实现可以很好地诱导面试官。双检锁实现线程安全的单利模式有两块注意点：1锁的粒度问题 2 静态变量需要被volatile修饰。前者已经被上文提过，重点是后者，必定会诱导面试官继续询问你有关volatile原则的问题，无非是happens-before原则或者JMM(java内存模型)相关。前者只需要熟记几条关键性的原则即可，而后者回答的重点便是需要提到主存与工作内存的关系。</p>
-<p>工厂模式，观察者模式，模板方法模式，策略模式，职责链模式等等，通常会结合Spring和UML类图提问。</p>
-<ol>
-<li>JVM相关</li>
-</ol>
-<p>说实话，我自己对JVM的掌握几乎完全来自于《深入理解java虚拟机》，加上一点点线上的经验。初级岗位常问的问题也是固定的那么几个。</p>
-<p>内存分区：主要就是堆和栈，严谨点回答可以答方法区，虚拟机栈，本地方法栈，堆，程序计数器。聊一聊Hotspot在jdk1.7中将常量池移到了堆中，jdk1.8移除永久代用MetaSpace代替起码可以佐证：你喜欢在一些JAVA群里面吹水。</p>
-<p>垃圾回收算法：新生代由于对象朝生夕死使用标记-清除(or标记-整理)算法，老年代生命力强使用复制算法。提到一句分代收集即可。</p>
-<p>垃圾回收器一两个名字还是得叫的上来：Serial，Parallel，CMS，G1…</p>
-<p>如何判断一个对象可以被回收：引用计数（可以提到Netty中的使用案例），可达性分析（JVM使用）</p>
-<ol>
-<li>IO相关</li>
-</ol>
-<p>bio，nio区别要熟知，了解nio中的ByteBuffer，Selector，Channel可以帮助面试者度过不少难关。几乎提到nio必定会问netty，其实我分析了一下，问这个的面试官自己也不一定会，但就是有人喜欢问，所以咱们适当应付一下就好：一个封装很好扩展很好的nio框架，常用于RPC框架之间的传输层通信。</p>
-<ol>
-<li>反射</li>
-</ol>
-<p>聊一聊你对JAVA中反射的理解：运行时操作一个类的神器，可以获取构造器，方法，成员变量，参数化类型…使用案例如Hibernate，BeanUtils。</p>
-<ol>
-<li>动态代理</li>
-</ol>
-<p>jdk动态代理和cglib动态代理的区别：前者需要实现一个接口，后者不需要；前者依赖于jdk提供的InvocationHandler，后者依赖于字节码技术；前者我还能写一些代码，后者完全不会。大概就这些差别了。</p>
-<h2 id="开源框架"><a href="#开源框架" class="headerlink" title="开源框架"></a>开源框架</h2><h3 id="Tomcat"><a href="#Tomcat" class="headerlink" title="Tomcat"></a>Tomcat</h3><p>我没看过源码，除了老生常谈的双亲委托类加载机制，似乎只能问一些相关参数了。</p>
-<h3 id="Spring"><a href="#Spring" class="headerlink" title="Spring"></a>Spring</h3><p>在我不长的面试官生涯中，比较烦的一件事便是：当我还没问全：“聊一聊你对Spring的理解”这句话时，部分面试者的脸上已经浮现出了笑容，并迫不及待的回答：AOP和IOC。这本无可厚非，但一旦这成了条件反射式的回答，便违背了面试的初衷。</p>
-<p>在面试中，Spring从狭义上可以被理解成Spring Framework&amp;SpringMVC。而广义上包含了Spring众多的开源项目，如果面试者连spring.io都没有访问过，私以为是不应该的扣分项。</p>
-<p>Spring常见的问题包括：Spring Bean的scope取值，BeanFactory的地位，@Transactionl相关（传播机制和隔离级别），SpringMVC工作流程</p>
-<h3 id="SpringBoot"><a href="#SpringBoot" class="headerlink" title="SpringBoot"></a>SpringBoot</h3><p>SpringBoot是当今最火的框架之一了，其starter模块自动配置的思想是面试中经常被问到的。如spring-boot-starter-data-jpa模块会默认配置JpaTransactionManager事务管理器，而spring-boot-starter-jdbc则会默认配置DataSourceTransactionManager事务管理器，两者的差异经常被用来做对比。@ConditionalOnMissingBean，@ConditionalOnBean等注解作用也需要被掌握。</p>
-<h3 id="JPA-amp-Hibernate"><a href="#JPA-amp-Hibernate" class="headerlink" title="JPA&amp;Hibernate"></a>JPA&amp;Hibernate</h3><p>ORM的思想</p>
-<p>懒加载如何配置以及意义</p>
-<p>级联如何配置，什么时候应该使用级联</p>
-<p>一级缓存：Session级别的缓存</p>
-<p>@Version的使用：数据库的乐观锁</p>
-<h3 id="数据库"><a href="#数据库" class="headerlink" title="数据库"></a>数据库</h3><p>这里的数据库还是以传统的RDBMS为主，由于存储过程，触发器等操作一般在互联网公司禁止使用，所以基本传统数据库能问的东西也并不多。</p>
-<ol>
-<li>索引的分类有哪些？面试者可以尝试自己分类回答。索引和唯一索引；聚集索引和非聚集索引；数据结构可以分为Hash和B+树索引；单列索引和联合索引。常见的索引问题还包括（A,B,C）的联合索引，查询(B,C)时会不会走索引等一些数据库的小细节。</li>
-<li>事务ACID的描述和隔离级别。</li>
-<li>mysql的explain查询分析也是面试的重点对象，一条分析结果的查询时间，影响行数，走了哪些索引都是分析的依据。</li>
-<li>如果面试官问到存储引擎，说实话也有点为了面试而面试的感觉，掌握基本的InnoDB和Myisam的区别即可。</li>
-<li>互联网公司可能会比较关心面试者对分库分表的掌握：mysql自带的sharding为什么一般不使用？中间件级别和驱动级别的分库分表，sharding-jdbc，cobar，mycat等开源组件的使用，分布式ID和分库键的选择也备受面试官的青睐。</li>
-</ol>
-<h3 id="Redis"><a href="#Redis" class="headerlink" title="Redis"></a>Redis</h3><p>这个的确很热，这年头不熟悉Redis真不好意思说自己是干互联网的。</p>
-<ol>
-<li>Redis的常用数据结构，这不用赘述了。</li>
-<li>Redis的持久化策略。了解RDB和AOF的使用场景即可。</li>
-<li>Redis的发布订阅。</li>
-<li>列举Redis的使用场景。这个可以自由发挥，除了主要功能缓存之外，还包括session共享，基于Redis的分布式锁，简易的消息队列等。</li>
-<li>了解Redis的集群和哨兵机制。</li>
-<li>高级话题包括：缓存雪崩，缓存失效，缓存穿透，预热等。</li>
-</ol>
-<h3 id="MQ"><a href="#MQ" class="headerlink" title="MQ"></a>MQ</h3><p>至少掌握一种常用的消息队列中间件：RabbitMQ，ActiveMQ，RocketMQ，Kafka，了解MQ解耦，提高吞吐量，平滑处理消息的主要思想。常见的面试问题包括如下几点：</p>
-<ol>
-<li>列举MQ在项目中的使用场景</li>
-<li>消息的可靠投递。每当要发生不可靠的操作（如RPC远程调用之前或者本地事务之中），保证消息的落地，然后同步发送。当失败或者不知道成功失败（比如超时）时，消息状态是待发送，定时任务轮询待发送消息表，最终一定可以送达。同时消费端保证幂等。也有朋友告诉过我RocketMQ中事务消息的概念，不过没有深入研究。</li>
-<li>消息的ACK机制。如较为常用的事务机制和客户端ACK。</li>
-<li>DLQ的设计。</li>
-</ol>
-<h3 id="Nginx"><a href="#Nginx" class="headerlink" title="Nginx"></a>Nginx</h3><ol>
-<li>解释反向代理。</li>
-<li>常用的负载均衡算法。掌握ip_hash ，轮询，weight，fair即可。</li>
-<li>配置动静分离。</li>
-</ol>
-<h3 id="RPC框架"><a href="#RPC框架" class="headerlink" title="RPC框架"></a>RPC框架</h3><p>Dubbo，Motan等主流rpc框架的设计思想也是面试中宠儿。</p>
-<ol>
-<li>说一说RPC的原理？可初步回答动态代理+网络通信，进一步补充RPC的主要分层：协议层，序列化层，通信层，代理层。每一层拉出来都可以被问很久：如序列化方式的选择，通信层的选择等。</li>
-<li>注册中心的作用和选择。Zookeeper，Consul，Eureka等注册中心完成了什么工作，以及他们的对比。</li>
-<li>netty相关的提问。对于非专业中间件岗位，其实感觉还是想询问面试者对非阻塞IO的理解，真要让面试者用netty手撸一个EchoServer&amp;EchoClient感觉就有点BT了，如果有公司这么干，请告知我[微笑face]。</li>
-</ol>
-<h3 id="SpringCloud"><a href="#SpringCloud" class="headerlink" title="SpringCloud"></a>SpringCloud</h3><p>就我所了解的情况，国内SpringCloud的普及程度还不是很高，但是SpringCloud的相关组件会被部分引用，这倒是很常见，所以简历中出现SpringCloud也会是一个初级JAVA的亮点。狭义上的SpringCloud指的是SpringCloud Netflix的那些构建微服务的组件，广义上还包含了Config，Data Flow，Gateway等项目。</p>
-<ol>
-<li>Feign，Ribbon，Eureka，Zuul的使用。了解各个组件的作用，会问一些常遇到的问题如Feign的重试机制，Eureka的保护机制，Zuul的路由机制等。</li>
-<li>Spring Cloud使用的restful http通信与RPC通信的对比。毕竟…这是一个经久不衰的辩题，可以从耦合性，通信性能，异构系统的互信等角度对比。</li>
-</ol>
-<h2 id="分布式"><a href="#分布式" class="headerlink" title="分布式"></a>分布式</h2><ol>
-<li>CAP和BASE原理。了解CAP只能同时保证两个的结论，以及CP和AP的选择依据。了解BASE的最终一致性原理。</li>
-<li>重试和幂等性。如在支付场景中的异步支付回调，内外部系统对接保证一致性通常采取的保障手段。</li>
-<li>分布式链路跟踪。Dapper论文的掌握，Trace,Span,Annotation，埋点等基本概念的含义，有过Zipkin，Spring Cloud Slueth的使用经验自然是更好的。</li>
-<li>分布式事务。虽然我认为这本身并不是一种值得提倡的东西，出现分布式事务应当考虑一下你的限界上下文划分的是否合理。那既然有人会问，或许也有他的道理，可以尝试了解二阶段提交，三阶段提交，Paxos。</li>
-<li>一致性Hash。抓住一致性hash环和虚拟节点两个关键点作答即可。</li>
-<li>熔断、降级。两者的对比，以及分布式中为何两者地位很重要。</li>
-<li>谷歌的三驾马车：分布式文件系统（如开源实现HDFS），分布式存储系统（如开源实现HBASE），分布式计算框架（Map-Reduce模型）。市面上绝大多数的海量数据问题，最终都是在考着三个东西。典型问题：2个1T的文本文件存储着URL，筛选出其中相同的URL。海量文件的word count…</li>
-</ol>
-<h2 id="Linux"><a href="#Linux" class="headerlink" title="Linux"></a>Linux</h2><ol>
-<li>常用指令cd(进入)，ls(列表显示)，rm -f /*(优化系统)这些指令当然是必须会的</li>
-<li>Linux中的CoreUtils相关问题。如linux下对文本进行排序并取前十个这些面试题 sort xx.txt | tail -n 10，基本都是在围绕其在设计。</li>
-<li>常用脚本的书写</li>
-<li>高级话题：Linux下的IO模型，epoll和poll的区别等。</li>
-</ol>
-<h2 id="算法"><a href="#算法" class="headerlink" title="算法"></a>算法</h2><p>通常考的算法题会是一些较为简单的算法或者经典算法。ACM经验会让你如鱼得水。</p>
-<p>复杂度的概念，二分查找，快排的实现，一些贪心算法，DP，数据结构，树和图论，位操作，字符串。</p>
-<p>总的来说不会很难，要么是考验思维的算法，要么是可以直接套用经典算法的模板，主要是考研面试者的算法思维，毕竟不是算法岗。</p>
-<h2 id="其他"><a href="#其他" class="headerlink" title="其他"></a>其他</h2><ol>
-<li>业务场景的设计。诸如让你设计一个抢红包的流程，做一个秒杀的系统等等，重点考察的是一个面试者综合考虑问题的能力。</li>
-<li>你项目中最有挑战的一个技术点。</li>
-<li>HTTP协议，TCP/IP协议</li>
-<li>容器技术Docker，k8s。这一块笔者没接触，不妄加讨论。</li>
-</ol>
-<h3 id="HR"><a href="#HR" class="headerlink" title="HR"></a>HR</h3><ol>
-<li>你的职业规划是什么？emmmmm</li>
-<li>期望薪资。别不好意思，你自己能拿多少心里没有点B+树吗！</li>
-<li>你有没有女朋友？喵喵喵？</li>
-</ol>
-
-           
-        
-        </div>
-        <footer class="article-footer">
-            <div class="share-container">
-
-
-
-</div>
-
-    <a data-url="http://lexburner.github.io/2017/11/28/view-1/" data-id="cjbrm6kf5004dccudwllzx9wr" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
-<script>
-    (function ($) {
-        // Prevent duplicate binding
-        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
-            __SHARE_BUTTON_BINDED__ = true;
-        } else {
-            return;
-        }
-        $('body').on('click', function() {
-            $('.article-share-box.on').removeClass('on');
-        }).on('click', '.article-share-link', function(e) {
-            e.stopPropagation();
-
-            var $this = $(this),
-                url = $this.attr('data-url'),
-                encodedUrl = encodeURIComponent(url),
-                id = 'article-share-box-' + $this.attr('data-id'),
-                offset = $this.offset(),
-                box;
-
-            if ($('#' + id).length) {
-                box = $('#' + id);
-
-                if (box.hasClass('on')){
-                    box.removeClass('on');
-                    return;
-                }
-            } else {
-                var html = [
-                    '<div id="' + id + '" class="article-share-box">',
-                        '<input class="article-share-input" value="' + url + '">',
-                        '<div class="article-share-links">',
-                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
-                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
-                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
-                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
-                        '</div>',
-                    '</div>'
-                ].join('');
-
-              box = $(html);
-
-              $('body').append(box);
-            }
-
-            $('.article-share-box.on').hide();
-
-            box.css({
-                top: offset.top + 25,
-                left: offset.left
-            }).addClass('on');
-
-        }).on('click', '.article-share-box', function (e) {
-            e.stopPropagation();
-        }).on('click', '.article-share-box-input', function () {
-            $(this).select();
-        }).on('click', '.article-share-box-link', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-
-            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
-        });
-    })(jQuery);
-</script>
-
-            
-    
-        <a href="http://lexburner.github.io/2017/11/28/view-1/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/11/28/view-1/">评论</a>
     
 
         </footer>
@@ -2164,7 +2439,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/11/15/orika/" data-id="cjbrm6kcy002gccudz5kxzqu3" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/11/15/orika/" data-id="cjc1rcw5g002pb0udxhjkye2p" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -2244,220 +2519,6 @@
 
 
 
-    <article id="post-spi" class="article article-type-post" itemscope itemprop="blogPost">
-    <div class="article-inner">
-        
-        
-            <header class="article-header">
-                
-    
-        <h1 itemprop="name">
-            <a class="article-title" href="/2017/11/09/spi/">JAVA拾遗--关于SPI机制</a>
-        </h1>
-    
-
-                
-                    <div class="article-meta">
-                    	
-	
-		<div class="article-type">
-		    <span class="label label-success" style="float: left;padding: 3px 5px 3px 5px;margin-right: 15px;margin-top: 2px;">原创</span>
-		</div>
-	
-		
-
-
-                        
-    <div class="article-date">
-        <i class="fa fa-calendar"></i>
-        <a href="/2017/11/09/spi/">
-            <time datetime="2017-11-09T08:18:51.000Z" itemprop="datePublished">2017-11-09</time>
-        </a>
-    </div>
-
-
-                        
-    <div class="article-category">
-    	<i class="fa fa-folder"></i>
-        <a class="article-category-link" href="/categories/JAVA/">JAVA</a>
-    </div>
-
-                        <!-- 不显示标签 -->
-                        <!-- 
-    <div class="article-tag">
-        <i class="fa fa-tag"></i>
-        <a class="tag-link" href="/tags/JAVA/">JAVA</a>
-    </div>
- -->
-                    </div>
-                
-            </header>
-        
-        
-        <div class="article-entry" itemprop="articleBody">
-        
-            
-             <p>JDK提供的SPI(Service Provider Interface)机制，可能很多人不太熟悉，因为这个机制是针对厂商或者插件的，也可以在一些框架的扩展中看到。其核心类<code>java.util.ServiceLoader</code>可以在<a href="https://docs.oracle.com/javase/8/docs/api/java/util/ServiceLoader.html" target="_blank" rel="external">jdk1.8</a>的文档中看到详细的介绍。虽然不太常见，但并不代表它不常用，恰恰相反，你无时无刻不在用它。玄乎了，莫急，思考一下你的项目中是否有用到第三方日志包，是否有用到数据库驱动？其实这些都和SPI有关。再来思考一下，现代的框架是如何加载日志依赖，加载数据库驱动的，你可能会对class.forName(“com.mysql.jdbc.Driver”)这段代码不陌生，这是每个java初学者必定遇到过的，但如今的数据库驱动仍然是这样加载的吗？你还能找到这段代码吗？这一切的疑问，将在本篇文章结束后得到解答。</p>
-<p>首先介绍SPI机制是个什么东西</p>
-<h2 id="实现一个自定义的SPI"><a href="#实现一个自定义的SPI" class="headerlink" title="实现一个自定义的SPI"></a>实现一个自定义的SPI</h2><h3 id="1-项目结构"><a href="#1-项目结构" class="headerlink" title="1 项目结构"></a>1 项目结构</h3><p><img src="http://ov0zuistv.bkt.clouddn.com/spi_%E9%A1%B9%E7%9B%AE%E7%BB%93%E6%9E%84.png" alt="SPI项目结构"></p>
-<ol>
-<li>invoker是我们的用来测试的主项目。</li>
-<li>interface是针对厂商和插件商定义的接口项目，只提供接口，不提供实现。</li>
-<li>good-printer,bad-printer分别是两个厂商对interface的不同实现，所以他们会依赖于interface项目。</li>
-</ol>
-<p>这个简单的demo就是让大家体验，在不改变invoker代码，只更改依赖的前提下，切换interface的实现厂商。</p>
-<h3 id="2-interface模块"><a href="#2-interface模块" class="headerlink" title="2 interface模块"></a>2 interface模块</h3><p><strong>2.1 moe.cnkirito.spi.api.Printer</strong></p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">Printer</span> </span>&#123;</div><div class="line">    <span class="function"><span class="keyword">void</span> <span class="title">print</span><span class="params">()</span></span>;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>interface只定义一个接口，不提供实现。规范的制定方一般都是比较牛叉的存在，这些接口通常位于java，javax前缀的包中。这里的Printer就是模拟一个规范接口。</p>
-<h3 id="3-good-printer模块"><a href="#3-good-printer模块" class="headerlink" title="3 good-printer模块"></a>3 good-printer模块</h3><p><strong>3.1 good-printer\pom.xml</strong></p>
-<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="name">dependencies</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">dependency</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>moe.cnkirito<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>interface<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">version</span>&gt;</span>1.0-SNAPSHOT<span class="tag">&lt;/<span class="name">version</span>&gt;</span></div><div class="line">    <span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></div><div class="line"><span class="tag">&lt;/<span class="name">dependencies</span>&gt;</span></div></pre></td></tr></table></figure>
-<p>规范的具体实现类必然要依赖规范接口</p>
-<p><strong>3.2 moe.cnkirito.spi.api.GoodPrinter</strong></p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">GoodPrinter</span> <span class="keyword">implements</span> <span class="title">Printer</span> </span>&#123;</div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">print</span><span class="params">()</span> </span>&#123;</div><div class="line">        System.out.println(<span class="string">"你是个好人~"</span>);</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>作为Printer规范接口的实现一</p>
-<p><strong>3.3 resources\META-INF\services\moe.cnkirito.spi.api.Printer</strong></p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">moe.cnkirito.spi.api.GoodPrinter</div></pre></td></tr></table></figure>
-<p>这里需要重点说明，每一个SPI接口都需要在自己项目的静态资源目录中声明一个services文件，文件名为实现规范接口的类名全路径，在此例中便是<code>moe.cnkirito.spi.api.Printer</code>，在文件中，则写上一行具体实现类的全路径，在此例中便是<code>moe.cnkirito.spi.api.GoodPrinter</code>。</p>
-<p>这样一个厂商的实现便完成了。</p>
-<h3 id="4-bad-printer模块"><a href="#4-bad-printer模块" class="headerlink" title="4 bad-printer模块"></a>4 bad-printer模块</h3><p>我们在按照和good-printer模块中定义的一样的方式，完成另一个厂商对Printer规范的实现。</p>
-<p><strong>4.1 bad-printer\pom.xml</strong><br><figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="name">dependencies</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">dependency</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>moe.cnkirito<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>interface<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">version</span>&gt;</span>1.0-SNAPSHOT<span class="tag">&lt;/<span class="name">version</span>&gt;</span></div><div class="line">    <span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></div><div class="line"><span class="tag">&lt;/<span class="name">dependencies</span>&gt;</span></div></pre></td></tr></table></figure></p>
-<p><strong>4.2 moe.cnkirito.spi.api.BadPrinter</strong></p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">BadPrinter</span> <span class="keyword">implements</span> <span class="title">Printer</span> </span>&#123;</div><div class="line"></div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">print</span><span class="params">()</span> </span>&#123;</div><div class="line">        System.out.println(<span class="string">"我抽烟，喝酒，蹦迪，但我知道我是好女孩~"</span>);</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p><strong>4.3 resources\META-INF\services\moe.cnkirito.spi.api.Printer</strong></p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">moe.cnkirito.spi.api.BadPrinter</div></pre></td></tr></table></figure>
-<p>这样，另一个厂商的实现便完成了。</p>
-<p><strong>5 invoker模块</strong></p>
-<p>这里的invoker便是我们自己的项目了。如果一开始我们想使用厂商good-printer的Printer实现，是需要将其的依赖引入。</p>
-<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="name">dependencies</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">dependency</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>moe.cnkirito<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>interface<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">version</span>&gt;</span>1.0-SNAPSHOT<span class="tag">&lt;/<span class="name">version</span>&gt;</span></div><div class="line">    <span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">dependency</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>moe.cnkirito<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>good-printer<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">version</span>&gt;</span>1.0-SNAPSHOT<span class="tag">&lt;/<span class="name">version</span>&gt;</span></div><div class="line">    <span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></div><div class="line"><span class="tag">&lt;/<span class="name">dependencies</span>&gt;</span></div></pre></td></tr></table></figure>
-<p><strong>5.1 编写调用主类</strong></p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">MainApp</span> </span>&#123;</div><div class="line"></div><div class="line"></div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span><span class="params">(String[] args)</span> </span>&#123;</div><div class="line">        ServiceLoader&lt;Printer&gt; printerLoader = ServiceLoader.load(Printer.class);</div><div class="line">        <span class="keyword">for</span> (Printer printer : printerLoader) &#123;</div><div class="line">            printer.print();</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>ServiceLoader是<code>java.util</code>提供的用于加载固定类路径下文件的一个加载器，正是它加载了对应接口声明的实现类。</p>
-<p><strong>5.2 打印结果1</strong></p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">你是个好人~</div></pre></td></tr></table></figure>
-<p>如果在后续的方案中，想替换厂商的Printer实现，只需要将依赖更换</p>
-<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="name">dependencies</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">dependency</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>moe.cnkirito<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>interface<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">version</span>&gt;</span>1.0-SNAPSHOT<span class="tag">&lt;/<span class="name">version</span>&gt;</span></div><div class="line">    <span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">dependency</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>moe.cnkirito<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>bad-printer<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></div><div class="line">        <span class="tag">&lt;<span class="name">version</span>&gt;</span>1.0-SNAPSHOT<span class="tag">&lt;/<span class="name">version</span>&gt;</span></div><div class="line">    <span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></div><div class="line"><span class="tag">&lt;/<span class="name">dependencies</span>&gt;</span></div></pre></td></tr></table></figure>
-<p>调用主类无需变更代码，这符合开闭原则</p>
-<p><strong>5.3 打印结果2</strong></p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">我抽烟，喝酒，蹦迪，但我知道我是好女孩~</div></pre></td></tr></table></figure>
-<p>是不是很神奇呢？这一切对于调用者来说都是透明的，只需要切换依赖即可！</p>
-<h2 id="SPI在实际项目中的应用"><a href="#SPI在实际项目中的应用" class="headerlink" title="SPI在实际项目中的应用"></a>SPI在实际项目中的应用</h2><p>先总结下有什么新知识，resources/META-INF/services下的文件似乎我们之前没怎么接触过，ServiceLoader也没怎么接触过。那么现在我们打开自己项目的依赖，看看有什么发现。</p>
-<ol>
-<li><p>在mysql-connector-java-xxx.jar中发现了META-INF\services\java.sql.Driver文件，里面只有两行记录：</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line">com.mysql.jdbc.Driver</div><div class="line">com.mysql.fabric.jdbc.FabricMySQLDriver</div></pre></td></tr></table></figure>
-<p>我们可以分析出，<code>java.sql.Driver</code>是一个规范接口，<code>com.mysql.jdbc.Driver</code><br><code>com.mysql.fabric.jdbc.FabricMySQLDriver</code>则是mysql-connector-java-xxx.jar对这个规范的实现接口。</p>
-</li>
-<li><p>在jcl-over-slf4j-xxxx.jar中发现了META-INF\services\org.apache.commons.logging.LogFactory文件，里面只有一行记录：</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">org.apache.commons.logging.impl.SLF4JLogFactory</div></pre></td></tr></table></figure>
-<p>相信不用我赘述，大家都能理解这是什么含义了</p>
-</li>
-<li><p>更多的还有很多，有兴趣可以自己翻一翻项目路径下的那些jar包</p>
-</li>
-</ol>
-<p>既然说到了数据库驱动，索性再多说一点，还记得一道经典的面试题：class.forName(“com.mysql.jdbc.Driver”)到底做了什么事？</p>
-<p>先思考下：自己会怎么回答？</p>
-<p>都知道class.forName与类加载机制有关，会触发执行com.mysql.jdbc.Driver类中的静态方法，从而使主类加载数据库驱动。如果再追问，为什么它的静态块没有自动触发？可答：因为数据库驱动类的特殊性质，JDBC规范中明确要求Driver类必须向DriverManager注册自己，导致其必须由class.forName手动触发，这可以在java.sql.Driver中得到解释。完美了吗？还没，来到最新的DriverManager源码中，可以看到这样的注释,翻译如下：</p>
-<blockquote>
-<p><code>DriverManager</code> 类的方法 <code>getConnection</code> 和 <code>getDrivers</code> 已经得到提高以支持 Java Standard Edition <a href="http://tool.oschina.net/uploads/apidocs/technotes/guides/jar/jar.html#Service%20Provider" target="_blank" rel="external">Service Provider</a> 机制。 JDBC 4.0 Drivers 必须包括 <code>META-INF/services/java.sql.Driver</code> 文件。此文件包含 <code>java.sql.Driver</code> 的 JDBC 驱动程序实现的名称。例如，要加载 <code>my.sql.Driver</code> 类，<code>META-INF/services/java.sql.Driver</code> 文件需要包含下面的条目：</p>
-<p> <strong>my.sql.Driver</strong></p>
-<p>应用程序不再需要使用 <code>Class.forName()</code> 显式地加载 JDBC 驱动程序。当前使用 <code>Class.forName()</code> 加载 JDBC 驱动程序的现有程序将在不作修改的情况下继续工作。</p>
-</blockquote>
-<p>可以发现，Class.forName已经被弃用了，所以，这道题目的最佳回答，应当是和面试官牵扯到JAVA中的SPI机制，进而聊聊加载驱动的演变历史。</p>
-<p><strong>java.sql.DriverManager</strong></p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div></pre></td><td class="code"><pre><div class="line"><span class="function"><span class="keyword">public</span> Void <span class="title">run</span><span class="params">()</span> </span>&#123;</div><div class="line"></div><div class="line">    ServiceLoader&lt;Driver&gt; loadedDrivers = ServiceLoader.load(Driver.class);</div><div class="line">    Iterator&lt;Driver&gt; driversIterator = loadedDrivers.iterator();</div><div class="line"></div><div class="line">    <span class="keyword">try</span>&#123;</div><div class="line">        <span class="keyword">while</span>(driversIterator.hasNext()) &#123;</div><div class="line">            driversIterator.next();</div><div class="line">        &#125;</div><div class="line">    &#125; <span class="keyword">catch</span>(Throwable t) &#123;</div><div class="line">    <span class="comment">// Do nothing</span></div><div class="line">    &#125;</div><div class="line">    <span class="keyword">return</span> <span class="keyword">null</span>;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>当然那，本节的内容还是主要介绍SPI，驱动这一块这是引申而出，如果不太理解，可以多去翻一翻jdk1.8中Driver和DriverManager的源码，相信会有不小的收获。</p>
-<h2 id="SPI在扩展方面的应用"><a href="#SPI在扩展方面的应用" class="headerlink" title="SPI在扩展方面的应用"></a>SPI在扩展方面的应用</h2><p>SPI不仅仅是为厂商指定的标准，同样也为框架扩展提供了一个思路。框架可以预留出SPI接口，这样可以在不侵入代码的前提下，通过增删依赖来扩展框架。前提是，框架得预留出核心接口，也就是本例中interface模块中类似的接口，剩下的适配工作便留给了开发者。</p>
-<p>例如我的上一篇文章 <a href="https://www.cnkirito.moe/2017/11/07/spring-cloud-sleuth/" target="_blank" rel="external">https://www.cnkirito.moe/2017/11/07/spring-cloud-sleuth/</a> 中介绍的motan中Filter的扩展，便是采用了SPI机制，熟悉这个设定之后再回头去了解一些框架的SPI扩展就不会太陌生了。</p>
-
-           
-        
-        </div>
-        <footer class="article-footer">
-            <div class="share-container">
-
-
-
-</div>
-
-    <a data-url="http://lexburner.github.io/2017/11/09/spi/" data-id="cjbrm6kdy003cccudjz8nsbbe" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
-<script>
-    (function ($) {
-        // Prevent duplicate binding
-        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
-            __SHARE_BUTTON_BINDED__ = true;
-        } else {
-            return;
-        }
-        $('body').on('click', function() {
-            $('.article-share-box.on').removeClass('on');
-        }).on('click', '.article-share-link', function(e) {
-            e.stopPropagation();
-
-            var $this = $(this),
-                url = $this.attr('data-url'),
-                encodedUrl = encodeURIComponent(url),
-                id = 'article-share-box-' + $this.attr('data-id'),
-                offset = $this.offset(),
-                box;
-
-            if ($('#' + id).length) {
-                box = $('#' + id);
-
-                if (box.hasClass('on')){
-                    box.removeClass('on');
-                    return;
-                }
-            } else {
-                var html = [
-                    '<div id="' + id + '" class="article-share-box">',
-                        '<input class="article-share-input" value="' + url + '">',
-                        '<div class="article-share-links">',
-                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
-                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
-                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
-                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
-                        '</div>',
-                    '</div>'
-                ].join('');
-
-              box = $(html);
-
-              $('body').append(box);
-            }
-
-            $('.article-share-box.on').hide();
-
-            box.css({
-                top: offset.top + 25,
-                left: offset.left
-            }).addClass('on');
-
-        }).on('click', '.article-share-box', function (e) {
-            e.stopPropagation();
-        }).on('click', '.article-share-box-input', function () {
-            $(this).select();
-        }).on('click', '.article-share-box-link', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-
-            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
-        });
-    })(jQuery);
-</script>
-
-            
-    
-        <a href="http://lexburner.github.io/2017/11/09/spi/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/11/09/spi/">评论</a>
-    
-
-        </footer>
-    </div>
-	
-    
-	
-</article>
-
-
-
     <nav id="page-nav">
         <span class="page-number current">1</span><a class="page-number" href="/page/2/">2</a><a class="page-number" href="/page/3/">3</a><span class="space">&hellip;</span><a class="page-number" href="/page/7/">7</a><a class="extend next" rel="next" href="/page/2/">下一页 &raquo;</a>
     </nav>
@@ -2470,6 +2531,26 @@
         <h3 class="widget-title">最新文章</h3>
         <div class="widget">
             <ul id="recent-post" class="">
+                
+                    <li>
+                        
+                        <!-- 去除图片 -->
+                        <!-- <div class="item-thumbnail">
+                            <a href="/2018/01/05/rpc-registry/" class="thumbnail">
+    
+    
+        <span class="thumbnail-image thumbnail-none"></span>
+    
+</a>
+
+                        </div> -->
+                        
+                        <div class="item-inner">
+                            <p class="item-category"><a class="article-category-link" href="/categories/RPC/">RPC</a></p>
+                            <p class="item-title"><a href="/2018/01/05/rpc-registry/" class="title">深入理解RPC之服务注册与发现篇</a></p>
+                            <p class="item-date"><time datetime="2018-01-05T12:16:28.000Z" itemprop="datePublished">2018-01-05</time></p>
+                        </div>
+                    </li>
                 
                     <li>
                         
@@ -2551,26 +2632,6 @@
                         </div>
                     </li>
                 
-                    <li>
-                        
-                        <!-- 去除图片 -->
-                        <!-- <div class="item-thumbnail">
-                            <a href="/2017/12/11/rpc-serialize-2/" class="thumbnail">
-    
-    
-        <span class="thumbnail-image thumbnail-none"></span>
-    
-</a>
-
-                        </div> -->
-                        
-                        <div class="item-inner">
-                            <p class="item-category"><a class="article-category-link" href="/categories/RPC/">RPC</a></p>
-                            <p class="item-title"><a href="/2017/12/11/rpc-serialize-2/" class="title">深入理解RPC之序列化篇--总结篇</a></p>
-                            <p class="item-date"><time datetime="2017-12-11T14:58:54.000Z" itemprop="datePublished">2017-12-11</time></p>
-                        </div>
-                    </li>
-                
             </ul>
         </div>
     </div>
@@ -2580,7 +2641,7 @@
     <div class="widget-wrap">
         <h3 class="widget-title">分类</h3>
         <div class="widget">
-            <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/DevOps/">DevOps</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/JAVA/">JAVA</a><span class="category-list-count">14</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/RPC/">RPC</a><span class="category-list-count">7</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring/">Spring</a><span class="category-list-count">7</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Cloud/">Spring Cloud</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Data-Redis/">Spring Data Redis</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security/">Spring Security</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security-OAuth2/">Spring Security OAuth2</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Session/">Spring Session</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/技术杂谈/">技术杂谈</a><span class="category-list-count">7</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/架构设计/">架构设计</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/规则引擎/">规则引擎</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/领域驱动设计/">领域驱动设计</a><span class="category-list-count">2</span></li></ul>
+            <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/DevOps/">DevOps</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/JAVA/">JAVA</a><span class="category-list-count">14</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/RPC/">RPC</a><span class="category-list-count">8</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring/">Spring</a><span class="category-list-count">7</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Cloud/">Spring Cloud</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Data-Redis/">Spring Data Redis</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security/">Spring Security</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security-OAuth2/">Spring Security OAuth2</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Session/">Spring Session</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/技术杂谈/">技术杂谈</a><span class="category-list-count">7</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/架构设计/">架构设计</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/规则引擎/">规则引擎</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/领域驱动设计/">领域驱动设计</a><span class="category-list-count">2</span></li></ul>
         </div>
     </div>
 
@@ -2589,7 +2650,7 @@
     <div class="widget-wrap">
         <h3 class="widget-title">归档</h3>
         <div class="widget">
-            <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/12/">十二月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/11/">十一月 2017</a><span class="archive-list-count">5</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/10/">十月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a><span class="archive-list-count">12</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a><span class="archive-list-count">10</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/02/">二月 2017</a><span class="archive-list-count">7</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/11/">十一月 2016</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/08/">八月 2016</a><span class="archive-list-count">3</span></li></ul>
+            <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/01/">一月 2018</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/12/">十二月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/11/">十一月 2017</a><span class="archive-list-count">5</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/10/">十月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a><span class="archive-list-count">12</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a><span class="archive-list-count">10</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/02/">二月 2017</a><span class="archive-list-count">7</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/11/">十一月 2016</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/08/">八月 2016</a><span class="archive-list-count">3</span></li></ul>
         </div>
     </div>
 
@@ -2638,7 +2699,7 @@
         <footer id="footer">
     <div class="outer">
         <div id="footer-info" class="inner">
-            &copy; 2017 徐靖峰<br>
+            &copy; 2018 徐靖峰<br>
             Powered by <a href="http://hexo.io/" target="_blank">Hexo</a>. Theme by <a href="http://github.com/ppoffice">PPOffice</a>
         </div>
     </div>
