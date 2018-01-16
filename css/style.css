@@ -632,6 +632,12 @@ code {
 .label-success {
   background-color: #5cb85c;
 }
+.label-warn {
+  background-color: #f0ad4e;
+}
+.label-error {
+  background-color: #f00;
+}
 .bio {
   text-align: center;
 }
