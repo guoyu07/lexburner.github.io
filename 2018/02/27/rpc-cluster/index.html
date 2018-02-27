@@ -14,7 +14,7 @@
 <meta property="og:description" content="上一篇文章分析了服务的注册与发现，这一篇文章着重分析下 RPC 框架都会用到的集群的相关知识。 集群(Cluster)本身并不具备太多知识点，在分布式系统中，集群一般涵盖了负载均衡（LoadBalance），高可用（HA），路由（Route）等等概念，每个 RPC 框架对集群支持的程度不同，本文着重分析前两者–负载均衡和高可用。 ##集群概述 在此之前的《深入理解 RPC》的系列文章，对 RPC">
 <meta property="og:locale" content="zh-CN">
 <meta property="og:image" content="http://ov0zuistv.bkt.clouddn.com/TIM%E5%9B%BE%E7%89%8720180227151838.png">
-<meta property="og:updated_time" content="2018-02-27T08:57:07.005Z">
+<meta property="og:updated_time" content="2018-02-27T09:07:46.952Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="深入理解 RPC 之集群篇">
 <meta name="twitter:description" content="上一篇文章分析了服务的注册与发现，这一篇文章着重分析下 RPC 框架都会用到的集群的相关知识。 集群(Cluster)本身并不具备太多知识点，在分布式系统中，集群一般涵盖了负载均衡（LoadBalance），高可用（HA），路由（Route）等等概念，每个 RPC 框架对集群支持的程度不同，本文着重分析前两者–负载均衡和高可用。 ##集群概述 在此之前的《深入理解 RPC》的系列文章，对 RPC">
@@ -366,30 +366,26 @@
 <figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Random</span></span></div><div class="line"><span class="class"></span>&#123;</div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">static</span> String <span class="title">getServer</span><span class="params">()</span></span></div><div class="line"><span class="function">    </span>&#123;</div><div class="line">        <span class="comment">// 重建一个Map，避免服务器的上下线导致的并发问题</span></div><div class="line">        Map&lt;String, Integer&gt; serverMap = </div><div class="line">                <span class="keyword">new</span> HashMap&lt;String, Integer&gt;();</div><div class="line">        serverMap.putAll(IpMap.serverWeightMap);</div><div class="line">        </div><div class="line">        <span class="comment">// 取得Ip地址List</span></div><div class="line">        Set&lt;String&gt; keySet = serverMap.keySet();</div><div class="line">        ArrayList&lt;String&gt; keyList = <span class="keyword">new</span> ArrayList&lt;String&gt;();</div><div class="line">        keyList.addAll(keySet);</div><div class="line">        </div><div class="line">        java.util.Random random = <span class="keyword">new</span> java.util.Random();</div><div class="line">        <span class="keyword">int</span> randomPos = random.nextInt(keyList.size());</div><div class="line">        </div><div class="line">        <span class="keyword">return</span> keyList.get(randomPos);</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
 <h2 id="高可用策略"><a href="#高可用策略" class="headerlink" title="高可用策略"></a>高可用策略</h2><p>高可用（HA）策略一般也被称作容错机制，分布式系统中出错是常态，但服务却不能停止响应，6个9一直是各个公司的努力方向。当一次请求失败之后，是重试呢？还是继续请求其他机器？抑或是记录下这次失败？下面是集群中的几种常用高可用策略：</p>
 <ol>
-<li>失效转移（failover）</li>
-</ol>
+<li><p>失效转移（failover）</p>
 <p>当出现失败，重试其他服务器，通常用于读操作等幂等行为，重试会带来更长延迟。该高可用策略会受到负载均衡算法的限制，比如失效转移强调需要重试其他机器，但一致性 Hash 这类负载均衡算法便会与其存在冲突（个人认为一致性 Hash 在 RPC 的客户端负载均衡中意义不是很大）</p>
-<ol>
-<li>快速失败（failfast）</li>
-</ol>
+</li>
+<li><p>快速失败（failfast）</p>
 <p>只发起一次调用，失败立即报错，通常用于非幂等性的写操作。</p>
 <p>如果在 motan，dubbo 等配置中设置了重试次数&gt;0，又配置了该高可用策略，则重试效果也不会生效，由此可见集群中的各个配置可能是会相互影响的。</p>
-<ol>
-<li>失效安全（failsafe）</li>
-</ol>
+</li>
+<li><p>失效安全（failsafe）</p>
 <p>出现异常时忽略，但记录这一次失败，存入日志中。</p>
-<ol>
-<li>失效自动恢复（faikback）</li>
-</ol>
+</li>
+<li><p>失效自动恢复（faikback）</p>
 <p>后台记录失败请求，定时重发。通常用于消息通知操作。</p>
-<ol>
-<li>并行调用（forking）</li>
-</ol>
+</li>
+<li><p>并行调用（forking）</p>
 <p>只要一个成功即返回，通常用于实时性要求较高的读操作。需要牺牲一定的服务资源。</p>
-<ol>
-<li>广播（broadcast）</li>
-</ol>
+</li>
+<li><p>广播（broadcast）</p>
 <p>广播调用，所有提供逐个调用，任意一台报错则报错。通常用于更新提供方本地状态，速度慢，任意一台报错则报错。</p>
+</li>
+</ol>
 <h2 id="高可用接口分析"><a href="#高可用接口分析" class="headerlink" title="高可用接口分析"></a>高可用接口分析</h2><p>以 motan 的 HaStrategy 为例来介绍高可用在集群中的实现细节</p>
 <figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Spi</span>(scope = Scope.PROTOTYPE)</div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">HaStrategy</span>&lt;<span class="title">T</span>&gt; </span>&#123;</div><div class="line">    <span class="function"><span class="keyword">void</span> <span class="title">setUrl</span><span class="params">(URL url)</span></span>;</div><div class="line">    <span class="function">Response <span class="title">call</span><span class="params">(Request request, LoadBalance&lt;T&gt; loadBalance)</span></span>;<span class="comment">//&lt;1&gt;</span></div><div class="line">&#125;</div></pre></td></tr></table></figure>
 <p><1> 如我之前所述，高可用策略依赖于请求和一个特定的负载均衡算法，返回一个响应。</1></p>
@@ -416,7 +412,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2018/02/27/rpc-cluster/" data-id="cje5feplk002xvgudr1spqpia" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2018/02/27/rpc-cluster/" data-id="cje5fiw8p0033egud2i69vniv" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
