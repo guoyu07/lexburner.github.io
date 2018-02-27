@@ -13,7 +13,7 @@
 <meta property="og:site_name" content="徐靖峰|个人博客">
 <meta property="og:description" content="介绍本文档主要针对我们项目内部正在使用的框架，以及代码审查发现的一些共性问题提出一些开发规范。 JavaBean规范1    驼峰命名法【强制】 2    布尔类型规范【强制】【说明】所有的布尔类型不允许以is开头，否则会导致部分序列化，hibernate框架出现解析异常。【反例】原来项目的BaseDomain中标记逻辑删除的字段,在部分场景下会出现问题 123456789101112@Colum">
 <meta property="og:locale" content="zh-CN">
-<meta property="og:updated_time" content="2017-12-27T07:40:43.635Z">
+<meta property="og:updated_time" content="2018-02-27T03:24:54.871Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="sinosoft代码规范">
 <meta name="twitter:description" content="介绍本文档主要针对我们项目内部正在使用的框架，以及代码审查发现的一些共性问题提出一些开发规范。 JavaBean规范1    驼峰命名法【强制】 2    布尔类型规范【强制】【说明】所有的布尔类型不允许以is开头，否则会导致部分序列化，hibernate框架出现解析异常。【反例】原来项目的BaseDomain中标记逻辑删除的字段,在部分场景下会出现问题 123456789101112@Colum">
@@ -152,11 +152,11 @@
         </div>
         <div class="article-info profile-block">
             <div class="article-info-block">
-                71
+                72
                 <span>文章</span>
             </div>
             <div class="article-info-block">
-                32
+                31
                 <span>标签</span>
             </div>
         </div>
@@ -276,7 +276,7 @@
 </tbody>
 </table>
 <p>对于View Object，PO等等其他一些的对象不在此做要求，只说明一下常用的几个<br>DO就是我们最常用的数据库持久对象，是OOP对于现实中的抽象，一般使用orm框架映射到数据库<br>DTO这一层，目前我们的项目还没有投入使用，即将考虑投入使用，理论上来说，两个微服务模块是严禁共享数据库的<br>所以A模块要查询B模块的数据，需要使用B模块app层暴露出来的api来查询，其中B模块返回的实体，不能是直接从数据库中<br>查询出来的DO，而应该是DO转换而成的DTO。以及其他服务服务用语传输的变量，都叫做DTO<br>VO就是常存在于视图层模板渲染使用的实体类</p>
-<p>【推荐】领域模型命名规范<br>【说明】由于DO这一层大家已经养成了习惯，不做要求了。DTO有些特殊，他常常与业务的传输对象相关，而不限于以DTO结尾，如xxxQuery也可以是DTO对象。VO对象推荐以VO结尾。注意：不要命名为Vo,Dto。</p>
+<p>【推荐】领域模型命名规范<br>【说明】由于 DO 这一层大家已经养成了习惯，不做要求了。DTO有些特殊，他常常与业务的传输对象相关，而不限于以 Dto 结尾，如xxxQuery也可以是DTO对象。VO对象推荐以Vo结尾</p>
 <h3 id="包结构规范"><a href="#包结构规范" class="headerlink" title="包结构规范"></a>包结构规范</h3><p>1    包命名【强制】 </p>
 <p>格式如下：公司名.模块名.层次名<br>包名应当尽量使用能够概括模块总体含义,单词义,单数,不包含特殊字符的单词<br>【正例】: <code>sinosoftgz.message.admin</code><br>【反例】: <code>sinosoftgz.mailsms.admin</code> <code>sinosoftgz.mail.sms.admin</code></p>
 <p>2    包结构【推荐】<br>当项目模块的职责较为复杂，且考虑到以后拓展的情况下，单个模块依旧包含着很多小的业务模块时，应当优先按照业务区分包名</p>
@@ -391,6 +391,116 @@
 <p>4 Logger声明规范</p>
 <p>【正例】Logger logger = LoggerFactory.getLogger(Student.class);</p>
 <p>保证某个类的字节码作为日志跟踪标识，方便定位日志的出处。</p>
+<h2 id="2018-02-27-补充规范"><a href="#2018-02-27-补充规范" class="headerlink" title="2018-02-27 补充规范"></a>2018-02-27 补充规范</h2><h2 id="日志规范-1"><a href="#日志规范-1" class="headerlink" title="日志规范"></a>日志规范</h2><p>1 与外部对接接口的返回报文需要使用 Info 级别打印，以便于跟踪接口信息</p>
+<p>【正例】log.info(“供应商接口返回报文:{}”,JSON.toString(venderDto));</p>
+<p>2 内部接口的关键参数需要使用 Info 级别打印，如下单时的订单号，下单人信息，订单金额等关键信息。</p>
+<p>3 一般方法为了方便排查问题，建议打上必要的日志</p>
+<h2 id="编码细节"><a href="#编码细节" class="headerlink" title="编码细节"></a>编码细节</h2><p>1 session，request，response 等 http 生命周期的对象不应该传入 service 层</p>
+<p>原因：不便于单元测试；不便于 service 重用</p>
+<p>2 注意判空</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div></pre></td><td class="code"><pre><div class="line">String memberName = (String) request.getSession().getAttribute(GlobalContants.SESSION_MEMBER_NAME);</div><div class="line"><span class="keyword">if</span>(Lang.isE)</div><div class="line">userService.getByName(memberName); </div><div class="line"></div><div class="line">List&lt;UserDto&gt; users =  userApi.findByStatus(String status);</div><div class="line"><span class="keyword">if</span>()</div><div class="line"><span class="keyword">for</span>(UserDto user:users)&#123;</div><div class="line">    </div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>如果确定不为空，可以不判断；对于不确定的情况一定要做空判断</p>
+<p>3 motan 的重试次数</p>
+<p>所有的操作分为 CRUD，查询–一般可以设置 2 次重试，增删改不可以重试，除非保证幂等。</p>
+<p>全局配置设置重试次数应当为 0 次。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line">ProtocolConfigBean.setRetries(0);//protocol级别</div><div class="line">@MotanService(retries = 2)//注意!服务端配置是无效的</div><div class="line">@MotanReferer(retries = 2)//有效 referer 级别</div></pre></td></tr></table></figure>
+<p>motan 中的配置覆盖优先级：method &gt; referer &gt; basic referer &gt; protocol</p>
+<p>可以修改单个 service 的重试次数</p>
+<p>4 XxxProperties 类代替 @Value</p>
+<p>@Value 容器加载顺序的导致空值的 bug，使用 @ConfigurationProperties 实现 Properties 类更加面向对象</p>
+<p>5 RedisTemplate 和 StringRedisTemplate 的使用细节</p>
+<p>RedisTemplate.put(“hello”,”world”);</p>
+<p>StringRedisTemplate.get(“hello”).equals(“world”) == false</p>
+<p>6 及时清理不再使用的代码，可以在系统回归之后的节点或者合并到主干的节点删除注释掉的代码</p>
+<h2 id="软件设计原则与微服务设计原则"><a href="#软件设计原则与微服务设计原则" class="headerlink" title="软件设计原则与微服务设计原则"></a>软件设计原则与微服务设计原则</h2><p>1 接口设计应当符合聚合根模式</p>
+<p>orderMain 主订单包含 List<orderitem> 订单项，包含 List<suborder> 子订单 等等项</suborder></orderitem></p>
+<p>设计 Api 时，只能存在一个 orderMainApi ，而不能存在 orderItemApi 和 subOrderApi。</p>
+<p>其他模块如何获取订单项 orderItem 的数据？只能通过访问 orderMain ，从中获取 orderItem。</p>
+<p>不同服务之间进行远程调用，只能访问对方的聚合根对象。</p>
+<p>2 面向对象，函数式，设计模式等编程范式</p>
+<p>面向对象：继承，封装，多态</p>
+<p>函数式：lamba，streamAPI</p>
+<p>设计模式：单例模式，工厂模式，适配器模式，模板方法模式</p>
+<p>多范式编程与最小表达力原则</p>
+<p>3 DTO 的意义</p>
+<p>dto 应该存在于 api 层，不应该存在于 model 层，model 只应该对本模块的 service 可见，web 不可见，其他模块不可见。使用 DTO 解耦模块之间的依赖。</p>
+<p>4 Api 层的注释要全</p>
+<p>5 ApiImpl 层的意义</p>
+<p>仅仅作为转换，不添加任何业务逻辑。ApiImpl 层不应该出现 DO 对象。</p>
+<p>6 Stub 的意义Facede</p>
+<p>对于外部接口的调用，使用 Stub 作为外部接口的包装，在本模块的 service 类中需要调用外部 API 时，则应当调用 Stub。Stub 代表着远程接口在本地的代理。</p>
+<p>7 DevOps 八荣八耻</p>
+<p>以可配置为荣，以硬编码为耻</p>
+<p>以互备为荣，以单点为耻</p>
+<p>以随时重启为荣，以不能迁移为耻</p>
+<p>以整体交付为荣，以部分交付为耻</p>
+<p>以无状态为荣，以有状态为耻</p>
+<p>以标准化为荣，以特殊化为耻</p>
+<p>以自动化工具为荣，以手动和人肉为耻</p>
+<p>以无人值守为荣，以人工介入为耻</p>
+<p>8 领域驱动设计与微服务设计</p>
+<p><strong>实体（Entity）和值对象（Value Object）的区分</strong></p>
+<p>实体具有生命周期，需要继承 BaseDomain；值对象没有生命周期，只起到修饰作用。</p>
+<p>举例：Protocol 协议下包含 List<protocolproduct> 协议商品, ProtocolProduct 协议商品包含 List<protocolproductpicture> 商品轮播图。</protocolproductpicture></protocolproduct></p>
+<p>此时 Protocol 是聚合根也是实体，List<protocolproduct> 介于实体和值对象之间，需要视需求而定，而 ProtocolProductPicture 则必然是值对象属性。</protocolproduct></p>
+<p>对于实体的删除使用逻辑删除，对于值对象的删除使用物理删除。</p>
+<p><strong>数据库操作使用充血模型而不是贫血模型</strong></p>
+<p>代码见 ProtocolService，查询使用 Specification 模式，曾经强调过，在公会礼包和协议采购已经在实践。具体表现：Repository 层应该为空实现。update = find + 持久化对象的内存操作 + save</p>
+<p><strong>微服务设计</strong></p>
+<p>确定领域的限界上下文，微服务的边界。微服务架构是一件好事，逼着大家关注设计软件的合理性，如果原来在单体式架构中领域分析、面向对象设计做不好，换成微服务会把这个问题成倍的放大。微服务架构首先要关注的不是RPC/ServiceDiscovery/Circuit Breaker这些概念，也不是Eureka/Docker/SpringCloud/Zipkin这些技术框架，而是服务的边界、职责划分，划分错误就会陷入大量的服务间的相互调用和分布式事务中，这种情况微服务带来的不是便利而是麻烦。</p>
+<h2 id="线程池注意事项"><a href="#线程池注意事项" class="headerlink" title="线程池注意事项"></a>线程池注意事项</h2><p>1 如果在每个方法中实例化线程池，那么要在方法结束时 shutdown 线程池，否则会导致内存溢出，导致服务器崩溃。</p>
+<p>@Service</p>
+<p>public class SomeService {</p>
+<p>​    </p>
+<p>​    public void concurrentExecute() {</p>
+<p>​        ExecutorService executorService = Executors.newFixedThreadPool(10);</p>
+<p>​        executorService.execute(new Runnable() {</p>
+<p>​            @Override</p>
+<p>​            public void run() {</p>
+<p>​                System.out.println(“executed…”);</p>
+<p>​            }</p>
+<p>​        });</p>
+<p>​        executorService.shutdown();// 否则 executorService 永远不会被回收</p>
+<p>​    }</p>
+<p>}</p>
+<p>2 线程池嵌套使用可能会导致死锁</p>
+<p>@Service</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div></pre></td><td class="code"><pre><div class="line">public class SomeService &#123;</div><div class="line">    </div><div class="line">    public void concurrentExecute() &#123;</div><div class="line">        ExecutorService executorService = Executors.newFixedThreadPool(10);</div><div class="line">        executorService.execute(new Runnable() &#123;</div><div class="line">            @Override</div><div class="line">            public void run() &#123;</div><div class="line">                //复用了一个线程池，会导致子任务卡死其他的主任务</div><div class="line">                executorService.execute(new Runnable() &#123;</div><div class="line">                    @Override</div><div class="line">                    public voud run() &#123;</div><div class="line">                        //doSomething...</div><div class="line">                    &#125;</div><div class="line">                &#125;)</div><div class="line">            &#125;</div><div class="line">        &#125;);</div><div class="line">        executorService.shutdown();</div><div class="line">    &#125;</div><div class="line"></div><div class="line"></div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>3【强制】线程池不允许使用 Executors 去创建，而是通过 ThreadPoolExecutor 的方式，<br>这样的处理方式让写的同学更加明确线程池的运行规则，规避资源耗尽的风险。</p>
+<p>我下面整理了一些 线程池 相关的知识点</p>
+<h2 id="Executors"><a href="#Executors" class="headerlink" title="Executors"></a>Executors</h2><p>Executors是一个线程池框架，其最终还是通过new ThreadPoolExecutor的方式创建的线程池。Executors提供了几个工厂方法。但这几种都不应该在生产中直接使用</p>
+<h3 id="newSingleThreadExecutor"><a href="#newSingleThreadExecutor" class="headerlink" title="newSingleThreadExecutor"></a>newSingleThreadExecutor</h3><p>创建一个单线程的线程池。这个线程池只有一个线程在工作，也就是相当于单线程串行执行所有任务。如果这个唯一的线程因为异常结束，那么会有一个新的线程来替代它。<br>此线程池保证所有任务的执行顺序按照任务的提交顺序执行。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">new ThreadPoolExecutor(1, 1,0L,TimeUnit.MILLISECONDS,new LinkedBlockingQueue&lt;Runnable&gt;());</div></pre></td></tr></table></figure>
+<h3 id="newFixedThreadPool"><a href="#newFixedThreadPool" class="headerlink" title="newFixedThreadPool"></a>newFixedThreadPool</h3><p>创建固定大小的线程池。每次提交一个任务就创建一个线程，直到线程达到线程池的最大大小。<br>线程池的大小一旦达到最大值就会保持不变，如果某个线程因为执行异常而结束，那么线程池会补充一个新线程。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">new ThreadPoolExecutor(nThreads, nThreads, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue&lt;Runnable&gt;());</div></pre></td></tr></table></figure>
+<h3 id="newCachedThreadPool"><a href="#newCachedThreadPool" class="headerlink" title="newCachedThreadPool"></a>newCachedThreadPool</h3><p>创建一个可缓存的线程池。如果线程池的大小超过了处理任务所需要的线程，<br>那么就会回收部分空闲（60秒不执行任务）的线程，当任务数增加时，此线程池又可以智能的添加新线程来处理任务。<br>此线程池不会对线程池大小做限制，线程池大小完全依赖于操作系统（或者说JVM）能够创建的最大线程大小。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">new ThreadPoolExecutor(0, Integer.MAX_VALUE, 60L, TimeUnit.SECONDS,new SynchronousQueue&lt;Runnable&gt;());</div></pre></td></tr></table></figure>
+<h3 id="ThreadPoolExecutor"><a href="#ThreadPoolExecutor" class="headerlink" title="ThreadPoolExecutor"></a>ThreadPoolExecutor</h3><p>再看看如何使用ThreadPoolExecutor创建线程池，我们需要理解各个构造方法的参数：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div></pre></td><td class="code"><pre><div class="line">public ThreadPoolExecutor(int corePoolSize,</div><div class="line">                          int maximumPoolSize,</div><div class="line">                          long keepAliveTime,</div><div class="line">                          TimeUnit unit,</div><div class="line">                          BlockingQueue&lt;Runnable&gt; workQueue,</div><div class="line">                          ThreadFactory threadFactory,</div><div class="line">                          RejectedExecutionHandler handler)</div></pre></td></tr></table></figure>
+<p>corePoolSize - 线程池核心池的大小。<br>maximumPoolSize - 线程池的最大线程数。<br>keepAliveTime - 当线程数大于核心时，此为终止前多余的空闲线程等待新任务的最长时间。<br>unit - keepAliveTime 的时间单位。<br>workQueue - 用来储存等待执行任务的队列。<br>threadFactory - 线程工厂。<br>handler - 拒绝策略。</p>
+<h4 id="关注点1-线程池大小"><a href="#关注点1-线程池大小" class="headerlink" title="关注点1 线程池大小"></a>关注点1 线程池大小</h4><p>线程池有两个线程数的设置，一个为核心池线程数，一个为最大线程数。<br>在创建了线程池后，默认情况下，线程池中并没有任何线程，等到有任务来才创建线程去执行任务，除非调用了prestartAllCoreThreads()或者prestartCoreThread()方法<br>当创建的线程数等于 corePoolSize 时，会加入设置的阻塞队列。当队列满时，会创建线程执行任务直到线程池中的数量等于maximumPoolSize。</p>
+<h4 id="关注点2-适当的阻塞队列"><a href="#关注点2-适当的阻塞队列" class="headerlink" title="关注点2 适当的阻塞队列"></a>关注点2 适当的阻塞队列</h4><p>java.lang.IllegalStateException: Queue full<br>方法 抛出异常 返回特殊值 一直阻塞 超时退出<br>插入方法 add(e) offer(e) put(e) offer(e,time,unit)<br>移除方法 remove() poll() take() poll(time,unit)<br>检查方法 element() peek() 不可用 不可用</p>
+<p>ArrayBlockingQueue ：一个由数组结构组成的有界阻塞队列。<br>LinkedBlockingQueue ：一个由链表结构组成的有界阻塞队列。<br>PriorityBlockingQueue ：一个支持优先级排序的无界阻塞队列。<br>DelayQueue： 一个使用优先级队列实现的无界阻塞队列。<br>SynchronousQueue： 一个不存储元素的阻塞队列。<br>LinkedTransferQueue： 一个由链表结构组成的无界阻塞队列。<br>LinkedBlockingDeque： 一个由链表结构组成的双向阻塞队列。</p>
+<h4 id="关注点3-明确拒绝策略"><a href="#关注点3-明确拒绝策略" class="headerlink" title="关注点3 明确拒绝策略"></a>关注点3 明确拒绝策略</h4><p>ThreadPoolExecutor.AbortPolicy: 丢弃任务并抛出RejectedExecutionException异常。 (默认)<br>ThreadPoolExecutor.DiscardPolicy：也是丢弃任务，但是不抛出异常。<br>ThreadPoolExecutor.DiscardOldestPolicy：丢弃队列最前面的任务，然后重新尝试执行任务（重复此过程）<br>ThreadPoolExecutor.CallerRunsPolicy：由调用线程处理该任务</p>
+<p>说明：Executors 各个方法的弊端：<br>1）newFixedThreadPool 和 newSingleThreadExecutor:<br>主要问题是堆积的请求处理队列可能会耗费非常大的内存，甚至 OOM。<br>2）newCachedThreadPool 和 newScheduledThreadPool:<br>主要问题是线程数最大数是 Integer.MAX_VALUE，可能会创建数量非常多的线程，甚至 OOM。</p>
+<p>## </p>
+<p>我推荐的创建线程池的方式：</p>
+<p>1 new ThreadPoolExecutor(全参构造) 自己控制</p>
+<p>corePoolSize - 线程池核心池的大小。</p>
+<p>maximumPoolSize - 线程池的最大线程数。</p>
+<p>keepAliveTime - 当线程数大于核心时，此为终止前多余的空闲线程等待新任务的最长时间。</p>
+<p>unit - keepAliveTime 的时间单位。</p>
+<p>workQueue - 用来储存等待执行任务的队列。</p>
+<p>threadFactory - 线程工厂。</p>
+<p>handler - 拒绝策略。</p>
+<p>2 使用Spring提供的线程池（强烈推荐）</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div></pre></td><td class="code"><pre><div class="line">@Bean</div><div class="line">public ThreadPoolTaskExecutor someBizThreadPool()&#123;</div><div class="line">    ThreadPoolTaskExecutor threadPoolTaskExecutor = new ThreadPoolTaskExecutor();</div><div class="line">    threadPoolTaskExecutor.setCorePoolSize(10);</div><div class="line">    threadPoolTaskExecutor.setMaxPoolSize(100);</div><div class="line">    threadPoolTaskExecutor.setQueueCapacity(200);</div><div class="line">    threadPoolTaskExecutor.setKeepAliveSeconds(60);</div><div class="line">    threadPoolTaskExecutor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());</div><div class="line">    return threadPoolTaskExecutor;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>运行规则如下：</p>
+<p>如果此时线程池中的数量小于corePoolSize，即使线程池中的线程都处于空闲状态，也要创建新的线程来处理被添加的任务。</p>
+<p>如果此时线程池中的数量等于 corePoolSize，但是缓冲队列 workQueue未满，那么任务被放入缓冲队列。</p>
+<p>如果此时线程池中的数量大于corePoolSize，缓冲队列workQueue满，并且线程池中的数量小于maxPoolSize，建新的线程来处理被添加的任务。</p>
+<p>如果此时线程池中的数量大于corePoolSize，缓冲队列workQueue满，并且线程池中的数量等于maxPoolSize，那么通过handler所指定的策略来处理此任务。也就是：处理任务的优先级为：核心线程corePoolSize、任务队列workQueue、最大线程 maximumPoolSize，如果三者都满了，使用handler处理被拒绝的任务（抛出异常）。</p>
+<p>当线程池中的线程数量大于corePoolSize时，如果某线程空闲时间超过keepAliveTime，线程将被终止。这样，线程池可以动态的调整池中的线程数。</p>
 
            
         
@@ -402,7 +512,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/08/25/project-rules/" data-id="cjde3vluk0034ssud2ilf9wnu" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/08/25/project-rules/" data-id="cje5feple002svgudm1byranf" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -549,6 +659,46 @@
                         
                         <!-- 去除图片 -->
                         <!-- <div class="item-thumbnail">
+                            <a href="/2018/02/27/rpc-cluster/" class="thumbnail">
+    
+    
+        <span class="thumbnail-image thumbnail-none"></span>
+    
+</a>
+
+                        </div> -->
+                        
+                        <div class="item-inner">
+                            <p class="item-category"><a class="article-category-link" href="/categories/RPC/">RPC</a></p>
+                            <p class="item-title"><a href="/2018/02/27/rpc-cluster/" class="title">深入理解 RPC 之集群篇</a></p>
+                            <p class="item-date"><time datetime="2018-02-27T14:18:51.000Z" itemprop="datePublished">2018-02-27</time></p>
+                        </div>
+                    </li>
+                
+                    <li>
+                        
+                        <!-- 去除图片 -->
+                        <!-- <div class="item-thumbnail">
+                            <a href="/2018/02/14/jpa-DDD/" class="thumbnail">
+    
+    
+        <span class="thumbnail-image thumbnail-none"></span>
+    
+</a>
+
+                        </div> -->
+                        
+                        <div class="item-inner">
+                            <p class="item-category"><a class="article-category-link" href="/categories/JAVA/">JAVA</a></p>
+                            <p class="item-title"><a href="/2018/02/14/jpa-DDD/" class="title">JAVA 拾遗--JPA 二三事</a></p>
+                            <p class="item-date"><time datetime="2018-02-14T14:18:51.000Z" itemprop="datePublished">2018-02-14</time></p>
+                        </div>
+                    </li>
+                
+                    <li>
+                        
+                        <!-- 去除图片 -->
+                        <!-- <div class="item-thumbnail">
                             <a href="/2018/02/04/instrument/" class="thumbnail">
     
     
@@ -562,26 +712,6 @@
                             <p class="item-category"><a class="article-category-link" href="/categories/JAVA/">JAVA</a></p>
                             <p class="item-title"><a href="/2018/02/04/instrument/" class="title">JAVA 拾遗--Instrument 机制</a></p>
                             <p class="item-date"><time datetime="2018-02-04T14:18:51.000Z" itemprop="datePublished">2018-02-04</time></p>
-                        </div>
-                    </li>
-                
-                    <li>
-                        
-                        <!-- 去除图片 -->
-                        <!-- <div class="item-thumbnail">
-                            <a href="/2018/01/29/jpa-ddd/" class="thumbnail">
-    
-    
-        <span class="thumbnail-image thumbnail-none"></span>
-    
-</a>
-
-                        </div> -->
-                        
-                        <div class="item-inner">
-                            <p class="item-category"><a class="article-category-link" href="/categories/领域驱动设计/">领域驱动设计</a></p>
-                            <p class="item-title"><a href="/2018/01/29/jpa-ddd/" class="title">JPA 中几个体现领域驱动设计的细节</a></p>
-                            <p class="item-date"><time datetime="2018-01-29T12:16:28.000Z" itemprop="datePublished">2018-01-29</time></p>
                         </div>
                     </li>
                 
@@ -625,26 +755,6 @@
                         </div>
                     </li>
                 
-                    <li>
-                        
-                        <!-- 去除图片 -->
-                        <!-- <div class="item-thumbnail">
-                            <a href="/2018/01/05/rpc-registry/" class="thumbnail">
-    
-    
-        <span class="thumbnail-image thumbnail-none"></span>
-    
-</a>
-
-                        </div> -->
-                        
-                        <div class="item-inner">
-                            <p class="item-category"><a class="article-category-link" href="/categories/RPC/">RPC</a></p>
-                            <p class="item-title"><a href="/2018/01/05/rpc-registry/" class="title">深入理解RPC之服务注册与发现篇</a></p>
-                            <p class="item-date"><time datetime="2018-01-05T12:16:28.000Z" itemprop="datePublished">2018-01-05</time></p>
-                        </div>
-                    </li>
-                
             </ul>
         </div>
     </div>
@@ -654,7 +764,7 @@
     <div class="widget-wrap">
         <h3 class="widget-title">分类</h3>
         <div class="widget">
-            <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/DevOps/">DevOps</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/JAVA/">JAVA</a><span class="category-list-count">16</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/RPC/">RPC</a><span class="category-list-count">8</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring/">Spring</a><span class="category-list-count">7</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Cloud/">Spring Cloud</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Data-Redis/">Spring Data Redis</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security/">Spring Security</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security-OAuth2/">Spring Security OAuth2</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Session/">Spring Session</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/技术杂谈/">技术杂谈</a><span class="category-list-count">8</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/架构设计/">架构设计</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/规则引擎/">规则引擎</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/领域驱动设计/">领域驱动设计</a><span class="category-list-count">3</span></li></ul>
+            <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/DevOps/">DevOps</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/JAVA/">JAVA</a><span class="category-list-count">17</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/RPC/">RPC</a><span class="category-list-count">9</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring/">Spring</a><span class="category-list-count">7</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Cloud/">Spring Cloud</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Data-Redis/">Spring Data Redis</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security/">Spring Security</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security-OAuth2/">Spring Security OAuth2</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Session/">Spring Session</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/技术杂谈/">技术杂谈</a><span class="category-list-count">8</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/架构设计/">架构设计</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/规则引擎/">规则引擎</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/领域驱动设计/">领域驱动设计</a><span class="category-list-count">2</span></li></ul>
         </div>
     </div>
 
@@ -663,7 +773,7 @@
     <div class="widget-wrap">
         <h3 class="widget-title">归档</h3>
         <div class="widget">
-            <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/02/">二月 2018</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/01/">一月 2018</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/12/">十二月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/11/">十一月 2017</a><span class="archive-list-count">5</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/10/">十月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a><span class="archive-list-count">12</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a><span class="archive-list-count">10</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/02/">二月 2017</a><span class="archive-list-count">7</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/11/">十一月 2016</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/08/">八月 2016</a><span class="archive-list-count">3</span></li></ul>
+            <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/02/">二月 2018</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/01/">一月 2018</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/12/">十二月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/11/">十一月 2017</a><span class="archive-list-count">5</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/10/">十月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a><span class="archive-list-count">12</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a><span class="archive-list-count">10</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/02/">二月 2017</a><span class="archive-list-count">7</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/11/">十一月 2016</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/08/">八月 2016</a><span class="archive-list-count">3</span></li></ul>
         </div>
     </div>
 
@@ -672,7 +782,7 @@
     <div class="widget-wrap">
         <h3 class="widget-title">标签云</h3>
         <div class="widget tagcloud">
-            <a href="/tags/DevOps/" style="font-size: 11.43px;">DevOps</a> <a href="/tags/JAVA/" style="font-size: 20px;">JAVA</a> <a href="/tags/JMM/" style="font-size: 10px;">JMM</a> <a href="/tags/JPA/" style="font-size: 10px;">JPA</a> <a href="/tags/RPC/" style="font-size: 17.14px;">RPC</a> <a href="/tags/Spring/" style="font-size: 18.57px;">Spring</a> <a href="/tags/Spring-Cloud/" style="font-size: 12.86px;">Spring Cloud</a> <a href="/tags/Spring-Cloud-Zuul/" style="font-size: 11.43px;">Spring Cloud Zuul</a> <a href="/tags/Spring-Data-Redis/" style="font-size: 11.43px;">Spring Data Redis</a> <a href="/tags/Spring-Security/" style="font-size: 15.71px;">Spring Security</a> <a href="/tags/Spring-Security-OAuth2/" style="font-size: 12.86px;">Spring Security OAuth2</a> <a href="/tags/Spring-Session/" style="font-size: 12.86px;">Spring Session</a> <a href="/tags/Validation/" style="font-size: 11.43px;">Validation</a> <a href="/tags/XML/" style="font-size: 10px;">XML</a> <a href="/tags/Zipkin/" style="font-size: 10px;">Zipkin</a> <a href="/tags/drools/" style="font-size: 14.29px;">drools</a> <a href="/tags/lua/" style="font-size: 10px;">lua</a> <a href="/tags/motan/" style="font-size: 10px;">motan</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/zookeeper/" style="font-size: 10px;">zookeeper</a> <a href="/tags/中文排版/" style="font-size: 10px;">中文排版</a> <a href="/tags/事务/" style="font-size: 11.43px;">事务</a> <a href="/tags/代码规范/" style="font-size: 10px;">代码规范</a> <a href="/tags/多线程/" style="font-size: 15.71px;">多线程</a> <a href="/tags/微服务/" style="font-size: 10px;">微服务</a> <a href="/tags/技术杂谈/" style="font-size: 15.71px;">技术杂谈</a> <a href="/tags/数据库/" style="font-size: 10px;">数据库</a> <a href="/tags/杂谈/" style="font-size: 10px;">杂谈</a> <a href="/tags/架构设计/" style="font-size: 14.29px;">架构设计</a> <a href="/tags/求职/" style="font-size: 10px;">求职</a> <a href="/tags/规则引擎/" style="font-size: 14.29px;">规则引擎</a> <a href="/tags/领域驱动设计/" style="font-size: 12.86px;">领域驱动设计</a>
+            <a href="/tags/DevOps/" style="font-size: 11.43px;">DevOps</a> <a href="/tags/JAVA/" style="font-size: 20px;">JAVA</a> <a href="/tags/JMM/" style="font-size: 10px;">JMM</a> <a href="/tags/RPC/" style="font-size: 17.14px;">RPC</a> <a href="/tags/Spring/" style="font-size: 18.57px;">Spring</a> <a href="/tags/Spring-Cloud/" style="font-size: 12.86px;">Spring Cloud</a> <a href="/tags/Spring-Cloud-Zuul/" style="font-size: 11.43px;">Spring Cloud Zuul</a> <a href="/tags/Spring-Data-Redis/" style="font-size: 11.43px;">Spring Data Redis</a> <a href="/tags/Spring-Security/" style="font-size: 15.71px;">Spring Security</a> <a href="/tags/Spring-Security-OAuth2/" style="font-size: 12.86px;">Spring Security OAuth2</a> <a href="/tags/Spring-Session/" style="font-size: 12.86px;">Spring Session</a> <a href="/tags/Validation/" style="font-size: 11.43px;">Validation</a> <a href="/tags/XML/" style="font-size: 10px;">XML</a> <a href="/tags/Zipkin/" style="font-size: 10px;">Zipkin</a> <a href="/tags/drools/" style="font-size: 14.29px;">drools</a> <a href="/tags/lua/" style="font-size: 10px;">lua</a> <a href="/tags/motan/" style="font-size: 10px;">motan</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/zookeeper/" style="font-size: 10px;">zookeeper</a> <a href="/tags/中文排版/" style="font-size: 10px;">中文排版</a> <a href="/tags/事务/" style="font-size: 11.43px;">事务</a> <a href="/tags/代码规范/" style="font-size: 10px;">代码规范</a> <a href="/tags/多线程/" style="font-size: 15.71px;">多线程</a> <a href="/tags/微服务/" style="font-size: 10px;">微服务</a> <a href="/tags/技术杂谈/" style="font-size: 15.71px;">技术杂谈</a> <a href="/tags/数据库/" style="font-size: 10px;">数据库</a> <a href="/tags/杂谈/" style="font-size: 10px;">杂谈</a> <a href="/tags/架构设计/" style="font-size: 14.29px;">架构设计</a> <a href="/tags/求职/" style="font-size: 10px;">求职</a> <a href="/tags/规则引擎/" style="font-size: 14.29px;">规则引擎</a> <a href="/tags/领域驱动设计/" style="font-size: 11.43px;">领域驱动设计</a>
         </div>
     </div>
 

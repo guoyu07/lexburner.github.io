@@ -147,11 +147,11 @@
         </div>
         <div class="article-info profile-block">
             <div class="article-info-block">
-                71
+                72
                 <span>文章</span>
             </div>
             <div class="article-info-block">
-                32
+                31
                 <span>标签</span>
             </div>
         </div>
@@ -182,6 +182,527 @@
 
             
             <section id="main">
+    <article id="post-rpc-cluster" class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        
+            <header class="article-header">
+                
+    
+        <h1 itemprop="name">
+            <a class="article-title" href="/2018/02/27/rpc-cluster/">深入理解 RPC 之集群篇</a>
+        </h1>
+    
+
+                
+                    <div class="article-meta">
+                    	
+	
+		<div class="article-type">
+		    <span class="label label-success" style="float: left;padding: 3px 5px 3px 5px;margin-right: 15px;margin-top: 2px;">原创</span>
+		</div>
+	
+	
+	
+		
+	
+
+                        
+    <div class="article-date">
+        <i class="fa fa-calendar"></i>
+        <a href="/2018/02/27/rpc-cluster/">
+            <time datetime="2018-02-27T14:18:51.000Z" itemprop="datePublished">2018-02-27</time>
+        </a>
+    </div>
+
+
+                        
+    <div class="article-category">
+    	<i class="fa fa-folder"></i>
+        <a class="article-category-link" href="/categories/RPC/">RPC</a>
+    </div>
+
+                        <!-- 不显示标签 -->
+                        <!-- 
+    <div class="article-tag">
+        <i class="fa fa-tag"></i>
+        <a class="tag-link" href="/tags/RPC/">RPC</a>
+    </div>
+ -->
+                    </div>
+                
+            </header>
+        
+        
+        <div class="article-entry" itemprop="articleBody">
+        
+            
+             <p>上一篇文章分析了服务的注册与发现，这一篇文章着重分析下 RPC 框架都会用到的集群的相关知识。</p>
+<p>集群(Cluster)本身并不具备太多知识点，在分布式系统中，集群一般涵盖了负载均衡（LoadBalance），高可用（HA），路由（Route）等等概念，每个 RPC 框架对集群支持的程度不同，本文着重分析前两者–负载均衡和高可用。</p>
+<p>##集群概述</p>
+<p>在此之前的《深入理解 RPC》的系列文章，对 RPC 的分析着重还是放在服务之间的点对点调用，而分布式服务中每个服务必然不止一个实例，不同服务的实例和相同服务的多个实例构成了一个错综复杂的分布式环境，在服务治理框架中正是借助了 Cluster 这一层来应对这一难题。还是以博主较为熟悉的 motan 这个框架来介绍 Cluster 的作用。</p>
+<p>先来看看 Cluster 的顶层接口：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Spi</span>(scope = Scope.PROTOTYPE)</div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">Cluster</span>&lt;<span class="title">T</span>&gt; <span class="keyword">extends</span> <span class="title">Caller</span>&lt;<span class="title">T</span>&gt; </span>&#123;</div><div class="line">    <span class="meta">@Override</span></div><div class="line">    <span class="function"><span class="keyword">void</span> <span class="title">init</span><span class="params">()</span></span>;</div><div class="line">    <span class="function"><span class="keyword">void</span> <span class="title">setUrl</span><span class="params">(URL url)</span></span>;</div><div class="line">    <span class="function"><span class="keyword">void</span> <span class="title">setLoadBalance</span><span class="params">(LoadBalance&lt;T&gt; loadBalance)</span></span>;<span class="comment">//&lt;1&gt;</span></div><div class="line">    <span class="function"><span class="keyword">void</span> <span class="title">setHaStrategy</span><span class="params">(HaStrategy&lt;T&gt; haStrategy)</span></span>;<span class="comment">//&lt;2&gt;</span></div><div class="line">    <span class="function"><span class="keyword">void</span> <span class="title">onRefresh</span><span class="params">(List&lt;Referer&lt;T&gt;&gt; referers)</span></span>;</div><div class="line">    List&lt;Referer&lt;T&gt;&gt; getReferers();</div><div class="line">    <span class="function">LoadBalance&lt;T&gt; <span class="title">getLoadBalance</span><span class="params">()</span></span>;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>在概述中，我们只关心 Cluster 接口中的两个方法，它揭示了 Cluster 在服务治理中的地位</p>
+<p><1> 指定负载均衡算法</1></p>
+<p><2> 指定高可用策略（容错机制） </2></p>
+<p><img src="http://ov0zuistv.bkt.clouddn.com/TIM%E5%9B%BE%E7%89%8720180227151838.png" alt="http://ov0zuistv.bkt.clouddn.com/TIM%E5%9B%BE%E7%89%8720180227151838.png"></p>
+<p>我们需要对所谓的负载均衡策略和高可用策略有一定的理解，才能够搞清楚集群是如何运作的，而不仅仅是点对点的调用。</p>
+<h2 id="负载均衡"><a href="#负载均衡" class="headerlink" title="负载均衡"></a>负载均衡</h2><p>说到负载均衡，大多数人可能立刻联想到了 nginx。负载均衡可以分为服务端负载均衡和客户端负载均衡，而服务端负载均衡又按照实现方式的不同可以划分为软件负载均衡和硬件负载均衡，nginx 便是典型的软件负载均衡。而我们今天所要介绍的 RPC 中的负载均衡则主要是客户端负载均衡。如何区分也很简单，用笔者自己的话来描述下</p>
+<blockquote>
+<p>在 RPC 调用中，客户端持有所有的服务端节点引用，自行通过负载均衡算法选择一个节点进行访问，这便是客户端负载均衡。</p>
+</blockquote>
+<p>客户端如何获取到所有的服务端节点引用呢？一般是通过配置的方式，或者是从上一篇文章介绍的服务注册与发现组件中获取。</p>
+<h2 id="负载均衡接口分析"><a href="#负载均衡接口分析" class="headerlink" title="负载均衡接口分析"></a>负载均衡接口分析</h2><p>motan 中的负载均衡抽象：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Spi</span>(scope = Scope.PROTOTYPE)</div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">LoadBalance</span>&lt;<span class="title">T</span>&gt; </span>&#123;</div><div class="line">    <span class="function"><span class="keyword">void</span> <span class="title">onRefresh</span><span class="params">(List&lt;Referer&lt;T&gt;&gt; referers)</span></span>;</div><div class="line">    <span class="function">Referer&lt;T&gt; <span class="title">select</span><span class="params">(Request request)</span></span>;<span class="comment">//&lt;1&gt;</span></div><div class="line">    <span class="function"><span class="keyword">void</span> <span class="title">selectToHolder</span><span class="params">(Request request, List&lt;Referer&lt;T&gt;&gt; refersHolder)</span></span>;</div><div class="line">    <span class="function"><span class="keyword">void</span> <span class="title">setWeightString</span><span class="params">(String weightString)</span></span>;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>ribbon 中的负载均衡抽象：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">IRule</span></span>&#123;</div><div class="line">    <span class="function"><span class="keyword">public</span> Server <span class="title">choose</span><span class="params">(Object key)</span></span>;<span class="comment">//&lt;1&gt;</span></div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">setLoadBalancer</span><span class="params">(ILoadBalancer lb)</span></span>;</div><div class="line">    <span class="function"><span class="keyword">public</span> ILoadBalancer <span class="title">getLoadBalancer</span><span class="params">()</span></span>;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p><1> 对比下两个 RPC 框架对负载均衡的抽象可以发现，其实负载均衡策略干的事很简单，就是根据请求返回一个服务节点。在 motan 中对服务端的点对点调用抽象成了 Referer，而在 ribbon 中则是 Server。</1></p>
+<h2 id="几种负载均衡算法"><a href="#几种负载均衡算法" class="headerlink" title="几种负载均衡算法"></a>几种负载均衡算法</h2><p>负载均衡算法有几种经典的实现，其实已经是老生常谈了，总结下主要有如下几个：</p>
+<ol>
+<li>轮询（Round Robin）</li>
+<li>加权轮询（Weight Round Robin）</li>
+<li>随机（Random）</li>
+<li>加权随机（Weight Random）</li>
+<li>源地址哈希（Hash）</li>
+<li>一致性哈希（ConsistentHash）</li>
+<li>最小连接数（Least Connections）</li>
+<li>低并发优先（Active Weight）</li>
+</ol>
+<p>每个框架支持的实现都不太一样，如 <strong>Ribbon 支持的负载均衡策略</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>策略名</th>
+<th>策略描述</th>
+<th>实现说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BestAvailableRule</td>
+<td>选择一个最小并发请求的 server</td>
+<td>逐个考察 Server，如果 Server 被 tripped 了，则忽略，在选择其中 ActiveRequestsCount 最小的 server</td>
+</tr>
+<tr>
+<td>AvailabilityFilteringRule</td>
+<td>过滤掉那些因为一直连接失败的被标记为 circuit tripped 的后端 server，并过滤掉那些高并发的的后端 server（active connections 超过配置的阈值）</td>
+<td>使用一个 AvailabilityPredicate 来包含过滤 server 的逻辑，其实就就是检查 status 里记录的各个 server 的运行状态</td>
+</tr>
+<tr>
+<td>WeightedResponseTimeRule</td>
+<td>根据响应时间分配一个 weight，响应时间越长，weight 越小，被选中的可能性越低。</td>
+<td>一个后台线程定期的从 status 里面读取评价响应时间，为每个 server 计算一个 weight。Weight 的计算也比较简单 responsetime 减去每个 server 自己平均的 responsetime 是 server 的权重。当刚开始运行，没有形成 status 时，使用 RoundRobinRule 策略选择 server。</td>
+</tr>
+<tr>
+<td>RetryRule</td>
+<td>对选定的负载均衡策略机上重试机制。</td>
+<td>在一个配置时间段内当选择 server 不成功，则一直尝试使用 subRule 的方式选择一个可用的server</td>
+</tr>
+<tr>
+<td>RoundRobinRule</td>
+<td>roundRobin 方式轮询选择 server</td>
+<td>轮询 index，选择 index 对应位置的 server</td>
+</tr>
+<tr>
+<td>RandomRule</td>
+<td>随机选择一个 server</td>
+<td>在 index 上随机，选择 index 对应位置的 server</td>
+</tr>
+<tr>
+<td>ZoneAvoidanceRule</td>
+<td>复合判断 server 所在区域的性能和 server 的可用性选择 server</td>
+<td>使用 ZoneAvoidancePredicate 和 AvailabilityPredicate 来判断是否选择某个server，前一个判断判定一个 zone 的运行性能是否可用，剔除不可用的 zone（的所有 server），AvailabilityPredicate 用于过滤掉连接数过多的 Server。</td>
+</tr>
+</tbody>
+</table>
+<p><strong>motan 支持的负载均衡策略</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>策略名</th>
+<th>策略描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Random</td>
+<td>随机选择一个 server</td>
+</tr>
+<tr>
+<td>RoundRobin</td>
+<td>roundRobin 方式轮询选择 server</td>
+</tr>
+<tr>
+<td>ConsistentHash</td>
+<td>一致性 Hash，保证同一源地址的请求落到同一个服务端，能够应对服务端机器的动态上下线(实际上并没有严格做到一致性 hash，motan 的实现只能满足粘滞 hash，只保证 server 节点变更周期内相同对请求落在相同的 server 上，比较适合用在二级缓存场景)</td>
+</tr>
+<tr>
+<td>LocalFirst</td>
+<td>当 server 列表中包含本地暴露的可用服务时，优先使用此服务。否则使用低并发优先 ActiveWeight 负载均衡策略</td>
+</tr>
+<tr>
+<td>ActiveWeight</td>
+<td>并发量越小的 server，优先级越高</td>
+</tr>
+<tr>
+<td>ConfigurableWeight</td>
+<td>加权随机</td>
+</tr>
+</tbody>
+</table>
+<p>算法很多，有些负载均衡算法的实现复杂度也很高，请教了一些朋友，发现用的最多还是 RoundRobin，Random 这两种。可能和他们实现起来很简单有关，很多运用到 RPC 框架的项目也都是保持了默认配置。</p>
+<p>而这两种经典复杂均衡算法实现起来是很简单的，在此给出网上的简易实现，方便大家更直观的了解。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">IpMap</span></span></div><div class="line"><span class="class"></span>&#123;</div><div class="line">    <span class="comment">// 待路由的Ip列表，Key代表Ip，Value代表该Ip的权重</span></div><div class="line">    <span class="keyword">public</span> <span class="keyword">static</span> HashMap&lt;String, Integer&gt; serverWeightMap = </div><div class="line">            <span class="keyword">new</span> HashMap&lt;String, Integer&gt;();</div><div class="line">    <span class="keyword">static</span></div><div class="line">    &#123;</div><div class="line">        serverWeightMap.put(<span class="string">"192.168.1.100"</span>, <span class="number">1</span>);</div><div class="line">        serverWeightMap.put(<span class="string">"192.168.1.101"</span>, <span class="number">1</span>);</div><div class="line">        <span class="comment">// 权重为4</span></div><div class="line">        serverWeightMap.put(<span class="string">"192.168.1.102"</span>, <span class="number">4</span>);</div><div class="line">        serverWeightMap.put(<span class="string">"192.168.1.103"</span>, <span class="number">1</span>);</div><div class="line">        serverWeightMap.put(<span class="string">"192.168.1.104"</span>, <span class="number">1</span>);</div><div class="line">        <span class="comment">// 权重为3</span></div><div class="line">        serverWeightMap.put(<span class="string">"192.168.1.105"</span>, <span class="number">3</span>);</div><div class="line">        serverWeightMap.put(<span class="string">"192.168.1.106"</span>, <span class="number">1</span>);</div><div class="line">        <span class="comment">// 权重为2</span></div><div class="line">        serverWeightMap.put(<span class="string">"192.168.1.107"</span>, <span class="number">2</span>);</div><div class="line">        serverWeightMap.put(<span class="string">"192.168.1.108"</span>, <span class="number">1</span>);</div><div class="line">        serverWeightMap.put(<span class="string">"192.168.1.109"</span>, <span class="number">1</span>);</div><div class="line">        serverWeightMap.put(<span class="string">"192.168.1.110"</span>, <span class="number">1</span>);</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p><strong>轮询（Round Robin）</strong></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">RoundRobin</span></span></div><div class="line"><span class="class"></span>&#123;</div><div class="line">    <span class="keyword">private</span> <span class="keyword">static</span> Integer pos = <span class="number">0</span>;</div><div class="line">    </div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">static</span> String <span class="title">getServer</span><span class="params">()</span></span></div><div class="line"><span class="function">    </span>&#123;</div><div class="line">        <span class="comment">// 重建一个Map，避免服务器的上下线导致的并发问题</span></div><div class="line">        Map&lt;String, Integer&gt; serverMap = </div><div class="line">                <span class="keyword">new</span> HashMap&lt;String, Integer&gt;();</div><div class="line">        serverMap.putAll(IpMap.serverWeightMap);</div><div class="line">        </div><div class="line">        <span class="comment">// 取得Ip地址List</span></div><div class="line">        Set&lt;String&gt; keySet = serverMap.keySet();</div><div class="line">        ArrayList&lt;String&gt; keyList = <span class="keyword">new</span> ArrayList&lt;String&gt;();</div><div class="line">        keyList.addAll(keySet);</div><div class="line">        </div><div class="line">        String server = <span class="keyword">null</span>;</div><div class="line">        <span class="keyword">synchronized</span> (pos)</div><div class="line">        &#123;</div><div class="line">            <span class="keyword">if</span> (pos &gt; keySet.size())</div><div class="line">                pos = <span class="number">0</span>;</div><div class="line">            server = keyList.get(pos);</div><div class="line">            pos ++;</div><div class="line">        &#125;</div><div class="line">        </div><div class="line">        <span class="keyword">return</span> server;</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p><strong>随机（Random）</strong></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Random</span></span></div><div class="line"><span class="class"></span>&#123;</div><div class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">static</span> String <span class="title">getServer</span><span class="params">()</span></span></div><div class="line"><span class="function">    </span>&#123;</div><div class="line">        <span class="comment">// 重建一个Map，避免服务器的上下线导致的并发问题</span></div><div class="line">        Map&lt;String, Integer&gt; serverMap = </div><div class="line">                <span class="keyword">new</span> HashMap&lt;String, Integer&gt;();</div><div class="line">        serverMap.putAll(IpMap.serverWeightMap);</div><div class="line">        </div><div class="line">        <span class="comment">// 取得Ip地址List</span></div><div class="line">        Set&lt;String&gt; keySet = serverMap.keySet();</div><div class="line">        ArrayList&lt;String&gt; keyList = <span class="keyword">new</span> ArrayList&lt;String&gt;();</div><div class="line">        keyList.addAll(keySet);</div><div class="line">        </div><div class="line">        java.util.Random random = <span class="keyword">new</span> java.util.Random();</div><div class="line">        <span class="keyword">int</span> randomPos = random.nextInt(keyList.size());</div><div class="line">        </div><div class="line">        <span class="keyword">return</span> keyList.get(randomPos);</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<h2 id="高可用策略"><a href="#高可用策略" class="headerlink" title="高可用策略"></a>高可用策略</h2><p>高可用（HA）策略一般也被称作容错机制，分布式系统中出错是常态，但服务却不能停止响应，6个9一直是各个公司的努力方向。当一次请求失败之后，是重试呢？还是继续请求其他机器？抑或是记录下这次失败？下面是集群中的几种常用高可用策略：</p>
+<ol>
+<li>失效转移（failover）</li>
+</ol>
+<p>当出现失败，重试其他服务器，通常用于读操作等幂等行为，重试会带来更长延迟。该高可用策略会受到负载均衡算法的限制，比如失效转移强调需要重试其他机器，但一致性 Hash 这类负载均衡算法便会与其存在冲突（个人认为一致性 Hash 在 RPC 的客户端负载均衡中意义不是很大）</p>
+<ol>
+<li>快速失败（failfast）</li>
+</ol>
+<p>只发起一次调用，失败立即报错，通常用于非幂等性的写操作。</p>
+<p>如果在 motan，dubbo 等配置中设置了重试次数&gt;0，又配置了该高可用策略，则重试效果也不会生效，由此可见集群中的各个配置可能是会相互影响的。</p>
+<ol>
+<li>失效安全（failsafe）</li>
+</ol>
+<p>出现异常时忽略，但记录这一次失败，存入日志中。</p>
+<ol>
+<li>失效自动恢复（faikback）</li>
+</ol>
+<p>后台记录失败请求，定时重发。通常用于消息通知操作。</p>
+<ol>
+<li>并行调用（forking）</li>
+</ol>
+<p>只要一个成功即返回，通常用于实时性要求较高的读操作。需要牺牲一定的服务资源。</p>
+<ol>
+<li>广播（broadcast）</li>
+</ol>
+<p>广播调用，所有提供逐个调用，任意一台报错则报错。通常用于更新提供方本地状态，速度慢，任意一台报错则报错。</p>
+<h2 id="高可用接口分析"><a href="#高可用接口分析" class="headerlink" title="高可用接口分析"></a>高可用接口分析</h2><p>以 motan 的 HaStrategy 为例来介绍高可用在集群中的实现细节</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Spi</span>(scope = Scope.PROTOTYPE)</div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">HaStrategy</span>&lt;<span class="title">T</span>&gt; </span>&#123;</div><div class="line">    <span class="function"><span class="keyword">void</span> <span class="title">setUrl</span><span class="params">(URL url)</span></span>;</div><div class="line">    <span class="function">Response <span class="title">call</span><span class="params">(Request request, LoadBalance&lt;T&gt; loadBalance)</span></span>;<span class="comment">//&lt;1&gt;</span></div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p><1> 如我之前所述，高可用策略依赖于请求和一个特定的负载均衡算法，返回一个响应。</1></p>
+<p><strong>快速失败（failfast）</strong></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@SpiMeta</span>(name = <span class="string">"failfast"</span>)</div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">FailfastHaStrategy</span>&lt;<span class="title">T</span>&gt; <span class="keyword">extends</span> <span class="title">AbstractHaStrategy</span>&lt;<span class="title">T</span>&gt; </span>&#123;</div><div class="line"></div><div class="line">    <span class="meta">@Override</span></div><div class="line">    <span class="function"><span class="keyword">public</span> Response <span class="title">call</span><span class="params">(Request request, LoadBalance&lt;T&gt; loadBalance)</span> </span>&#123;</div><div class="line">        Referer&lt;T&gt; refer = loadBalance.select(request);</div><div class="line">        <span class="keyword">return</span> refer.call(request);</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>motan 实现了两个高可用策略，其一便是 failfast，非常简单，只进行一次负载均衡节点的选取，接着发起点对点的调用。</p>
+<p><strong>失效转移（failover）</strong></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div><div class="line">39</div><div class="line">40</div><div class="line">41</div><div class="line">42</div><div class="line">43</div><div class="line">44</div><div class="line">45</div><div class="line">46</div><div class="line">47</div><div class="line">48</div><div class="line">49</div><div class="line">50</div><div class="line">51</div><div class="line">52</div><div class="line">53</div><div class="line">54</div><div class="line">55</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@SpiMeta</span>(name = <span class="string">"failover"</span>)</div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">FailoverHaStrategy</span>&lt;<span class="title">T</span>&gt; <span class="keyword">extends</span> <span class="title">AbstractHaStrategy</span>&lt;<span class="title">T</span>&gt; </span>&#123;</div><div class="line"></div><div class="line">    <span class="keyword">protected</span> ThreadLocal&lt;List&lt;Referer&lt;T&gt;&gt;&gt; referersHolder = <span class="keyword">new</span> ThreadLocal&lt;List&lt;Referer&lt;T&gt;&gt;&gt;() &#123;</div><div class="line">        <span class="meta">@Override</span></div><div class="line">        <span class="keyword">protected</span> java.util.List&lt;com.weibo.api.motan.rpc.Referer&lt;T&gt;&gt; initialValue() &#123;</div><div class="line">            <span class="keyword">return</span> <span class="keyword">new</span> ArrayList&lt;Referer&lt;T&gt;&gt;();</div><div class="line">        &#125;</div><div class="line">    &#125;;</div><div class="line"></div><div class="line">    <span class="meta">@Override</span></div><div class="line">    <span class="function"><span class="keyword">public</span> Response <span class="title">call</span><span class="params">(Request request, LoadBalance&lt;T&gt; loadBalance)</span> </span>&#123;</div><div class="line"></div><div class="line">        List&lt;Referer&lt;T&gt;&gt; referers = selectReferers(request, loadBalance);</div><div class="line">        <span class="keyword">if</span> (referers.isEmpty()) &#123;</div><div class="line">            <span class="keyword">throw</span> <span class="keyword">new</span> MotanServiceException(String.format(<span class="string">"FailoverHaStrategy No referers for request:%s, loadbalance:%s"</span>, request,</div><div class="line">                    loadBalance));</div><div class="line">        &#125;</div><div class="line">        URL refUrl = referers.get(<span class="number">0</span>).getUrl();</div><div class="line">        <span class="comment">// 先使用method的配置</span></div><div class="line">        <span class="keyword">int</span> tryCount =</div><div class="line">                refUrl.getMethodParameter(request.getMethodName(), request.getParamtersDesc(), URLParamType.retries.getName(),</div><div class="line">                        URLParamType.retries.getIntValue());</div><div class="line">        <span class="comment">// 如果有问题，则设置为不重试</span></div><div class="line">        <span class="keyword">if</span> (tryCount &lt; <span class="number">0</span>) &#123;</div><div class="line">            tryCount = <span class="number">0</span>;</div><div class="line">        &#125;</div><div class="line">	   <span class="comment">// 只有 failover 策略才会有重试</span></div><div class="line">        <span class="keyword">for</span> (<span class="keyword">int</span> i = <span class="number">0</span>; i &lt;= tryCount; i++) &#123;</div><div class="line">            Referer&lt;T&gt; refer = referers.get(i % referers.size());</div><div class="line">            <span class="keyword">try</span> &#123;</div><div class="line">                request.setRetries(i);</div><div class="line">                <span class="keyword">return</span> refer.call(request);</div><div class="line">            &#125; <span class="keyword">catch</span> (RuntimeException e) &#123;</div><div class="line">                <span class="comment">// 对于业务异常，直接抛出</span></div><div class="line">                <span class="keyword">if</span> (ExceptionUtil.isBizException(e)) &#123;</div><div class="line">                    <span class="keyword">throw</span> e;</div><div class="line">                &#125; <span class="keyword">else</span> <span class="keyword">if</span> (i &gt;= tryCount) &#123;</div><div class="line">                    <span class="keyword">throw</span> e;</div><div class="line">                &#125;</div><div class="line">                LoggerUtil.warn(String.format(<span class="string">"FailoverHaStrategy Call false for request:%s error=%s"</span>, request, e.getMessage()));</div><div class="line">            &#125;</div><div class="line">        &#125;</div><div class="line"></div><div class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> MotanFrameworkException(<span class="string">"FailoverHaStrategy.call should not come here!"</span>);</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    <span class="keyword">protected</span> List&lt;Referer&lt;T&gt;&gt; selectReferers(Request request, LoadBalance&lt;T&gt; loadBalance) &#123;</div><div class="line">        List&lt;Referer&lt;T&gt;&gt; referers = referersHolder.get();</div><div class="line">        referers.clear();</div><div class="line">        loadBalance.selectToHolder(request, referers);</div><div class="line">        <span class="keyword">return</span> referers;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>其二的高可用策略是 failover，实现相对复杂一些，容忍在重试次数内的失败调用。这也是 motan 提供的默认策略。</p>
+<h2 id="其他集群相关的知识点"><a href="#其他集群相关的知识点" class="headerlink" title="其他集群相关的知识点"></a>其他集群相关的知识点</h2><p>在 Dubbo 中也有 cluster 这一分层，除了 loadbalance 和 ha 这两层之外还包含了路由（Router）用来做读写分离，应用隔离；合并结果（Merger）用来做响应结果的分组聚合。</p>
+<p>在 SpringCloud-Netflix 中整合了 Zuul 来做服务端的负载均衡</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ol>
+<li><a href="http://www.cnblogs.com/xrq730/p/5154340.html" target="_blank" rel="external">几种简单的负载均衡算法及其Java代码实现</a></li>
+<li><a href="https://www.cnblogs.com/xiexj/p/7071939.html" target="_blank" rel="external">搜索业务和技术介绍及容错机制</a></li>
+</ol>
+
+           
+        
+        </div>
+        <footer class="article-footer">
+            <div class="share-container">
+
+
+
+</div>
+
+    <a data-url="http://lexburner.github.io/2018/02/27/rpc-cluster/" data-id="cje5feplk002xvgudr1spqpia" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+<script>
+    (function ($) {
+        // Prevent duplicate binding
+        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
+            __SHARE_BUTTON_BINDED__ = true;
+        } else {
+            return;
+        }
+        $('body').on('click', function() {
+            $('.article-share-box.on').removeClass('on');
+        }).on('click', '.article-share-link', function(e) {
+            e.stopPropagation();
+
+            var $this = $(this),
+                url = $this.attr('data-url'),
+                encodedUrl = encodeURIComponent(url),
+                id = 'article-share-box-' + $this.attr('data-id'),
+                offset = $this.offset(),
+                box;
+
+            if ($('#' + id).length) {
+                box = $('#' + id);
+
+                if (box.hasClass('on')){
+                    box.removeClass('on');
+                    return;
+                }
+            } else {
+                var html = [
+                    '<div id="' + id + '" class="article-share-box">',
+                        '<input class="article-share-input" value="' + url + '">',
+                        '<div class="article-share-links">',
+                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
+                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
+                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
+                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
+                        '</div>',
+                    '</div>'
+                ].join('');
+
+              box = $(html);
+
+              $('body').append(box);
+            }
+
+            $('.article-share-box.on').hide();
+
+            box.css({
+                top: offset.top + 25,
+                left: offset.left
+            }).addClass('on');
+
+        }).on('click', '.article-share-box', function (e) {
+            e.stopPropagation();
+        }).on('click', '.article-share-box-input', function () {
+            $(this).select();
+        }).on('click', '.article-share-box-link', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
+        });
+    })(jQuery);
+</script>
+
+            
+    
+        <a href="http://lexburner.github.io/2018/02/27/rpc-cluster/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2018/02/27/rpc-cluster/">评论</a>
+    
+
+        </footer>
+    </div>
+	
+    
+	
+</article>
+
+
+
+    <article id="post-jpa-DDD" class="article article-type-post" itemscope itemprop="blogPost">
+    <div class="article-inner">
+        
+        
+            <header class="article-header">
+                
+    
+        <h1 itemprop="name">
+            <a class="article-title" href="/2018/02/14/jpa-DDD/">JAVA 拾遗--JPA 二三事</a>
+        </h1>
+    
+
+                
+                    <div class="article-meta">
+                    	
+	
+		<div class="article-type">
+		    <span class="label label-success" style="float: left;padding: 3px 5px 3px 5px;margin-right: 15px;margin-top: 2px;">原创</span>
+		</div>
+	
+	
+	
+		
+	
+
+                        
+    <div class="article-date">
+        <i class="fa fa-calendar"></i>
+        <a href="/2018/02/14/jpa-DDD/">
+            <time datetime="2018-02-14T14:18:51.000Z" itemprop="datePublished">2018-02-14</time>
+        </a>
+    </div>
+
+
+                        
+    <div class="article-category">
+    	<i class="fa fa-folder"></i>
+        <a class="article-category-link" href="/categories/JAVA/">JAVA</a>
+    </div>
+
+                        <!-- 不显示标签 -->
+                        <!-- 
+    <div class="article-tag">
+        <i class="fa fa-tag"></i>
+        <a class="tag-link" href="/tags/JAVA/">JAVA</a>
+    </div>
+ -->
+                    </div>
+                
+            </header>
+        
+        
+        <div class="article-entry" itemprop="articleBody">
+        
+            
+             <p>记得前几个月，spring4all 社区刚搞过一次技术话题讨论：如何对 JPA 或者 MyBatis 进行技术选型？传送门：<a href="http://www.spring4all.com/article/391" target="_blank" rel="external">http://www.spring4all.com/article/391</a> 由于平时工作接触较多的是 JPA，所以对其更熟悉一些，这一篇文章记录下个人在使用 JPA 时的一些小技巧。补充说明：JPA 是一个规范，本文所提到的 JPA，特指 spring-data-jpa。</p>
+<p>tips：<strong>阅读本文之前，建议了解值对象和实体这两个概念的区别。</strong></p>
+<h2 id="使用-Embedded-关联一对一的值对象"><a href="#使用-Embedded-关联一对一的值对象" class="headerlink" title="使用 @Embedded 关联一对一的值对象"></a>使用 @Embedded 关联一对一的值对象</h2><p>现实世界有很多一对一的关联关系，如人和身份证，订单和购买者…而在 JPA 中表达一对一的关联，通常有三种方式。下面就以订单（Order）和购买者（CustomerVo）为例来介绍这三种方式，这里 CustomerVo 的 Vo 指的是 Value Object。</p>
+<p><strong>字段平铺</strong></p>
+<p>这可能是最简单的方式了，由于一对一关联的特殊性，完全可以在 Order 类中，使用几个字段记录 CustomerVo的属性。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Order</span> </span>&#123;</div><div class="line">    <span class="comment">/*其他字段*/</span></div><div class="line">    ...</div><div class="line">    <span class="comment">/* Customer相关字段 */</span></div><div class="line">    <span class="keyword">private</span> <span class="keyword">int</span> customerId;</div><div class="line">    <span class="keyword">private</span> String customerName;</div><div class="line">    <span class="keyword">private</span> String customerMobile;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>实际上大多数人就是这么做的，甚至都没有意识到这三个字段其实是属于同一个实体类。这种形式优点是很明显的：简单；缺点也是很明显的，这不符合 OO 的原则，且不利于统一检索和维护 CustomerVo 信息。</p>
+<p><strong>使用 @OneToOne</strong></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Order</span> </span>&#123;</div><div class="line">    <span class="meta">@OneToOne</span></div><div class="line">    <span class="keyword">private</span> CustomerVo customerVo;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>这么做的确更“面向对象”了，但代价似乎太大了，我们需要在数据库中额外维护一张 CustomerVo 表，关联越多，代码处理起来就越麻烦，得不偿失。</p>
+<p><strong>使用 @Embedded</strong></p>
+<p>那有没有能中和上述矛盾的方案呢？引出 @Embedded 这个注解。分析下初始需求，我们发现：CustomerVo 仅仅是作为一个值对象，并不是一个实体（这里牵扯到一些领域驱动设计的知识，值对象的特点是：作为实体对象的修饰，即 CustomerVo 这个整体是 Order 实体的一个属性；不变性，CustomerVo 一旦生成后便不可被修改，除非被整体替换）</p>
+<p>@Embedded 注解便是内嵌值对象最好的表达形式。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Entity</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Order</span> </span>&#123;</div><div class="line">    <span class="meta">@Embedded</span></div><div class="line">    <span class="keyword">private</span> CustomerVo customerVo;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Embeddable</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">CustomerVo</span> </span>&#123;</div><div class="line">    <span class="keyword">private</span> <span class="keyword">int</span> customerId;</div><div class="line">    <span class="keyword">private</span> String customerName;</div><div class="line">    <span class="keyword">private</span> String customerMobile;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>Order 拥有 @Entity 注解，表明其是 DDD 中的实体；而 CustomerVo 拥有 @Embeddable 注解，表明其是 DDD 中的值对象。这也是为什么我一直在表达这样一种观点：JPA 是对 DDD 很好的实践的。</p>
+<p>关于实体类的设计技巧，在曹祖鹏老师的 github 中可以看到很成熟的方案，可能会颠覆你对实体类设计的认知：<a href="https://github.com/JoeCao/qbike/。" target="_blank" rel="external">https://github.com/JoeCao/qbike/。</a></p>
+<h2 id="使用-Convert-关联一对多的值对象"><a href="#使用-Convert-关联一对多的值对象" class="headerlink" title="使用 @Convert 关联一对多的值对象"></a>使用 @Convert 关联一对多的值对象</h2><p>说到一对多，第一反应自然是使用 @OneToMany 注解。的确，我自己在项目中也主要使用这个注解来表达一对多的关联，但这里提供另一个思路，来关联一对多的值对象。</p>
+<p>以商品和商品组图来举例。</p>
+<p><strong>使用 @OneToMany</strong></p>
+<p>还是先想想我们原来会怎么做，保存一个 List<string>, 一种方式是这样</string></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Goods</span> </span>&#123;</div><div class="line">    <span class="comment">// 以逗号分隔</span></div><div class="line">    <span class="keyword">private</span> String pictures;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>使用字符串存储，保存成 JSON 数组的形式，或者以逗号分隔都行。</p>
+<p>如果图片还要保存顺序，缩略图，那就必须要得使用一对多的关联了。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Entity</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Goods</span> </span>&#123;</div><div class="line">    <span class="meta">@OneToMany</span></div><div class="line">    <span class="keyword">private</span> List&lt;GoodsPicture&gt; goodsPictures;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Entity</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">GoodsPicture</span> </span>&#123;</div><div class="line">    <span class="keyword">private</span> String path;</div><div class="line">    <span class="keyword">private</span> Integer index;</div><div class="line">    <span class="keyword">private</span> String thumbnail;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>我们应当发现这样的劣势是什么，从设计的角度来看：我们并不想单独为 GoodsPicture 单独建立一张表，正如前面使用 String pictures 来表示 List<string> 一样，这违反了数据库设计的第一范式，但这对于使用者来说非常方便，<strong>这是关系型数据库的表达能力有限而进行的妥协</strong> 。关于这一点我曾和芋艿，曹大师都进行过讨论，并达成了一致的结论：数据库中可以保存 JSON，使用时在应用层进行转换。</string></p>
+<p><strong>使用 JSON 存储复杂对象</strong></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Entity</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Goods</span> </span>&#123;</div><div class="line">    <span class="comment">/**</span></div><div class="line"><span class="comment">     * 图片 JSON</span></div><div class="line"><span class="comment">     * &#123;<span class="doctag">@link</span> GoodsPicture&#125;</span></div><div class="line"><span class="comment">     */</span></div><div class="line">    <span class="meta">@Column</span>(columnDefinition = <span class="string">"text"</span>)</div><div class="line">    <span class="keyword">private</span> String goodsPictures;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p><strong>使用 @Convert</strong></p>
+<p>上述的 String 使得在数据库层面少了一张表，使得 Goods 和 GoodsPictures 的关联更容易维护，但也有缺点：单纯的 String goodsPictures 对于使用者来说毫无含义，必须经过应用层的转换才可以使用。而 JPA 实际上也提供了自定义的转换器来帮我们自动完成这一转换工作，这便到了 @Convert 注解派上用场的时候了。</p>
+<p>1 声明 Convert 类</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Entity</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Goods</span> </span>&#123;</div><div class="line">    <span class="meta">@Convert</span>(converter = PicturesWrapperConverter.class)</div><div class="line">    <span class="meta">@Column</span>(columnDefinition = <span class="string">"text"</span>)</div><div class="line">    <span class="keyword">private</span> PicturesWrapper picturesWrapper;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>2 设置转换类  PicturesWrapperConverter</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">PicturesWrapperConverter</span> <span class="keyword">implements</span> <span class="title">AttributeConverter</span>&lt;<span class="title">PicturesWrapper</span>, <span class="title">String</span>&gt; </span>&#123;</div><div class="line">    <span class="meta">@Override</span></div><div class="line">    <span class="function"><span class="keyword">public</span> String <span class="title">convertToDatabaseColumn</span><span class="params">(PicturesWrapper picturesWrapper)</span> </span>&#123;</div><div class="line">        <span class="keyword">return</span> JSON.toJSONString(picturesWrapper);</div><div class="line">    &#125;</div><div class="line">    <span class="meta">@Override</span></div><div class="line">    <span class="function"><span class="keyword">public</span> PicturesWrapper <span class="title">convertToEntityAttribute</span><span class="params">(String dbData)</span> </span>&#123;</div><div class="line">        <span class="keyword">return</span> JSON.parseObject(dbData, PicturesWrapper.class);</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>PicturesWrapperConverter 实现了 AttributeConverter<x,y> 接口，它表明了如何将 PicturesWrapper 转换成 String 类型。这样的好处是显而易见的，对于数据库而言，它知道 String 类型如何保存；对于 Goods 的使用者而言，也只关心 PicturesWrapper 的格式，并不关心它如何持久化。</x,y></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">PicturesWrapper</span> </span>&#123;</div><div class="line">    List&lt;GoodsPicture&gt; goodsPictures;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>对于 List 的保存，我暂时只找到了这种方式，借助一个 Wrapper 对象去存储一个 List 对象。没有找到直接持久化 List 的方式，如果可以实现这样的方式，会更好一些：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Entity</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Goods</span> </span>&#123;</div><div class="line">    <span class="meta">@Convert</span>(converter = SomeConverter.class)</div><div class="line">    <span class="meta">@Column</span>(columnDefinition = <span class="string">"text"</span>)</div><div class="line">    List&lt;GoodsPicture&gt; goodsPictures;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>但 converter 无法获取到 List 的泛型参数 GoodsPicture，在实践中没找到方案来解决这一问题，只能退而求其次，使用一个 Wrapper 对象。</p>
+<p>与 OneToMany 对比，这样虽然使得维护变得灵活，但也丧失了查找的功能，我们将之保存成了 JSON 的形式，导致其不能作为查询条件被检索。</p>
+<h2 id="使用-orphanRemoval-来删除值对象"><a href="#使用-orphanRemoval-来删除值对象" class="headerlink" title="使用 orphanRemoval 来删除值对象"></a>使用 orphanRemoval 来删除值对象</h2><p>你可能有两个疑问：1 在实际项目中，不是不允许对数据进行物理删除吗？ 2 删除对象还不简单，JPA 自己不是有 delete 方法吗？</p>
+<p>关于第一点，需要区分场景，一般实体不允许做物理删除，而是用标记位做逻辑删除，也有部分不需要追溯历史的实体可以做物理删除，而值对象一般而言是可以做物理删除的，因为它只是属性而已。</p>
+<p>第二点就有意思了，delete 不就可以直接删除对象吗，为什么需要介绍 orphanRemoval  呢？</p>
+<p>以活动和礼包这个一对多的关系来举例。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Entity</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Activity</span> </span>&#123;</div><div class="line">    <span class="meta">@Id</span></div><div class="line">    <span class="meta">@GeneratedValue</span>(strategy = GenerationType.IDENTITY)</div><div class="line">    <span class="keyword">private</span> Integer id;</div><div class="line">    <span class="meta">@OneToMany</span>(cascade = CascadeType.ALL, orphanRemoval = <span class="keyword">true</span>, mappedBy = <span class="string">"activity"</span>)</div><div class="line">    <span class="keyword">private</span> List&lt;GiftPackVo&gt; giftPackVos;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@Entity</span></div><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">GiftPackVo</span> </span>&#123;</div><div class="line">    <span class="meta">@Id</span></div><div class="line">    <span class="meta">@GeneratedValue</span>(strategy = GenerationType.IDENTITY)</div><div class="line">    <span class="keyword">private</span> Integer id;</div><div class="line">    <span class="keyword">private</span> String name;</div><div class="line">    <span class="meta">@ManyToOne</span></div><div class="line">    <span class="meta">@JoinColumn</span>(name = <span class="string">"activity_id"</span>)</div><div class="line">    <span class="keyword">private</span> Activity activity;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>这是一个再简单不过的一对多关系了，唯一可能觉得陌生的便是这个属性了 orphanRemoval = true 。</p>
+<p>如果想要删除某个活动下的某个礼包，在没有 orphanRemoval 之前，你只能这么做：</p>
+<p>GiftPackVoRepository.delete(GiftPackVo);</p>
+<p>但其实这违反了 DDD 中的聚合根模式，GiftPackVo 只是一个值对象，其不具备实体的生命周期，删除一个礼包其实是一个不准确的做法，应当是删除某一个活动下的某一个礼包，对礼包的维护，应当由活动来负责。也就是说：应该借由 Activity 删除 GiftPackVo。使用 orphanRemoval 便可以完成这一操作，它表达这样的含义：内存中的某个 Activity 对象属于持久化态，对 List<giftpackvo> 的移除操作，将被直接认为是删除操作。</giftpackvo></p>
+<p>于是删除某个“name = 狗年新春大礼包”的礼包便可以这样完成：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line">Activity activity = activityRepository.findOne(<span class="number">1</span>);</div><div class="line">activity.getGiftPackVos().removeIf(giftPackVo -&gt; <span class="string">"狗年新春大礼包"</span>.equals(giftPackVo.getName()));</div><div class="line">activityRepository.save(activity);</div></pre></td></tr></table></figure>
+<p>整个代码中只出现了 activityRepository 这一个仓储接口。</p>
+<h2 id="使用-Version-来实现乐观锁"><a href="#使用-Version-来实现乐观锁" class="headerlink" title="使用 @Version 来实现乐观锁"></a>使用 @Version 来实现乐观锁</h2><p>乐观锁一直是保证并发问题的一个有效途径，spring data jpa 对 @Version 进行了实现，我们给需要做乐观锁控制的对象加上一个 @Version 注解即可。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line">@Entity</div><div class="line">public class Activity &#123;</div><div class="line">    @Version</div><div class="line">    private Integer version;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>我们在日常操作 Activity 对象时完全不需要理会 version 这个字段，当做它不存在即可，spring 借助这个字段来做乐观锁控制。每次创建对象时，version 默认值为 0，每次修改时，会检查对象获取时和保存时的 version 是否相差 1，转化为 sql 便是这样的语句：<strong>update activity set xx = xx,yy = yy,version= 10 where id = 1 and version = 9;</strong> 然后通过返回影响行数来判断是否更新成功。</p>
+<p><strong>测试乐观锁</strong></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div></pre></td><td class="code"><pre><div class="line">@Service</div><div class="line">public class ActivityService &#123;</div><div class="line">    @Autowired</div><div class="line">    ActivityRepos activityRepos;</div><div class="line"></div><div class="line">    public void test()&#123;</div><div class="line">        Activity one = activityRepos.findOne(1);</div><div class="line">        try &#123;</div><div class="line">            Thread.sleep(1000);</div><div class="line">        &#125; catch (InterruptedException e) &#123;</div><div class="line">            e.printStackTrace();</div><div class="line">        &#125;</div><div class="line">        one.setName(&quot;xx&quot;+ new Random().nextInt());</div><div class="line">        activityRepos.save(one);</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>当 test 方法被并发调用时，可能会存在并发问题。控制台打印出了更新信息</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line">2018-02-14 23:44:25.373  INFO 16256 --- [nio-8080-exec-2] jdbc.sqltiming                           : update activity set name=&apos;xx-1863402614&apos;, version=1 </div><div class="line">where id=1 and version=0 </div><div class="line">2018-02-14 23:44:25.672  INFO 16256 --- [nio-8080-exec-4] jdbc.sqltiming                           : update activity set name=&apos;xx-1095770865&apos;, version=1 </div><div class="line">where id=1 and version=0 </div><div class="line">org.hibernate.StaleStateException: Batch update returned unexpected row count from update [0]; actual row count: 0; expected: 1</div></pre></td></tr></table></figure>
+<p>表面上看出现的是 StaleStateException，但实际捕获时，如果你想 catch 该异常，根本没有效果，通过 debug 信息，可以发现，真正的异常其实是 ObjectOptimisticLockingFailureException（以 Mysql 为例，实际可能和数据库方言有关，其他数据库未测试）。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div></pre></td><td class="code"><pre><div class="line"><span class="meta">@RequestMapping</span>(<span class="string">"/test"</span>)</div><div class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">test</span><span class="params">()</span></span>&#123;</div><div class="line">    <span class="keyword">try</span>&#123;</div><div class="line">        activityService.test();</div><div class="line">    &#125;<span class="keyword">catch</span> (ObjectOptimisticLockingFailureException oolfe)&#123;</div><div class="line">        System.out.println(<span class="string">"捕获到乐观锁并发异常"</span>);</div><div class="line">        oolfe.printStackTrace();</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>在 Controller 层尝试捕获该异常，控制输出如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line">捕获到乐观锁并发异常</div><div class="line">org.springframework.orm.ObjectOptimisticLockingFailureException: Batch update returned unexpected row count from update [0]; actual row count: 0; expected: 1; nested exception is org.hibernate.StaleStateException: Batch update returned unexpected row count from update [0]; actual row count: 0; expected: 1</div></pre></td></tr></table></figure>
+<p>成功捕获到了并发冲突，这一切都是 @Version 帮我们完成的，非常方便，不需要我们通过编码去实现乐观锁。</p>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>本文简单聊了几个个人感触比较深的 JPA 小技巧，JPA 真的很强大，也很复杂，可能还有不少“隐藏”的特性等待我们挖掘。它不仅仅是一个技术框架，本文的所有内容即使不被使用，也无伤大雅，但在领域驱动设计等软件设计思想的指导下，它完全可以实践的更好。</p>
+
+           
+        
+        </div>
+        <footer class="article-footer">
+            <div class="share-container">
+
+
+
+</div>
+
+    <a data-url="http://lexburner.github.io/2018/02/14/jpa-DDD/" data-id="cje5fepkz002evguda2bb3386" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+<script>
+    (function ($) {
+        // Prevent duplicate binding
+        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
+            __SHARE_BUTTON_BINDED__ = true;
+        } else {
+            return;
+        }
+        $('body').on('click', function() {
+            $('.article-share-box.on').removeClass('on');
+        }).on('click', '.article-share-link', function(e) {
+            e.stopPropagation();
+
+            var $this = $(this),
+                url = $this.attr('data-url'),
+                encodedUrl = encodeURIComponent(url),
+                id = 'article-share-box-' + $this.attr('data-id'),
+                offset = $this.offset(),
+                box;
+
+            if ($('#' + id).length) {
+                box = $('#' + id);
+
+                if (box.hasClass('on')){
+                    box.removeClass('on');
+                    return;
+                }
+            } else {
+                var html = [
+                    '<div id="' + id + '" class="article-share-box">',
+                        '<input class="article-share-input" value="' + url + '">',
+                        '<div class="article-share-links">',
+                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
+                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
+                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
+                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
+                        '</div>',
+                    '</div>'
+                ].join('');
+
+              box = $(html);
+
+              $('body').append(box);
+            }
+
+            $('.article-share-box.on').hide();
+
+            box.css({
+                top: offset.top + 25,
+                left: offset.left
+            }).addClass('on');
+
+        }).on('click', '.article-share-box', function (e) {
+            e.stopPropagation();
+        }).on('click', '.article-share-box-input', function () {
+            $(this).select();
+        }).on('click', '.article-share-box-link', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
+        });
+    })(jQuery);
+</script>
+
+            
+    
+        <a href="http://lexburner.github.io/2018/02/14/jpa-DDD/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2018/02/14/jpa-DDD/">评论</a>
+    
+
+        </footer>
+    </div>
+	
+    
+	
+</article>
+
+
+
     <article id="post-instrument" class="article article-type-post" itemscope itemprop="blogPost">
     <div class="article-inner">
         
@@ -311,7 +832,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2018/02/04/instrument/" data-id="cjde3vlsd001vssud75xgefq5" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2018/02/04/instrument/" data-id="cje5fepkh001vvgudmj6ip6xr" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -380,154 +901,6 @@
             
     
         <a href="http://lexburner.github.io/2018/02/04/instrument/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2018/02/04/instrument/">评论</a>
-    
-
-        </footer>
-    </div>
-	
-    
-	
-</article>
-
-
-
-    <article id="post-jpa-ddd" class="article article-type-post" itemscope itemprop="blogPost">
-    <div class="article-inner">
-        
-        
-            <header class="article-header">
-                
-    
-        <h1 itemprop="name">
-            <a class="article-title" href="/2018/01/29/jpa-ddd/">JPA 中几个体现领域驱动设计的细节</a>
-        </h1>
-    
-
-                
-                    <div class="article-meta">
-                    	
-	
-		<div class="article-type">
-		    <span class="label label-success" style="float: left;padding: 3px 5px 3px 5px;margin-right: 15px;margin-top: 2px;">原创</span>
-		</div>
-	
-	
-	
-		
-	
-
-                        
-    <div class="article-date">
-        <i class="fa fa-calendar"></i>
-        <a href="/2018/01/29/jpa-ddd/">
-            <time datetime="2018-01-29T12:16:28.000Z" itemprop="datePublished">2018-01-29</time>
-        </a>
-    </div>
-
-
-                        
-    <div class="article-category">
-    	<i class="fa fa-folder"></i>
-        <a class="article-category-link" href="/categories/领域驱动设计/">领域驱动设计</a>
-    </div>
-
-                        <!-- 不显示标签 -->
-                        <!-- 
-    <div class="article-tag">
-        <i class="fa fa-tag"></i>
-        <a class="tag-link" href="/tags/JPA/">JPA</a>, <a class="tag-link" href="/tags/领域驱动设计/">领域驱动设计</a>
-    </div>
- -->
-                    </div>
-                
-            </header>
-        
-        
-        <div class="article-entry" itemprop="articleBody">
-        
-            
-             <p>本文主要探讨的 JPA，主要指 JPA 规范接口和 Spring-Data-JPA 实现。</p>
-<h2 id="Repository-仓储"><a href="#Repository-仓储" class="headerlink" title="Repository 仓储"></a>Repository 仓储</h2><p>Spring-Data-JPA </p>
-
-           
-        
-        </div>
-        <footer class="article-footer">
-            <div class="share-container">
-
-
-
-</div>
-
-    <a data-url="http://lexburner.github.io/2018/01/29/jpa-ddd/" data-id="cjde3vlta002cssudquzbitt0" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
-<script>
-    (function ($) {
-        // Prevent duplicate binding
-        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
-            __SHARE_BUTTON_BINDED__ = true;
-        } else {
-            return;
-        }
-        $('body').on('click', function() {
-            $('.article-share-box.on').removeClass('on');
-        }).on('click', '.article-share-link', function(e) {
-            e.stopPropagation();
-
-            var $this = $(this),
-                url = $this.attr('data-url'),
-                encodedUrl = encodeURIComponent(url),
-                id = 'article-share-box-' + $this.attr('data-id'),
-                offset = $this.offset(),
-                box;
-
-            if ($('#' + id).length) {
-                box = $('#' + id);
-
-                if (box.hasClass('on')){
-                    box.removeClass('on');
-                    return;
-                }
-            } else {
-                var html = [
-                    '<div id="' + id + '" class="article-share-box">',
-                        '<input class="article-share-input" value="' + url + '">',
-                        '<div class="article-share-links">',
-                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
-                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
-                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
-                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
-                        '</div>',
-                    '</div>'
-                ].join('');
-
-              box = $(html);
-
-              $('body').append(box);
-            }
-
-            $('.article-share-box.on').hide();
-
-            box.css({
-                top: offset.top + 25,
-                left: offset.left
-            }).addClass('on');
-
-        }).on('click', '.article-share-box', function (e) {
-            e.stopPropagation();
-        }).on('click', '.article-share-box-input', function () {
-            $(this).select();
-        }).on('click', '.article-share-box-link', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-
-            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
-        });
-    })(jQuery);
-</script>
-
-            
-    
-        <a href="http://lexburner.github.io/2018/01/29/jpa-ddd/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2018/01/29/jpa-ddd/">评论</a>
     
 
         </footer>
@@ -931,7 +1304,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2018/01/16/chinese-copywriting-guidelines/" data-id="cjde3vlpj0008ssud63x8ya5p" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2018/01/16/chinese-copywriting-guidelines/" data-id="cje5fepis000lvguddo9s9kmm" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1159,7 +1532,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2018/01/14/gracefully-shutdown/" data-id="cjde3vls9001sssud2w06ts7z" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2018/01/14/gracefully-shutdown/" data-id="cje5fepk8001pvgud2yngnq3h" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1436,7 +1809,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2018/01/05/rpc-registry/" data-id="cjde3vlue0030ssudz80ga94x" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2018/01/05/rpc-registry/" data-id="cje5fepm6003fvgudhog7h5me" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1654,7 +2027,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/12/28/rpc-protocol/" data-id="cjde3vlvz003hssudtm2yeimb" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/12/28/rpc-protocol/" data-id="cje5fepm1003avgud7qm7ncww" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1824,7 +2197,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/12/27/motan-async/" data-id="cjde3vlu3002tssudw5jshyzg" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/12/27/motan-async/" data-id="cje5fepl9002ovgud7juuim37" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -1912,7 +2285,7 @@
                 
     
         <h1 itemprop="name">
-            <a class="article-title" href="/2017/12/22/rpc-transport/">深入理解RPC之传输篇</a>
+            <a class="article-title" href="/2017/12/22/rpc-transport/">深入理解 RPC 之传输篇</a>
         </h1>
     
 
@@ -2009,7 +2382,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/12/22/rpc-transport/" data-id="cjde3vlw4003kssudjty12uy1" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/12/22/rpc-transport/" data-id="cje5fepmb003hvgudvkueybde" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -2218,7 +2591,7 @@
 
 </div>
 
-    <a data-url="http://lexburner.github.io/2017/12/15/rpc-dynamic-proxy/" data-id="cjde3vlvj003bssudwr8k2ee1" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
+    <a data-url="http://lexburner.github.io/2017/12/15/rpc-dynamic-proxy/" data-id="cje5fepmh003lvgudrdxy1t51" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
 <script>
     (function ($) {
         // Prevent duplicate binding
@@ -2298,279 +2671,6 @@
 
 
 
-    <article id="post-rpc-serialize-2" class="article article-type-post" itemscope itemprop="blogPost">
-    <div class="article-inner">
-        
-        
-            <header class="article-header">
-                
-    
-        <h1 itemprop="name">
-            <a class="article-title" href="/2017/12/11/rpc-serialize-2/">深入理解RPC之序列化篇--总结篇</a>
-        </h1>
-    
-
-                
-                    <div class="article-meta">
-                    	
-	
-		<div class="article-type">
-		    <span class="label label-success" style="float: left;padding: 3px 5px 3px 5px;margin-right: 15px;margin-top: 2px;">原创</span>
-		</div>
-	
-	
-	
-		
-	
-
-                        
-    <div class="article-date">
-        <i class="fa fa-calendar"></i>
-        <a href="/2017/12/11/rpc-serialize-2/">
-            <time datetime="2017-12-11T14:58:54.000Z" itemprop="datePublished">2017-12-11</time>
-        </a>
-    </div>
-
-
-                        
-    <div class="article-category">
-    	<i class="fa fa-folder"></i>
-        <a class="article-category-link" href="/categories/RPC/">RPC</a>
-    </div>
-
-                        <!-- 不显示标签 -->
-                        <!-- 
-    <div class="article-tag">
-        <i class="fa fa-tag"></i>
-        <a class="tag-link" href="/tags/RPC/">RPC</a>
-    </div>
- -->
-                    </div>
-                
-            </header>
-        
-        
-        <div class="article-entry" itemprop="articleBody">
-        
-            
-             <p>上一篇<a href="https://www.cnkirito.moe/2017/11/28/kryo-1/" target="_blank" rel="external">《深入理解RPC之序列化篇–Kryo》</a>,介绍了序列化的基础概念，并且详细介绍了Kryo的一系列特性，在这一篇中，简略的介绍其他常用的序列化器，并对它们进行一些比较。序列化篇仅仅由Kryo篇和总结篇构成可能有点突兀，等待后续有时间会补充详细的探讨。</p>
-<h2 id="定义抽象接口"><a href="#定义抽象接口" class="headerlink" title="定义抽象接口"></a>定义抽象接口</h2><figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">Serialization</span> </span>&#123;</div><div class="line"></div><div class="line">   <span class="keyword">byte</span>[] serialize(Object obj) <span class="keyword">throws</span> IOException;</div><div class="line"></div><div class="line">   &lt;T&gt; <span class="function">T <span class="title">deserialize</span><span class="params">(<span class="keyword">byte</span>[] bytes, Class&lt;T&gt; clz)</span> <span class="keyword">throws</span> IOException</span>;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>RPC框架中的序列化实现自然是种类多样，但它们必须遵循统一的规范，于是我们使用 <code>Serialization</code> 作为序列化的统一接口，无论何种方案都需要实现该接口。</p>
-<h2 id="Kryo实现"><a href="#Kryo实现" class="headerlink" title="Kryo实现"></a>Kryo实现</h2><p>Kryo篇已经给出了实现代码。</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">KryoSerialization</span> <span class="keyword">implements</span> <span class="title">Serialization</span> </span>&#123;</div><div class="line"></div><div class="line">    <span class="meta">@Override</span></div><div class="line">    <span class="keyword">public</span> <span class="keyword">byte</span>[] serialize(Object obj) &#123;</div><div class="line">        Kryo kryo = kryoLocal.get();</div><div class="line">        ByteArrayOutputStream byteArrayOutputStream = <span class="keyword">new</span> ByteArrayOutputStream();</div><div class="line">        Output output = <span class="keyword">new</span> Output(byteArrayOutputStream);</div><div class="line">        kryo.writeObject(output, obj);</div><div class="line">        output.close();</div><div class="line">        <span class="keyword">return</span> byteArrayOutputStream.toByteArray();</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    <span class="meta">@Override</span></div><div class="line">    <span class="keyword">public</span> &lt;T&gt; <span class="function">T <span class="title">deserialize</span><span class="params">(<span class="keyword">byte</span>[] bytes, Class&lt;T&gt; clz)</span> </span>&#123;</div><div class="line">        Kryo kryo = kryoLocal.get();</div><div class="line">        ByteArrayInputStream byteArrayInputStream = <span class="keyword">new</span> ByteArrayInputStream(bytes);</div><div class="line">        Input input = <span class="keyword">new</span> Input(byteArrayInputStream);</div><div class="line">        input.close();</div><div class="line">        <span class="keyword">return</span> (T) kryo.readObject(input, clz);</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    <span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> ThreadLocal&lt;Kryo&gt; kryoLocal = <span class="keyword">new</span> ThreadLocal&lt;Kryo&gt;() &#123;</div><div class="line">        <span class="meta">@Override</span></div><div class="line">        <span class="function"><span class="keyword">protected</span> Kryo <span class="title">initialValue</span><span class="params">()</span> </span>&#123;</div><div class="line">            Kryo kryo = <span class="keyword">new</span> Kryo();</div><div class="line">            kryo.setReferences(<span class="keyword">true</span>);</div><div class="line">            kryo.setRegistrationRequired(<span class="keyword">false</span>);</div><div class="line">            <span class="keyword">return</span> kryo;</div><div class="line">        &#125;</div><div class="line">    &#125;;</div><div class="line"></div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>所需依赖：</p>
-<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="name">dependency</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>com.esotericsoftware<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>kryo<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">version</span>&gt;</span>4.0.1<span class="tag">&lt;/<span class="name">version</span>&gt;</span></div><div class="line"><span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></div></pre></td></tr></table></figure>
-<h2 id="Hessian实现"><a href="#Hessian实现" class="headerlink" title="Hessian实现"></a>Hessian实现</h2><figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Hessian2Serialization</span> <span class="keyword">implements</span> <span class="title">Serialization</span> </span>&#123;</div><div class="line"></div><div class="line">    <span class="meta">@Override</span></div><div class="line">    <span class="keyword">public</span> <span class="keyword">byte</span>[] serialize(Object data) <span class="keyword">throws</span> IOException &#123;</div><div class="line">        ByteArrayOutputStream bos = <span class="keyword">new</span> ByteArrayOutputStream();</div><div class="line">        Hessian2Output out = <span class="keyword">new</span> Hessian2Output(bos);</div><div class="line">        out.writeObject(data);</div><div class="line">        out.flush();</div><div class="line">        <span class="keyword">return</span> bos.toByteArray();</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    <span class="meta">@Override</span></div><div class="line">    <span class="keyword">public</span> &lt;T&gt; <span class="function">T <span class="title">deserialize</span><span class="params">(<span class="keyword">byte</span>[] bytes, Class&lt;T&gt; clz)</span> <span class="keyword">throws</span> IOException </span>&#123;</div><div class="line">        Hessian2Input input = <span class="keyword">new</span> Hessian2Input(<span class="keyword">new</span> ByteArrayInputStream(bytes));</div><div class="line">        <span class="keyword">return</span> (T) input.readObject(clz);</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>所需依赖：</p>
-<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="name">dependency</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>com.caucho<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>hessian<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">version</span>&gt;</span>4.0.51<span class="tag">&lt;/<span class="name">version</span>&gt;</span></div><div class="line"><span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></div></pre></td></tr></table></figure>
-<p>大名鼎鼎的 Hessian 序列化方案经常被RPC框架用来作为默认的序列化方案，可见其必然具备一定的优势。其具体的优劣我们放到文末的总结对比中与其他序列化方案一起讨论。而在此，着重提一点Hessian使用时的坑点。</p>
-<p><strong>BigDecimal的反序列化</strong></p>
-<p>使用 Hessian 序列化包含 BigDecimal 字段的对象时会导致其值一直为0，不注意这个bug会导致很大的问题，在最新的4.0.51版本仍然可以复现。解决方案也很简单，指定 BigDecimal 的序列化器即可，通过添加两个文件解决这个bug：</p>
-<p><strong>resources\META-INF\hessian\serializers</strong></p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">java.math.BigDecimal=com.caucho.hessian.io.StringValueSerializer</div></pre></td></tr></table></figure>
-<p><strong>resources\META-INF\hessian\deserializers</strong></p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">java.math.BigDecimal=com.caucho.hessian.io.BigDecimalDeserializer</div></pre></td></tr></table></figure>
-<h2 id="Protostuff实现"><a href="#Protostuff实现" class="headerlink" title="Protostuff实现"></a>Protostuff实现</h2><figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">ProtostuffSerialization</span> <span class="keyword">implements</span> <span class="title">Serialization</span> </span>&#123;</div><div class="line"></div><div class="line">    <span class="meta">@Override</span></div><div class="line">    <span class="keyword">public</span> <span class="keyword">byte</span>[] serialize(Object obj) <span class="keyword">throws</span> IOException &#123;</div><div class="line">        Class clz = obj.getClass();</div><div class="line">        LinkedBuffer buffer = LinkedBuffer.allocate(LinkedBuffer.DEFAULT_BUFFER_SIZE);</div><div class="line">        <span class="keyword">try</span> &#123;</div><div class="line">            Schema schema = RuntimeSchema.createFrom(clz);</div><div class="line">            <span class="keyword">return</span> ProtostuffIOUtil.toByteArray(obj, schema, buffer);</div><div class="line">        &#125; <span class="keyword">catch</span> (Exception e) &#123;</div><div class="line">            <span class="keyword">throw</span> e;</div><div class="line">        &#125; <span class="keyword">finally</span> &#123;</div><div class="line">            buffer.clear();</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    <span class="meta">@Override</span></div><div class="line">    <span class="keyword">public</span> &lt;T&gt; <span class="function">T <span class="title">deserialize</span><span class="params">(<span class="keyword">byte</span>[] bytes, Class&lt;T&gt; clz)</span> <span class="keyword">throws</span> IOException </span>&#123;</div><div class="line">        T message = objenesis.newInstance(clz); <span class="comment">// &lt;1&gt;</span></div><div class="line">        Schema&lt;T&gt; schema = RuntimeSchema.createFrom(clz);</div><div class="line">        ProtostuffIOUtil.mergeFrom(bytes, message, schema);</div><div class="line">        <span class="keyword">return</span> message;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    <span class="keyword">private</span> Objenesis objenesis = <span class="keyword">new</span> ObjenesisStd(); <span class="comment">// &lt;2&gt;</span></div><div class="line"></div><div class="line"></div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>所需依赖：</p>
-<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div></pre></td><td class="code"><pre><div class="line"><span class="comment">&lt;!-- Protostuff --&gt;</span></div><div class="line"><span class="tag">&lt;<span class="name">dependency</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>com.dyuproject.protostuff<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>protostuff-core<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">version</span>&gt;</span>1.0.9<span class="tag">&lt;/<span class="name">version</span>&gt;</span></div><div class="line"><span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></div><div class="line"><span class="tag">&lt;<span class="name">dependency</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>com.dyuproject.protostuff<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>protostuff-runtime<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">version</span>&gt;</span>1.0.9<span class="tag">&lt;/<span class="name">version</span>&gt;</span></div><div class="line"><span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></div><div class="line"><span class="comment">&lt;!-- Objenesis --&gt;</span></div><div class="line"><span class="tag">&lt;<span class="name">dependency</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>org.objenesis<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>objenesis<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">version</span>&gt;</span>2.5<span class="tag">&lt;/<span class="name">version</span>&gt;</span></div><div class="line"><span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></div></pre></td></tr></table></figure>
-<p>Protostuff 可以理解为 google protobuf 序列化的升级版本，protostuff-runtime 无需静态编译，这比较适合RPC通信时的特性，很少见到有人直接拿 protobuf  作为RPC的序列化器，而 protostuff-runtime 仍然占据一席之地。</p>
-<p><1>  使用 Protostuff 的一个坑点在于其反序列化时需用户自己实例化序列化后的对象，所以才有了 <code>T message = objenesis.newInstance(clz);</code> 这行代码。使用 objenesis 工具实例化一个需要的对象，而后使用 <code>ProtostuffIOUtil</code> 完成赋值操作。</1></p>
-<p><2> 上述的 <code>objenesis.newInstance(clz)</code> 可以由 <code>clz.newInstance()</code> 代替，后者也可以实例化一个对象，但如果对象缺少无参构造函数，则会报错。借助于<code>objenesis</code> 可以绕开无参构造器实例化一个对象，且性能优于直接反射创建。所以一般在选择 Protostuff  作为序列化器时，一般配合 objenesis 使用。</2></p>
-<h2 id="Fastjson实现"><a href="#Fastjson实现" class="headerlink" title="Fastjson实现"></a>Fastjson实现</h2><figure class="highlight java"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">FastJsonSerialization</span> <span class="keyword">implements</span> <span class="title">Serialization</span> </span>&#123;</div><div class="line">    <span class="keyword">static</span> <span class="keyword">final</span> String charsetName = <span class="string">"UTF-8"</span>;</div><div class="line">    <span class="meta">@Override</span></div><div class="line">    <span class="keyword">public</span> <span class="keyword">byte</span>[] serialize(Object data) <span class="keyword">throws</span> IOException &#123;</div><div class="line">        SerializeWriter out = <span class="keyword">new</span> SerializeWriter();</div><div class="line">        JSONSerializer serializer = <span class="keyword">new</span> JSONSerializer(out);</div><div class="line">        serializer.config(SerializerFeature.WriteEnumUsingToString, <span class="keyword">true</span>);<span class="comment">//&lt;1&gt;</span></div><div class="line">        serializer.config(SerializerFeature.WriteClassName, <span class="keyword">true</span>);<span class="comment">//&lt;1&gt;</span></div><div class="line">        serializer.write(data);</div><div class="line">        <span class="keyword">return</span> out.toBytes(charsetName);</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    <span class="meta">@Override</span></div><div class="line">    <span class="keyword">public</span> &lt;T&gt; <span class="function">T <span class="title">deserialize</span><span class="params">(<span class="keyword">byte</span>[] data, Class&lt;T&gt; clz)</span> <span class="keyword">throws</span> IOException </span>&#123;</div><div class="line">        <span class="keyword">return</span> JSON.parseObject(<span class="keyword">new</span> String(data), clz);</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>所需依赖：</p>
-<figure class="highlight xml"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line"><span class="tag">&lt;<span class="name">dependency</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>com.alibaba<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>fastjson<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></div><div class="line">    <span class="tag">&lt;<span class="name">version</span>&gt;</span>1.2.28<span class="tag">&lt;/<span class="name">version</span>&gt;</span></div><div class="line"><span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></div></pre></td></tr></table></figure>
-<p><1> JSON序列化注意对枚举类型的特殊处理；额外补充类名可以在反序列化时获得更丰富的信息。</1></p>
-<h2 id="序列化对比"><a href="#序列化对比" class="headerlink" title="序列化对比"></a>序列化对比</h2><p>在我的PC上对上述序列化方案进行测试：</p>
-<p><strong>测试用例：对一个简单POJO对象序列化/反序列化100W次</strong></p>
-<table>
-<thead>
-<tr>
-<th></th>
-<th>serialize/ms</th>
-<th>deserialize/ms</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Fastjson</td>
-<td>2832</td>
-<td>2242</td>
-</tr>
-<tr>
-<td>Kryo</td>
-<td>2975</td>
-<td>1987</td>
-</tr>
-<tr>
-<td>Hessian</td>
-<td>4598</td>
-<td>3631</td>
-</tr>
-<tr>
-<td>Protostuff</td>
-<td>2944</td>
-<td>2541</td>
-</tr>
-</tbody>
-</table>
-<p><strong>测试用例：序列化包含1000个简单对象的List，循环1000次</strong></p>
-<table>
-<thead>
-<tr>
-<th></th>
-<th>serialize/ms</th>
-<th>deserialize/ms</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Fastjson</td>
-<td>2551</td>
-<td>2821</td>
-</tr>
-<tr>
-<td>Kryo</td>
-<td>1951</td>
-<td>1342</td>
-</tr>
-<tr>
-<td>Hessian</td>
-<td>1828</td>
-<td>2213</td>
-</tr>
-<tr>
-<td>Protostuff</td>
-<td>1409</td>
-<td>2813</td>
-</tr>
-</tbody>
-</table>
-<p>对于耗时类型的测试需要做到预热+平均值等条件，测试后效果其实并不如人意，从我不太严谨的测试来看，并不能明显地区分出他们的性能。另外，Kryo关闭Reference可以加速，Protostuff支持静态编译加速，Schema缓存等特性，每个序列化方案都有自身的特殊性，启用这些特性会伴随一些限制。但在RPC实际地序列化使用中不会利用到这些特性，所以在测试时并没有特别关照它们。</p>
-<p><strong>序列化包含1000个简单对象的List，查看字节数</strong></p>
-<table>
-<thead>
-<tr>
-<th></th>
-<th>字节数/byte</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Fastjson</td>
-<td>120157</td>
-</tr>
-<tr>
-<td>Kryo</td>
-<td>39134</td>
-</tr>
-<tr>
-<td>Hessian</td>
-<td>86166</td>
-</tr>
-<tr>
-<td>Protostuff</td>
-<td>86084</td>
-</tr>
-</tbody>
-</table>
-<p>字节数这个指标还是很直观的，Kryo拥有绝对的优势，只有Hessian，Protostuff的一半，而Fastjson作为一个文本类型的序列化方案，自然无法和字节类型的序列化方案比较。而字节最终将用于网络传输，是RPC框架非常在意的一个性能点。</p>
-<p><strong>综合评价</strong></p>
-<p>经过个人测试，以及一些官方的测试结果，我觉得在 RPC 场景下，序列化的速度并不是一个很大考量标准，因为各个序列化方案都在有意优化速度，只要不是 jdk 序列化，速度就不会太慢。</p>
-<p>Kryo：专为 JAVA 定制的序列化协议，序列化后字节数少，利于网络传输。但不支持跨语言（或支持的代价比较大）。dubbox 扩展中支持了 kryo 序列化协议。github 3018 star。</p>
-<p>Hessian：支持跨语言，序列化后字节数适中，API 易用。是国内主流 rpc 框架：dubbo，motan 的默认序列化协议。<a href="http://hessian.caucho.com/" target="_blank" rel="external">hessian.caucho.com</a> 未托管在github</p>
-<p>Protostuff：提起 Protostuff 不得不说到 Protobuf。Protobuf可能更出名一些，因为其是google的亲儿子，grpc框架便是使用protobuf作为序列化协议，虽然protobuf与语言无关平台无关，但需要使用特定的语法编写 <code>.prpto</code> 文件，然后静态编译，这带了一些复杂性。而 protostuff 实际是对 protobuf 的扩展，protostuff-runtime 模块继承了protobuf 性能，且不需要预编译文件，但与此同时，也失去了跨语言的特性。所以 protostuff 的定位是一个 JAVA 序列化框架，其性能略优于 Hessian。tip ：protostuff 反序列化时需用户自己初始化序列化后的对象，其只负责将该对象进行赋值。github 719 star。</p>
-<p>Fastjson：作为一个 json 工具，被拉到 RPC 的序列化方案中似乎有点不妥，但 motan 该 RPC 框架除了支持 hessian 之外，还支持了 fastjson 的序列化。可以将其作为一个跨语言序列化的简易实现方案。github 11.8k star。</p>
-
-           
-        
-        </div>
-        <footer class="article-footer">
-            <div class="share-container">
-
-
-
-</div>
-
-    <a data-url="http://lexburner.github.io/2017/12/11/rpc-serialize-2/" data-id="cjde3vlx00044ssudqo75bbmj" class="article-share-link"><i class="fa fa-share"></i>分享到</a>
-<script>
-    (function ($) {
-        // Prevent duplicate binding
-        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
-            __SHARE_BUTTON_BINDED__ = true;
-        } else {
-            return;
-        }
-        $('body').on('click', function() {
-            $('.article-share-box.on').removeClass('on');
-        }).on('click', '.article-share-link', function(e) {
-            e.stopPropagation();
-
-            var $this = $(this),
-                url = $this.attr('data-url'),
-                encodedUrl = encodeURIComponent(url),
-                id = 'article-share-box-' + $this.attr('data-id'),
-                offset = $this.offset(),
-                box;
-
-            if ($('#' + id).length) {
-                box = $('#' + id);
-
-                if (box.hasClass('on')){
-                    box.removeClass('on');
-                    return;
-                }
-            } else {
-                var html = [
-                    '<div id="' + id + '" class="article-share-box">',
-                        '<input class="article-share-input" value="' + url + '">',
-                        '<div class="article-share-links">',
-                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fa fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
-                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fa fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
-                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fa fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
-                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fa fa-google article-share-google" target="_blank" title="Google+"></a>',
-                        '</div>',
-                    '</div>'
-                ].join('');
-
-              box = $(html);
-
-              $('body').append(box);
-            }
-
-            $('.article-share-box.on').hide();
-
-            box.css({
-                top: offset.top + 25,
-                left: offset.left
-            }).addClass('on');
-
-        }).on('click', '.article-share-box', function (e) {
-            e.stopPropagation();
-        }).on('click', '.article-share-box-input', function () {
-            $(this).select();
-        }).on('click', '.article-share-box-link', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-
-            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
-        });
-    })(jQuery);
-</script>
-
-            
-    
-        <a href="http://lexburner.github.io/2017/12/11/rpc-serialize-2/#comments" class="article-comment-link disqus-comment-count" data-disqus-url="http://lexburner.github.io/2017/12/11/rpc-serialize-2/">评论</a>
-    
-
-        </footer>
-    </div>
-	
-    
-	
-</article>
-
-
-
     <nav id="page-nav">
         <span class="page-number current">1</span><a class="page-number" href="/page/2/">2</a><a class="page-number" href="/page/3/">3</a><span class="space">&hellip;</span><a class="page-number" href="/page/8/">8</a><a class="extend next" rel="next" href="/page/2/">下一页 &raquo;</a>
     </nav>
@@ -2583,6 +2683,46 @@
         <h3 class="widget-title">最新文章</h3>
         <div class="widget">
             <ul id="recent-post" class="">
+                
+                    <li>
+                        
+                        <!-- 去除图片 -->
+                        <!-- <div class="item-thumbnail">
+                            <a href="/2018/02/27/rpc-cluster/" class="thumbnail">
+    
+    
+        <span class="thumbnail-image thumbnail-none"></span>
+    
+</a>
+
+                        </div> -->
+                        
+                        <div class="item-inner">
+                            <p class="item-category"><a class="article-category-link" href="/categories/RPC/">RPC</a></p>
+                            <p class="item-title"><a href="/2018/02/27/rpc-cluster/" class="title">深入理解 RPC 之集群篇</a></p>
+                            <p class="item-date"><time datetime="2018-02-27T14:18:51.000Z" itemprop="datePublished">2018-02-27</time></p>
+                        </div>
+                    </li>
+                
+                    <li>
+                        
+                        <!-- 去除图片 -->
+                        <!-- <div class="item-thumbnail">
+                            <a href="/2018/02/14/jpa-DDD/" class="thumbnail">
+    
+    
+        <span class="thumbnail-image thumbnail-none"></span>
+    
+</a>
+
+                        </div> -->
+                        
+                        <div class="item-inner">
+                            <p class="item-category"><a class="article-category-link" href="/categories/JAVA/">JAVA</a></p>
+                            <p class="item-title"><a href="/2018/02/14/jpa-DDD/" class="title">JAVA 拾遗--JPA 二三事</a></p>
+                            <p class="item-date"><time datetime="2018-02-14T14:18:51.000Z" itemprop="datePublished">2018-02-14</time></p>
+                        </div>
+                    </li>
                 
                     <li>
                         
@@ -2601,26 +2741,6 @@
                             <p class="item-category"><a class="article-category-link" href="/categories/JAVA/">JAVA</a></p>
                             <p class="item-title"><a href="/2018/02/04/instrument/" class="title">JAVA 拾遗--Instrument 机制</a></p>
                             <p class="item-date"><time datetime="2018-02-04T14:18:51.000Z" itemprop="datePublished">2018-02-04</time></p>
-                        </div>
-                    </li>
-                
-                    <li>
-                        
-                        <!-- 去除图片 -->
-                        <!-- <div class="item-thumbnail">
-                            <a href="/2018/01/29/jpa-ddd/" class="thumbnail">
-    
-    
-        <span class="thumbnail-image thumbnail-none"></span>
-    
-</a>
-
-                        </div> -->
-                        
-                        <div class="item-inner">
-                            <p class="item-category"><a class="article-category-link" href="/categories/领域驱动设计/">领域驱动设计</a></p>
-                            <p class="item-title"><a href="/2018/01/29/jpa-ddd/" class="title">JPA 中几个体现领域驱动设计的细节</a></p>
-                            <p class="item-date"><time datetime="2018-01-29T12:16:28.000Z" itemprop="datePublished">2018-01-29</time></p>
                         </div>
                     </li>
                 
@@ -2664,26 +2784,6 @@
                         </div>
                     </li>
                 
-                    <li>
-                        
-                        <!-- 去除图片 -->
-                        <!-- <div class="item-thumbnail">
-                            <a href="/2018/01/05/rpc-registry/" class="thumbnail">
-    
-    
-        <span class="thumbnail-image thumbnail-none"></span>
-    
-</a>
-
-                        </div> -->
-                        
-                        <div class="item-inner">
-                            <p class="item-category"><a class="article-category-link" href="/categories/RPC/">RPC</a></p>
-                            <p class="item-title"><a href="/2018/01/05/rpc-registry/" class="title">深入理解RPC之服务注册与发现篇</a></p>
-                            <p class="item-date"><time datetime="2018-01-05T12:16:28.000Z" itemprop="datePublished">2018-01-05</time></p>
-                        </div>
-                    </li>
-                
             </ul>
         </div>
     </div>
@@ -2693,7 +2793,7 @@
     <div class="widget-wrap">
         <h3 class="widget-title">分类</h3>
         <div class="widget">
-            <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/DevOps/">DevOps</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/JAVA/">JAVA</a><span class="category-list-count">16</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/RPC/">RPC</a><span class="category-list-count">8</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring/">Spring</a><span class="category-list-count">7</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Cloud/">Spring Cloud</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Data-Redis/">Spring Data Redis</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security/">Spring Security</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security-OAuth2/">Spring Security OAuth2</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Session/">Spring Session</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/技术杂谈/">技术杂谈</a><span class="category-list-count">8</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/架构设计/">架构设计</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/规则引擎/">规则引擎</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/领域驱动设计/">领域驱动设计</a><span class="category-list-count">3</span></li></ul>
+            <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/DevOps/">DevOps</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/JAVA/">JAVA</a><span class="category-list-count">17</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/RPC/">RPC</a><span class="category-list-count">9</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring/">Spring</a><span class="category-list-count">7</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Cloud/">Spring Cloud</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Data-Redis/">Spring Data Redis</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security/">Spring Security</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Security-OAuth2/">Spring Security OAuth2</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/Spring-Session/">Spring Session</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/技术杂谈/">技术杂谈</a><span class="category-list-count">8</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/架构设计/">架构设计</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/规则引擎/">规则引擎</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="/categories/领域驱动设计/">领域驱动设计</a><span class="category-list-count">2</span></li></ul>
         </div>
     </div>
 
@@ -2702,7 +2802,7 @@
     <div class="widget-wrap">
         <h3 class="widget-title">归档</h3>
         <div class="widget">
-            <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/02/">二月 2018</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/01/">一月 2018</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/12/">十二月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/11/">十一月 2017</a><span class="archive-list-count">5</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/10/">十月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a><span class="archive-list-count">12</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a><span class="archive-list-count">10</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/02/">二月 2017</a><span class="archive-list-count">7</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/11/">十一月 2016</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/08/">八月 2016</a><span class="archive-list-count">3</span></li></ul>
+            <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/02/">二月 2018</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/01/">一月 2018</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/12/">十二月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/11/">十一月 2017</a><span class="archive-list-count">5</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/10/">十月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a><span class="archive-list-count">12</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a><span class="archive-list-count">10</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/02/">二月 2017</a><span class="archive-list-count">7</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/11/">十一月 2016</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/08/">八月 2016</a><span class="archive-list-count">3</span></li></ul>
         </div>
     </div>
 
@@ -2711,7 +2811,7 @@
     <div class="widget-wrap">
         <h3 class="widget-title">标签云</h3>
         <div class="widget tagcloud">
-            <a href="/tags/DevOps/" style="font-size: 11.43px;">DevOps</a> <a href="/tags/JAVA/" style="font-size: 20px;">JAVA</a> <a href="/tags/JMM/" style="font-size: 10px;">JMM</a> <a href="/tags/JPA/" style="font-size: 10px;">JPA</a> <a href="/tags/RPC/" style="font-size: 17.14px;">RPC</a> <a href="/tags/Spring/" style="font-size: 18.57px;">Spring</a> <a href="/tags/Spring-Cloud/" style="font-size: 12.86px;">Spring Cloud</a> <a href="/tags/Spring-Cloud-Zuul/" style="font-size: 11.43px;">Spring Cloud Zuul</a> <a href="/tags/Spring-Data-Redis/" style="font-size: 11.43px;">Spring Data Redis</a> <a href="/tags/Spring-Security/" style="font-size: 15.71px;">Spring Security</a> <a href="/tags/Spring-Security-OAuth2/" style="font-size: 12.86px;">Spring Security OAuth2</a> <a href="/tags/Spring-Session/" style="font-size: 12.86px;">Spring Session</a> <a href="/tags/Validation/" style="font-size: 11.43px;">Validation</a> <a href="/tags/XML/" style="font-size: 10px;">XML</a> <a href="/tags/Zipkin/" style="font-size: 10px;">Zipkin</a> <a href="/tags/drools/" style="font-size: 14.29px;">drools</a> <a href="/tags/lua/" style="font-size: 10px;">lua</a> <a href="/tags/motan/" style="font-size: 10px;">motan</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/zookeeper/" style="font-size: 10px;">zookeeper</a> <a href="/tags/中文排版/" style="font-size: 10px;">中文排版</a> <a href="/tags/事务/" style="font-size: 11.43px;">事务</a> <a href="/tags/代码规范/" style="font-size: 10px;">代码规范</a> <a href="/tags/多线程/" style="font-size: 15.71px;">多线程</a> <a href="/tags/微服务/" style="font-size: 10px;">微服务</a> <a href="/tags/技术杂谈/" style="font-size: 15.71px;">技术杂谈</a> <a href="/tags/数据库/" style="font-size: 10px;">数据库</a> <a href="/tags/杂谈/" style="font-size: 10px;">杂谈</a> <a href="/tags/架构设计/" style="font-size: 14.29px;">架构设计</a> <a href="/tags/求职/" style="font-size: 10px;">求职</a> <a href="/tags/规则引擎/" style="font-size: 14.29px;">规则引擎</a> <a href="/tags/领域驱动设计/" style="font-size: 12.86px;">领域驱动设计</a>
+            <a href="/tags/DevOps/" style="font-size: 11.43px;">DevOps</a> <a href="/tags/JAVA/" style="font-size: 20px;">JAVA</a> <a href="/tags/JMM/" style="font-size: 10px;">JMM</a> <a href="/tags/RPC/" style="font-size: 17.14px;">RPC</a> <a href="/tags/Spring/" style="font-size: 18.57px;">Spring</a> <a href="/tags/Spring-Cloud/" style="font-size: 12.86px;">Spring Cloud</a> <a href="/tags/Spring-Cloud-Zuul/" style="font-size: 11.43px;">Spring Cloud Zuul</a> <a href="/tags/Spring-Data-Redis/" style="font-size: 11.43px;">Spring Data Redis</a> <a href="/tags/Spring-Security/" style="font-size: 15.71px;">Spring Security</a> <a href="/tags/Spring-Security-OAuth2/" style="font-size: 12.86px;">Spring Security OAuth2</a> <a href="/tags/Spring-Session/" style="font-size: 12.86px;">Spring Session</a> <a href="/tags/Validation/" style="font-size: 11.43px;">Validation</a> <a href="/tags/XML/" style="font-size: 10px;">XML</a> <a href="/tags/Zipkin/" style="font-size: 10px;">Zipkin</a> <a href="/tags/drools/" style="font-size: 14.29px;">drools</a> <a href="/tags/lua/" style="font-size: 10px;">lua</a> <a href="/tags/motan/" style="font-size: 10px;">motan</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/zookeeper/" style="font-size: 10px;">zookeeper</a> <a href="/tags/中文排版/" style="font-size: 10px;">中文排版</a> <a href="/tags/事务/" style="font-size: 11.43px;">事务</a> <a href="/tags/代码规范/" style="font-size: 10px;">代码规范</a> <a href="/tags/多线程/" style="font-size: 15.71px;">多线程</a> <a href="/tags/微服务/" style="font-size: 10px;">微服务</a> <a href="/tags/技术杂谈/" style="font-size: 15.71px;">技术杂谈</a> <a href="/tags/数据库/" style="font-size: 10px;">数据库</a> <a href="/tags/杂谈/" style="font-size: 10px;">杂谈</a> <a href="/tags/架构设计/" style="font-size: 14.29px;">架构设计</a> <a href="/tags/求职/" style="font-size: 10px;">求职</a> <a href="/tags/规则引擎/" style="font-size: 14.29px;">规则引擎</a> <a href="/tags/领域驱动设计/" style="font-size: 11.43px;">领域驱动设计</a>
         </div>
     </div>
 
